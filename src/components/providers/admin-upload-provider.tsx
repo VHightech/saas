@@ -24,7 +24,7 @@ interface AdminUploadContextType {
     status: string
     result: UploadResult | null
     error: string | null
-    uploadFiles: (csv: File, archive: File) => Promise<void>
+    uploadFiles: (csv: File, archive: File, force?: boolean) => Promise<void>
     resetUpload: () => void
     dismissResult: () => void
 }
@@ -68,7 +68,7 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
         });
     }
 
-    const uploadFiles = async (csvFile: File, archiveFile: File) => {
+    const uploadFiles = async (csvFile: File, archiveFile: File, force: boolean = false) => {
         console.log('[UploadProvider] Starting upload...', { csv: csvFile.name, archive: archiveFile.name })
         resetUpload()
         setIsUploading(true)
@@ -113,7 +113,7 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
 
         try {
             console.log('[UploadProvider] Sending fetch request...')
-            const res = await fetch('/api/upload', {
+            const res = await fetch(`/api/upload?force=${force}`, {
                 method: 'POST',
                 body: formData
             })

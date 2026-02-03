@@ -19,6 +19,9 @@ interface UploadResult {
     previewPdfMatches?: number // New
     previewAlreadyLinked?: number // New
     uniqueMatchedUsers?: number // New
+    duplicateArchive?: boolean // New
+    existingArchiveTotal?: number // New
+    overwriteWarning?: boolean // New
 }
 export default function AdminDashboardPage() {
     const [csvFile, setCsvFile] = useState<File | null>(null)
@@ -101,8 +104,11 @@ export default function AdminDashboardPage() {
 
         setShowPreviewModal(false)
 
+        // Check for duplicate archive warning
+        const force = previewStats?.duplicateArchive || false
+
         // Trigger global upload (runs in background via Context)
-        uploadFiles(csvFile, archiveFile)
+        uploadFiles(csvFile, archiveFile, force)
     }
 
     return (
@@ -282,12 +288,7 @@ export default function AdminDashboardPage() {
                     </button>
                 )}
 
-                {isUploading && (
-                    <div className="flex items-center gap-3 px-8 py-4 bg-slate-100 rounded-2xl text-slate-500 font-bold animate-pulse">
-                        <Loader2 size={24} className="animate-spin text-slate-400" />
-                        Elaborazione in corso...
-                    </div>
-                )}
+
             </div>
 
             {/* PREVIEW MODAL */}
@@ -305,6 +306,20 @@ export default function AdminDashboardPage() {
                         </div>
 
                         <div className="space-y-6 mb-8">
+                            {previewStats.duplicateArchive && (
+                                <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30 flex gap-4">
+                                    <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-500" />
+                                    <div>
+                                        <h3 className="font-bold text-amber-800 dark:text-amber-400">Archivio già caricato</h3>
+                                        <div className="text-sm text-amber-700 dark:text-amber-500 mt-1">
+                                            Questo archivio Zip (<strong>{archiveFile?.name}</strong>) risulta già elaborato in precedenza ({previewStats.existingArchiveTotal} files).
+                                            <br />
+                                            Procedendo, <strong>verranno sovrascritti</strong> i file con lo stesso nome.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* TOP STATS ROW */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="bg-slate-50 dark:bg-white/5 p-5 rounded-2xl border border-slate-100 dark:border-white/5 flex flex-col justify-center items-center text-center gap-1">
@@ -354,7 +369,7 @@ export default function AdminDashboardPage() {
                                             <span className="block text-3xl font-black text-sky-600 dark:text-sky-400">
                                                 {(previewStats.previewPdfMatches || 0) - (previewStats.previewAlreadyLinked || 0)}
                                             </span>
-                                            <span className="block text-[9px] text-sky-400 dark:text-sky-500/80 font-semibold mt-1">Nuovi o da Collegare</span>
+
                                         </div>
 
                                         {/* COL 2: IGNORED */}
@@ -363,20 +378,18 @@ export default function AdminDashboardPage() {
                                             <span className="block text-3xl font-black text-slate-600 dark:text-slate-400">
                                                 {previewStats.previewAlreadyLinked || 0}
                                             </span>
-                                            <span className="block text-[9px] text-slate-400 font-semibold mt-1">Nessuna modifica</span>
+
                                         </div>
 
                                         {/* COL 3: UNMATCHED */}
-                                        <div className={`text-center p-3 rounded-xl border ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-800/30' : 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/30'}`}>
-                                            <span className={`block font-bold uppercase text-[9px] mb-1 ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                        <div className={`text-center p-3 rounded-xl border ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-800/30' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/5'}`}>
+                                            <span className={`block font-bold uppercase text-[9px] mb-1 ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
                                                 Non Riconosciuti
                                             </span>
-                                            <span className={`block text-3xl font-black ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                            <span className={`block text-3xl font-black ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
                                                 {previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)}
                                             </span>
-                                            <span className={`block text-[9px] font-semibold mt-1 ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                                {(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'Nessun match DB/CSV' : 'Tutti trovati!'}
-                                            </span>
+
                                         </div>
 
                                     </div>
@@ -387,15 +400,15 @@ export default function AdminDashboardPage() {
                         <div className="flex gap-4">
                             <button
                                 onClick={() => setShowPreviewModal(false)}
-                                className="px-8 py-4 font-bold rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+                                className="px-8 py-4 font-bold rounded-xl btn-glass btn-glass-neutral"
                             >
                                 Annulla
                             </button>
                             <button
                                 onClick={handleConfirmUpload}
-                                className="flex-1 py-4 font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-slate-200 transition-all shadow-xl shadow-slate-900/10"
+                                className={`flex-1 py-4 font-bold rounded-xl shadow-xl ${previewStats.duplicateArchive ? 'btn-glass btn-glass-amber' : 'btn-glass btn-glass-emerald'}`}
                             >
-                                Conferma e Avvia Importazione
+                                {previewStats.duplicateArchive ? 'Conferma e Sovrascrivi' : 'Conferma e Avvia Importazione'}
                             </button>
                         </div>
                     </div>

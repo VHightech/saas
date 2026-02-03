@@ -215,18 +215,18 @@ export function ConsumptionChart({ settings = {}, initialData = [] }: Consumptio
                             </div>
                             <div>
                                 <h5 className="text-lg md:text-2xl font-bold text-slate-800 dark:text-white">{activeItem.value} Mc</h5>
-                                <p className="text-[10px] md:text-sm text-slate-500 dark:text-slate-400">Consumo {monthNames[activeItem.name] || activeItem.name}</p>
+                                <p className="text-[10px] md:text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">Consumo {monthNames[activeItem.name] || activeItem.name}</p>
                             </div>
                         </div>
                         <div>
                             <span className={cn(
-                                "inline-flex items-center text-[10px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-sm border",
+                                "inline-flex items-center text-[10px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-sm border whitespace-nowrap",
                                 currentDiff > 0
                                     ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20"
                                     : "bg-red-50 text-red-600 border-red-100"
                             )}>
                                 {currentDiff > 0 ? '+' : ''}{currentDiff.toFixed(1)}%
-                                <span className="hidden md:inline ml-1 text-[10px] opacity-90 font-medium uppercase tracking-wide">vs Media</span>
+                                <span className="hidden md:inline ml-1 text-[10px] opacity-90 font-medium uppercase tracking-wide whitespace-nowrap">vs Media</span>
                             </span>
                         </div>
                     </div>
@@ -310,7 +310,7 @@ export function ConsumptionChart({ settings = {}, initialData = [] }: Consumptio
                                 {currentDiff > 0 ? '+' : ''}{currentDiff.toFixed(0)}%
                             </div>
                         </div>
-                        <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Consumo {monthNames[activeItem.name]}</p>
+                        <p className="text-slate-400 dark:text-slate-500 text-sm font-medium whitespace-nowrap">Consumo {monthNames[activeItem.name]}</p>
                     </div>
 
                     {/* Bar Chart */}
