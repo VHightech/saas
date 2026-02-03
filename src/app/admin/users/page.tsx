@@ -259,9 +259,9 @@ export default function AdminUsersPage() {
                     <table className="w-full text-left border-collapse">
                         <thead className="sticky top-0 z-10">
                             <tr className="border-b border-slate-100 dark:border-[#333333] bg-slate-50/95 dark:bg-[#1e1e1e] backdrop-blur-md">
-                                <th className="p-3 pl-6 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Utente</th>
-                                <th className="p-3 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Dati Fatturazione</th>
-                                <th className="p-3 pr-6 text-right text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Stato</th>
+                                <th className="p-3 pl-6 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 w-[45%]">Utente</th>
+                                <th className="p-3 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 w-[35%]">Dati Fatturazione</th>
+                                <th className="p-3 pr-6 text-right text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 w-[20%]">Stato</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-[#333333]">
@@ -323,7 +323,7 @@ export default function AdminUsersPage() {
                                                         onClick={(e) => copyToClipboard(user.cif, e, user.id, 'cif')}
                                                         title="Clicca per copiare"
                                                     >
-                                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase w-8">CIF</span>
+                                                        <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase w-12">CIF</span>
                                                         <span className="font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 rounded select-all transition-all duration-200 group-hover/cif:bg-indigo-50 group-hover/cif:text-indigo-600 group-hover/cif:border-indigo-200 dark:group-hover/cif:bg-indigo-900/40 dark:group-hover/cif:text-indigo-300 dark:group-hover/cif:border-indigo-500/30 relative">
                                                             {user.cif}
                                                             {copiedState?.id === user.id && copiedState?.field === 'cif' && (
@@ -338,7 +338,9 @@ export default function AdminUsersPage() {
                                                         onClick={(e) => copyToClipboard(user.cfpi, e, user.id, 'cfpi')}
                                                         title="Clicca per copiare"
                                                     >
-                                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase whitespace-nowrap">CF - PI</span>
+                                                        <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase w-12 whitespace-nowrap">
+                                                            {/^\d{11}$/.test(user.cfpi) ? 'P.IVA' : (/^[A-Z0-9]{16}$/i.test(user.cfpi) ? 'CF' : 'CF - PI')}
+                                                        </span>
                                                         <span className="font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 rounded select-all transition-all duration-200 group-hover/cfpi:bg-violet-50 group-hover/cfpi:text-violet-600 group-hover/cfpi:border-violet-200 dark:group-hover/cfpi:bg-violet-900/40 dark:group-hover/cfpi:text-violet-300 dark:group-hover/cfpi:border-violet-500/30 relative">
                                                             {user.cfpi}
                                                             {copiedState?.id === user.id && copiedState?.field === 'cfpi' && (
