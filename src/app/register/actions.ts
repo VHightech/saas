@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { headers } from 'next/headers'
 
 export async function register(formData: FormData) {
     const supabase = await createClient()
@@ -24,51 +25,68 @@ export async function register(formData: FormData) {
     const email = (formData.get('email') as string)?.trim()
     const password = formData.get('password') as string
     const name = (formData.get('name') as string)?.trim()
-    // const surname = (formData.get('surname') as string)?.trim() // Removed
+
     const username = (formData.get('username') as string)?.trim()
     const cfpi = (formData.get('cfpi') as string)?.trim()
     const cif = (formData.get('cif') as string)?.trim()
     const clientCode = (formData.get('client_code') as string)?.trim()
 
-    // 1. Password Complexity Validation
-    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/
+    // 1. Resolve Tenant
+    const headersList = await headers()
+    const tenantSlug = headersList.get('x-tenant-slug') || 'default'
+
+    const { data: tenantData, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .single()
+
+    if (tenantError || !tenantData) {
+        return { error: "Errore di sistema: Impossibile identificare il tenant." }
+    }
+    const tenantId = tenantData.id
+
+    // 1b. Password Complexity Validation
+    // 1b. Password Complexity Validation
+    // Requires: Lowercase, Uppercase, Digit, Special Character, Min 8 chars
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"|<>?,./`~]).{8,}$/
+
     if (!passwordRegex.test(password)) {
         return {
-            error: "La password deve essere di almeno 8 caratteri e contenere almeno una lettera maiuscola e un numero."
+            error: "La password deve contenere almeno 8 caratteri, una lettera maiuscola, una minuscola, un numero e un carattere speciale (es. ! @ # $ % & *)."
         }
     }
 
-    // 2. Create User via Admin API (Detailed Errors & Auto-Confirm)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    // 2. Create User via Public API (Triggers Confirm Email)
+    const captchaToken = formData.get('captchaToken') as string
+    const origin = headersList.get('origin')
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        email_confirm: true, // Auto-verify email
-        user_metadata: {
-            full_name: name,
-            username,
+        options: {
+            captchaToken,
+            emailRedirectTo: `${origin}/auth/callback`,
+            data: {
+                full_name: name,
+                username,
+                // tenant_id: tenantId, 
+                cfpi: cfpi || null,
+                cif: cif || null,
+                codice_cliente: clientCode || null
+            }
         }
     })
 
     if (authError) {
-        console.error('Admin Create Error:', authError)
+        console.error('Sign Up Error:', authError)
         return { error: authError.message }
     }
 
     if (!authData.user) {
-        return { error: "Errore durante la creazione dell'account." }
-    }
-
-    // 2b. Sign In immediately to create session (since Admin createUser doesn't return session)
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password
-    })
-
-    if (signInError) {
-        console.error('Auto-login failed:', signInError)
-        // We continue anyway, user can login manually if needed, but best to warn?
-        // Actually, preventing the redirect is better if login fails.
-        return { error: "Account creato, ma login automatico fallito. Prova ad accedere manualmente." }
+        // If email confirmation is required, user object is returned but session is null.
+        // If approval required, user might be null? Usually user is returned.
+        return { error: "Errore durante la creazione dell'account. Riprova." }
     }
 
     // 3. Link Existing Bills (Claim Shadow Data)
@@ -86,21 +104,22 @@ export async function register(formData: FormData) {
         .eq('is_shadow', true)
         .or(`cif.eq.${cif},codice_cliente.eq.${clientCode}`)
 
-    // 5. Create Profile (Public Table)
-    // Use Admin Client to bypass RLS (INSERT usually requires admin if no policy exists for 'authenticated' to insert self)
+    // 5. Update/Create Profile
+    // We use upsert because the DB Trigger might have already created a skeleton profile.
     const { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .insert({
+        .upsert({
             id: authData.user.id,
             name,
-            surname: '', // Empty as requested
             email,
             username,
             cfpi,       // Codice Fiscale or P.IVA
             cif,        // CIF
             codice_cliente: clientCode,
-            legacy_id: 0,    // New users are not legacy
-            is_shadow: false // Explicitly not shadow
+            // legacy_id: 0, // Removed to prevent unique constraint violation (legacy_id must be unique or null)
+            is_shadow: false, // Explicitly not shadow
+            tenant_id: tenantId,
+            role: 'user' // Default role
         })
 
     if (profileError) {
@@ -119,5 +138,28 @@ export async function register(formData: FormData) {
     }
 
     revalidatePath('/', 'layout')
-    redirect('/dashboard') // Or specific success page
+
+    // Do NOT redirect. Return success so UI can show check email message.
+    return { success: true }
+}
+
+export async function resendConfirmationEmail(email: string) {
+    const supabase = await createClient()
+    const headersList = await headers()
+    const origin = headersList.get('origin')
+
+    const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+            emailRedirectTo: `${origin}/auth/callback`
+        }
+    })
+
+    if (error) {
+        console.error('Resend Error:', error)
+        return { error: 'Si è verificato un errore. Riprova più tardi.' }
+    }
+
+    return { success: true }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
+import { getAdapterForTenant, getTenantStoragePath } from '@/lib/admin/adapters/factory'
 
 // Use Service Role to bypass RLS for Admin Uploads
 const supabase = createClient(
@@ -8,10 +9,18 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+import { requireAdmin } from '@/lib/auth-checks'
+
 export async function POST(req: NextRequest) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) {
+        return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
+    }
+
     const formData = await req.formData()
     const file = formData.get('csv') as File
     const importId = formData.get('importId') as string // Client generated ID
+    const tenantSlug = req.headers.get('x-tenant-slug') || 'acq'
 
     console.log('[Upload] Service Role Key Present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
     console.log('[Upload] Is Service Role Key default/placeholder?', process.env.SUPABASE_SERVICE_ROLE_KEY === 'your-service-role-key')
@@ -20,20 +29,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'No CSV file provided' }, { status: 400 })
     }
 
+    // Parsing will happen via Adapter after loading profiles
     const text = await file.text()
 
-    // FORMAT: CIF;CFPI;NOME_PDF;TIPO_SERVIZIO;DATA_EMISSIONE;SCADENZA;IMPORTO;CONSUMO
-    const records = parse(text, {
-        columns: ['CIF', 'CFPI', 'NomePdf', 'TipoServizio', 'DataEmissione', 'Scadenza', 'Importo', 'Consumo'],
-        skip_empty_lines: true,
-        trim: true,
-        relax_quotes: true,
-        delimiter: ';',
-        from_line: 1
-    })
-
     // Progress Tracking Helpers
-    let totalFiles = records.length // Start with CSV rows count
+    let totalFiles = 0
     let processedTotal = 0
     let lastUpdate = 0
 
@@ -63,10 +63,7 @@ export async function POST(req: NextRequest) {
         })
     }
 
-    if (records.length === 0) {
-        await updateProgress('Errore: Nessun record trovato nel CSV. Controlla il delimitatore (;)', 0, 0, 'error')
-        return NextResponse.json({ error: 'Nessun record trovato nel CSV. Assicurati che il separatore sia il punto e virgola (;)' }, { status: 400 })
-    }
+    // Initial log initialized above
 
     // 1. Fetch Existing Profiles (Batched)
     const allProfiles: any[] = []
@@ -106,108 +103,46 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Upload] Loaded ${allProfiles.length} profiles from DB for deduplication.`)
 
+    // Resolve Tenant Config
+    const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('id, adapter, import_mapping')
+        .eq('slug', tenantSlug)
+        .single()
+
+    if (!tenantData) {
+        return NextResponse.json({ error: `Tenant not found: ${tenantSlug}` }, { status: 400 })
+    }
+    const tenantId = tenantData.id
+    const adapterName = tenantData.adapter
+    const mapping = tenantData.import_mapping
+
+    // 2. PARSE via Adapter
+    const adapter = getAdapterForTenant(tenantSlug, adapterName, mapping)
+    await updateProgress('Analisi del file in corso...', 0, 0)
+
+    const { bills: billsToInsert, errors: parseErrors } = await adapter.parse(text, cifMap, cfpiMap)
+
+    // Update stats
+    totalFiles = billsToInsert.length
+    let processedBills = billsToInsert.length
     let newProfiles = 0
-    let processedBills = 0
+    const errors: string[] = []
+    errors.push(...parseErrors)
+
     const matchedCifIds = new Set<string>()
     const matchedCfpiIds = new Set<string>()
-    const errors: string[] = []
 
-    interface BillInsert {
-        id: number
-        user_id: string | null
-        cfpi: string | null
-        codice_cliente: string
-        nome_pdf: string
-        tipo_servizio: string
-        data_emissione: Date | null
-        scadenza: Date | null
-        importo: number
-        consumo: number
-        cif: string | null
-    }
-
-    const billsToInsert: BillInsert[] = []
-
-    interface CSVRow {
-        CIF: string
-        CFPI: string
-        NomePdf: string
-        TipoServizio: string
-        DataEmissione: string
-        Scadenza: string
-        Importo: string
-        Consumo: string
-    }
-
-    // Process CSV Rows
-    for (const row of (records as CSVRow[])) {
-        processedBills++
-        processedTotal++
-
-        // Update Progress occasionally
-        if (processedBills % 50 === 0) {
-            if (req.signal.aborted) throw new Error('Upload aborted by user')
-            await updateProgress(`Analisi riga ${processedBills}...`, processedTotal, totalFiles)
+    // Reconstruct stats for the response
+    billsToInsert.forEach(b => {
+        if (b.user_id) {
+            if (b.cif && cifMap.has(b.cif)) matchedCifIds.add(b.user_id)
+            else if (b.cfpi && cfpiMap.has(b.cfpi)) matchedCfpiIds.add(b.user_id)
         }
+    })
 
-        try {
-            const rowCif = row.CIF ? row.CIF.trim() : null
-            const rowCfpi = row.CFPI ? row.CFPI.trim() : null
-            const pdfName = row.NomePdf ? row.NomePdf.trim() : null
-
-            if (!pdfName) continue
-
-            // A. Identify User (Priority: CIF)
-            let userId: string | null = null
-
-            if (rowCif && cifMap.has(rowCif)) {
-                userId = cifMap.get(rowCif)!
-                matchedCifIds.add(userId)
-            } else if (rowCfpi && cfpiMap.has(rowCfpi)) {
-                userId = cfpiMap.get(rowCfpi)!
-                matchedCfpiIds.add(userId)
-            }
-
-            // B. Extract ID from PDF Name
-            const idString = pdfName.replace(/\.[^/.]+$/, "")
-            const billId = parseInt(idString)
-
-            if (isNaN(billId)) {
-                throw new Error(`Invalid PDF name format for ID: ${pdfName}`)
-            }
-
-            // C. Parse Dates
-            const parseDate = (d: string) => {
-                if (!d || d.toLowerCase() === 'nessuna' || d.trim() === '') return null
-                const parts = d.split('/')
-                if (parts.length !== 3) return null
-                return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
-            }
-
-            const parseNumber = (n: string) => {
-                if (!n) return 0
-                const clean = n.replace(/\./g, '').replace(',', '.')
-                return parseFloat(clean) || 0
-            }
-
-            billsToInsert.push({
-                id: billId,
-                user_id: userId,
-                cfpi: rowCfpi,
-                codice_cliente: '',
-                nome_pdf: pdfName,
-                tipo_servizio: row.TipoServizio,
-                data_emissione: parseDate(row.DataEmissione),
-                scadenza: parseDate(row.Scadenza),
-                importo: parseNumber(row.Importo),
-                consumo: parseNumber(row.Consumo),
-                cif: rowCif
-            })
-
-        } catch (err) {
-            console.error('Row error:', err)
-            errors.push(`Row ${row.CFPI || '?'}: ${err}`)
-        }
+    if (parseErrors.length > 0) {
+        await updateProgress(`Rilevati ${parseErrors.length} errori nel parsing`, totalFiles, totalFiles)
     }
 
     const previewMode = req.nextUrl.searchParams.get('preview') === 'true'
@@ -215,7 +150,10 @@ export async function POST(req: NextRequest) {
     if (!previewMode) {
         const chunkSize = 500
         for (let i = 0; i < billsToInsert.length; i += chunkSize) {
-            const chunk = billsToInsert.slice(i, i + chunkSize)
+            const chunk = billsToInsert.slice(i, i + chunkSize).map(({ original_row_index, ...rest }) => ({
+                ...rest,
+                tenant_id: tenantId
+            }))
             const { error: dateError } = await supabase.from('bills').upsert(chunk)
             if (dateError) {
                 console.error('Bill Insert Error', dateError)
@@ -295,30 +233,33 @@ export async function POST(req: NextRequest) {
                 const csvPdfSet = new Set(billsToInsert.map(b => b.nome_pdf.toLowerCase()))
 
                 // 2. Check against DB - Fetch ALL linked bills for robust case-insensitive check
-                // INCREASE LIMIT: Supabase defaults to 1000 rows. We need all of them.
-                const { data: dbBills } = await supabase
-                    .from('bills')
-                    .select('nome_pdf, pdf_url')
-                    .not('nome_pdf', 'is', null)
-                    .range(0, 20000)
+                const dbBills: any[] = []
+                let billsHasMore = true
+                let billsPage = 0
+                const billsPageSize = 2500 // Large pages for efficiency
 
-                dbBills?.forEach(d => {
-                    if (!d.nome_pdf) return
-                    const lowerName = d.nome_pdf.toLowerCase()
+                while (billsHasMore) {
+                    const { data, error } = await supabase
+                        .from('bills')
+                        .select('nome_pdf, pdf_url')
+                        .not('nome_pdf', 'is', null)
+                        .range(billsPage * billsPageSize, (billsPage + 1) * billsPageSize - 1)
 
-                    // Add to match set if it matches a file in the zip (case-insensitive)
-                    // We check if lowerName is in our derived list of zip files
-                    // But we need to be efficient. 
-                    // Let's invert: Iterate over pdfNames and check if they exist in `dbBills` set?
-                    // Or keep `matchSet` as set of "found in DB"?
-                    // The logic below was: iterate DB results from `.in(chunk)`. 
-                    // Now we iterate ALL DB results. We should only process if they are relevant to our zip.
-                    // But since we want to know "Already Linked" for the ZIP files...
-                })
+                    if (error) {
+                        console.error('Error fetching bills for preview:', error)
+                        billsHasMore = false
+                    } else if (data) {
+                        dbBills.push(...data)
+                        if (data.length < billsPageSize) billsHasMore = false
+                        else billsPage++
+                    } else {
+                        billsHasMore = false
+                    }
+                }
 
                 // Let's simplify: Build a Map from DB
                 const dbMap = new Map<string, string>() // filename -> url
-                dbBills?.forEach(d => {
+                dbBills.forEach(d => {
                     if (d.nome_pdf) dbMap.set(d.nome_pdf.toLowerCase(), d.pdf_url || '')
                 })
 
@@ -384,24 +325,43 @@ export async function POST(req: NextRequest) {
                 const existingPdfMap = new Map<string, string>()
 
                 // A. Check DB - Fetch ALL linked bills to handle case-insensitivity properly
-                // Since .in() is case-sensitive, we fetch all relevant rows (~4000 is small enough)
-                // to build a proper lookup map.
-                const { data: allBills } = await supabase
-                    .from('bills')
-                    .select('nome_pdf, pdf_url')
-                    .not('nome_pdf', 'is', null)
+                const allBills: any[] = []
+                let bHasMore = true
+                let bPage = 0
+                const bPageSize = 2500
 
-                allBills?.forEach(d => {
+                while (bHasMore) {
+                    const { data, error } = await supabase
+                        .from('bills')
+                        .select('nome_pdf, pdf_url')
+                        .not('nome_pdf', 'is', null)
+                        .range(bPage * bPageSize, (bPage + 1) * bPageSize - 1)
+
+                    if (error) {
+                        console.error('Error fetching all bills:', error)
+                        bHasMore = false
+                    } else if (data) {
+                        allBills.push(...data)
+                        if (data.length < bPageSize) bHasMore = false
+                        else bPage++
+                    } else {
+                        bHasMore = false
+                    }
+                }
+
+                allBills.forEach(d => {
                     if (d.nome_pdf) {
                         existingPdfMap.set(d.nome_pdf.toLowerCase(), d.pdf_url || '')
                     }
                 })
 
-                // B. Check Local Storage (public/invoices)
+                // B. Check Local Storage (public/invoices/TENANT)
                 const storageFilesSet = new Set<string>()
-                const localInvoicesDir = path.join(process.cwd(), 'public', 'invoices')
+                const storageSubDir = getTenantStoragePath(tenantSlug)
+                const localInvoicesDir = path.join(process.cwd(), 'public', storageSubDir)
+
                 if (!fs.existsSync(localInvoicesDir)) { fs.mkdirSync(localInvoicesDir, { recursive: true }) }
-                console.log('[Upload] Checking Local Storage for existing files...')
+                console.log(`[Upload] Checking Local Storage (${storageSubDir}) for existing files...`)
                 try {
                     const localFiles = fs.readdirSync(localInvoicesDir)
                     localFiles.forEach((f: string) => storageFilesSet.add(f.toLowerCase()))
@@ -462,8 +422,9 @@ export async function POST(req: NextRequest) {
                                 pdfsUploaded++
                             }
 
-                            // Use local URL
-                            const publicUrl = `/invoices/${filename}`
+                            // Use local URL (Multi-Tenant)
+                            // storageSubDir is like 'invoices/slug', ensure forward slashes
+                            const publicUrl = `/${storageSubDir.replace(/\\/g, '/')}/${filename}`
 
                             const { error: updateError, data: updatedData } = await supabase
                                 .from('bills')

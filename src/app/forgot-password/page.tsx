@@ -2,12 +2,14 @@
 
 import { ArrowRight, ArrowLeft, TrendingUp, ShieldCheck, Sparkles, CheckCircle2, Lock, Mail, UserSearch } from 'lucide-react'
 import { ModeToggle } from '@/components/mode-toggle'
+import { useTenant } from '@/components/tenant-provider'
 import { useState } from 'react'
 import { lookupUser, sendRecoveryOTP, verifyRecoveryOTP, updatePassword } from './actions'
 import { useRouter } from 'next/navigation'
 
 export default function ForgotPasswordPage() {
     const router = useRouter()
+    const { tenant } = useTenant()
     const [step, setStep] = useState(1) // 1: Search, 2: Confirm Email, 3: OTP, 4: New Password, 5: Success
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -80,20 +82,26 @@ export default function ForgotPasswordPage() {
 
                 {/* Logo */}
                 <div className="mb-12">
-                    <span className="font-black text-2xl tracking-tighter text-black dark:text-white flex items-center gap-2">
-                        <div className="w-8 h-8 bg-black dark:bg-white rounded-lg flex items-center justify-center text-white dark:text-black text-sm">AQ</div>
-                        ACQDASH
+                    <span className="font-black text-2xl tracking-tighter text-black dark:text-white flex items-center gap-3">
+                        <div className="w-10 h-10 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black shadow-sm overflow-hidden p-1 bg-white">
+                            {tenant?.logo_url ? (
+                                <img src={tenant.logo_url} alt={tenant.name || "Logo"} className="w-full h-full object-contain" />
+                            ) : (
+                                <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
+                            )}
+                        </div>
+                        {tenant?.name || "Acquambiente"}
                     </span>
                 </div>
 
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">Recupero Password</h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium">
-                        {step === 1 && "Ti invieremo le istruzioni per reimpostarla."}
-                        {step === 2 && "Conferma l'indirizzo email associato."}
-                        {step === 3 && "Inserisci il codice di sicurezza ricevuto."}
-                        {step === 4 && "Crea la tua nuova password."}
-                        {step === 5 && "Operazione completata con successo!"}
+                        {step === 1 && "Inserisci i tuoi dati per recuperare l'accesso."}
+                        {step === 2 && "Abbiamo trovato la tua utenza. Conferma per ricevere il codice."}
+                        {step === 3 && "Inserisci il codice di sicurezza inviato alla tua email."}
+                        {step === 4 && "Scegli una nuova password sicura."}
+                        {step === 5 && "Password aggiornata correttamente!"}
                     </p>
                 </div>
 
@@ -107,10 +115,10 @@ export default function ForgotPasswordPage() {
                 {step === 1 && (
                     <form onSubmit={handleLookup} className="space-y-6 animate-in fade-in slide-in-from-right-4">
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email, Username, Codice Cliente o CIF</label>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email o Codice Utenza</label>
                             <input
                                 type="text"
-                                placeholder="Es. RSSMRA... o 123456"
+                                placeholder="Inserisci la tua email o codice cliente"
                                 required
                                 value={identifier}
                                 onChange={(e) => setIdentifier(e.target.value)}
@@ -148,12 +156,12 @@ export default function ForgotPasswordPage() {
                 {step === 3 && (
                     <form onSubmit={handleVerifyOTP} className="space-y-6 animate-in fade-in slide-in-from-right-4">
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Codice di Sicurezza (6 cifre)</label>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Codice di Sicurezza (OTP)</label>
                             <input
                                 type="text"
                                 placeholder="123456"
                                 required
-                                maxLength={6}
+                                maxLength={8}
                                 value={otp}
                                 onChange={(e) => setOtp(e.target.value)}
                                 className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium text-center tracking-[0.5em] text-xl font-mono"
@@ -207,7 +215,7 @@ export default function ForgotPasswordPage() {
                 )}
 
                 <div className="mt-auto pt-10 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
-                    <span>© 2026 ACQDASH</span>
+                    <span>© 2026 {tenant?.name || "Portale Acquambiente"}</span>
                     <a href="#" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
             </div>

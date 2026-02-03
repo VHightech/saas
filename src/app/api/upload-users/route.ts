@@ -9,7 +9,14 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+import { requireAdmin } from '@/lib/auth-checks'
+
 export async function POST(req: NextRequest) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) {
+        return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
+    }
+
     console.log('[API] Starting Bulk User Upload...')
 
     try {
@@ -59,7 +66,7 @@ export async function POST(req: NextRequest) {
                 const payload = {
                     cif: cif,
                     name: nominativo,
-                    surname: '', // Single field in this CSV
+
                     cfpi: cfpi,
                     address: address,
                     city: city,

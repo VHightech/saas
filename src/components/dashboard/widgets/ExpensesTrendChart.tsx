@@ -1,87 +1,95 @@
 'use client'
 
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { ChevronDown } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { ChevronDown, Loader2 } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useMediaQuery } from '@/hooks/use-media-query'
-
 import { createClient } from '@/lib/supabase/client'
-import { Loader2 } from 'lucide-react'
-
-// Helper to aggregate data
-const processBillData = (bills: any[]) => {
-    const yearsSet = new Set<string>();
-    const monthlyDataByYear: Record<string, number[]> = {};
-
-    bills.forEach(bill => {
-        if (!bill.data_emissione) return;
-        const date = new Date(bill.data_emissione);
-        const year = date.getFullYear().toString();
-        yearsSet.add(year);
-
-        if (!monthlyDataByYear[year]) {
-            monthlyDataByYear[year] = new Array(12).fill(0);
-        }
-        const month = date.getMonth(); // 0-11
-        monthlyDataByYear[year][month] += Number(bill.consumo || 0);
-    });
-
-    const sortedYears = Array.from(yearsSet).sort();
-
-    // 1. "Tutti" Dataset (Yearly Totals)
-    const tuttiData = sortedYears.map(year => {
-        const total = monthlyDataByYear[year].reduce((a, b) => a + b, 0);
-        return { label: year, consumption: total };
-    });
-
-    // 2. Per-Year Datasets (Monthly)
-    const datasets: Record<string, { label: string, consumption: number }[]> = {
-        'Tutti': tuttiData
-    };
-
-    const monthNames = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
-
-    sortedYears.forEach(year => {
-        datasets[year] = monthlyDataByYear[year].map((val, idx) => ({
-            label: monthNames[idx],
-            consumption: val
-        }));
-    });
-
-    return datasets;
-}
+import { format } from 'date-fns'
+import { it } from 'date-fns/locale'
 
 interface ExpensesTrendChartProps {
     bills?: any[]
     className?: string
 }
 
+const ChartSync = ({ active, payload, onUpdate }: any) => {
+    useEffect(() => {
+        if (active && payload && payload.length) {
+            onUpdate(payload[0].payload);
+        }
+    }, [active, payload, onUpdate]);
+
+    return null;
+};
+
 export function ExpensesTrendChart({ bills: externalBills, className }: ExpensesTrendChartProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [period, setPeriod] = useState('Tutti');
     const isDesktop = useMediaQuery("(min-width: 768px)")
     const [mounted, setMounted] = useState(false)
-    const [dataSets, setDataSets] = useState<Record<string, { label: string, consumption: number }[]> | null>(null)
+    const [allData, setAllData] = useState<{ label: string, fullDate: string, consumption: number, year: string, uniqueKey: string }[] | null>(null)
+    const [years, setYears] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
     const [activeIndex, setActiveIndex] = useState(0)
 
     const supabase = createClient()
 
+    // Filter Data based on selection
+    const currentData = useMemo(() => {
+        if (!allData) return [];
+        return period === 'Tutti' ? allData : allData.filter(d => d.year === period);
+    }, [allData, period]);
+
+    useEffect(() => {
+        if (currentData && currentData.length > 0) {
+            setActiveIndex(currentData.length - 1);
+        }
+    }, [currentData]);
+
+    const handleSync = useCallback((item: any) => {
+        const idx = currentData.findIndex(d => d.uniqueKey === item.uniqueKey);
+        if (idx !== -1) {
+            setActiveIndex((prev) => (prev !== idx ? idx : prev));
+        }
+    }, [currentData]);
+
     useEffect(() => {
         setMounted(true)
         if (externalBills) {
-            if (externalBills.length > 0) {
-                const processed = processBillData(externalBills)
-                setDataSets(processed)
-                // Default to 'Tutti' or latest year? Stick to 'Tutti' for overview.
-            } else {
-                setDataSets(null)
-            }
+            processData(externalBills)
             setLoading(false)
         } else {
             fetchData()
         }
     }, [externalBills])
+
+    const processData = (rawBills: any[]) => {
+        if (!rawBills || rawBills.length === 0) {
+            setAllData(null)
+            return
+        }
+
+        // 1. Sort by Date Ascending
+        const sorted = [...rawBills].sort((a, b) => {
+            return new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime()
+        })
+
+        // 2. Extract Years
+        const uniqueYears = Array.from(new Set(sorted.map(b => new Date(b.data_emissione).getFullYear().toString()))).sort()
+        setYears(uniqueYears)
+
+        // 3. Map to Chart Format with Year
+        const mapped = sorted.map((b, i) => ({
+            label: b.data_emissione ? format(new Date(b.data_emissione), 'dd/MM/yy', { locale: it }) : '',
+            fullDate: b.data_emissione ? format(new Date(b.data_emissione), 'dd MMMM yyyy', { locale: it }) : '',
+            consumption: Number(b.consumo || 0),
+            year: new Date(b.data_emissione).getFullYear().toString(),
+            uniqueKey: `${b.data_emissione}_${b.id || i}` // Unique key for XAxis
+        }))
+
+        setAllData(mapped)
+    }
 
     const fetchData = async () => {
         try {
@@ -90,18 +98,14 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
 
             const { data: bills } = await supabase
                 .from('bills')
-                .select('consumo, data_emissione')
+                .select('id, consumo, data_emissione')
                 .eq('user_id', user.id)
+                .gt('importo', 0)
 
-            if (bills && bills.length > 0) {
-                const processed = processBillData(bills)
-                setDataSets(processed)
-            } else {
-                setDataSets(null)
-            }
+            if (bills) processData(bills)
         } catch (e) {
             console.error(e)
-            setDataSets(null)
+            setAllData(null)
         } finally {
             setLoading(false)
         }
@@ -117,9 +121,9 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
         )
     }
 
-    if (!dataSets) {
+    if (!allData || allData.length === 0) {
         return (
-            <div className="md:bg-white/30 dark:md:bg-[#1e1e1e]/60 md:backdrop-blur-xl md:border md:border-white/40 dark:md:border-white/10 w-full md:rounded-3xl md:p-6 md:shadow-sm h-full flex flex-col justify-center items-center text-center relative overflow-hidden transition-colors duration-500">
+            <div className={`md:bg-white/30 dark:md:bg-[#1e1e1e]/60 md:backdrop-blur-xl md:border md:border-white/40 dark:md:border-white/10 w-full md:rounded-3xl md:p-6 md:shadow-sm h-full flex flex-col justify-center items-center text-center relative overflow-hidden transition-colors duration-500 ${className}`}>
                 <h3 className="font-bold text-slate-800 dark:text-white text-lg mb-2">Andamento Consumi</h3>
                 <p className="text-slate-500 dark:text-slate-400 font-medium">Nessuna fattura presente</p>
             </div>
@@ -133,51 +137,47 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
         setIsOpen(false);
     };
 
-    const currentData = dataSets[period] || Object.values(dataSets)[0];
 
-    // Ensure activeIndex is valid for current data
+    // Interactive Data for Mobile
     const safeActiveIndex = activeIndex < currentData.length ? activeIndex : currentData.length - 1;
     const activeData = currentData[safeActiveIndex];
 
-    // Calculate summary metrics
-    const totalConsumption = currentData.reduce((acc, curr) => acc + curr.consumption, 0);
-    const averageConsumption = Math.round(totalConsumption / currentData.filter(d => d.consumption > 0).length || 1);
-
-
-    if (!mounted) return <div className={`h-full w-full bg-slate-50/50 rounded-3xl animate-pulse ${className}`} />
-
     return (
         <div className={`md:bg-white/30 dark:md:bg-[#1e1e1e]/60 md:backdrop-blur-xl md:border md:border-white/40 dark:md:border-white/10 md:rounded-3xl md:p-6 h-full flex flex-col relative overflow-visible md:shadow-sm transition-colors duration-500 ${className}`}>
-            <div className="flex justify-end md:justify-between items-start mb-2 z-20">
-                <div className="hidden md:block">
+            <div className="flex justify-between items-start mb-2 z-20">
+                <div>
                     <h3 className="font-bold text-slate-800 dark:text-white text-lg">Andamento Consumi</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Generale</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Storico Letture</p>
                 </div>
                 <div className="relative">
                     <button
                         onClick={toggleDropdown}
-                        className="text-xs bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 px-3 py-1 font-semibold rounded-full text-slate-600 dark:text-slate-200 cursor-pointer flex items-center transition-colors shadow-sm"
+                        className="text-xs bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 px-3 py-1 font-semibold rounded-full text-slate-600 dark:text-slate-200 cursor-pointer flex items-center transition-colors shadow-sm border border-slate-200 dark:border-white/5"
                     >
                         {period} <ChevronDown className={`inline w-3 h-3 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isOpen && (
                         <div className="absolute right-0 top-full mt-2 w-32 bg-white/90 dark:bg-[#1e1e1e]/90 backdrop-blur-md rounded-xl shadow-lg border border-white/50 dark:border-white/10 py-1 overflow-hidden z-50">
-                            {Object.keys(dataSets).map((option) => (
+                            <button
+                                onClick={() => handleSelect('Tutti')}
+                                className={`w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors ${period === 'Tutti' ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}`}
+                            >
+                                Tutti
+                            </button>
+                            {years.map((year) => (
                                 <button
-                                    key={option}
-                                    onClick={() => handleSelect(option)}
-                                    className={`w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors ${period === option ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}`}
+                                    key={year}
+                                    onClick={() => handleSelect(year)}
+                                    className={`w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors ${period === year ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}`}
                                 >
-                                    {option}
+                                    {year}
                                 </button>
                             ))}
                         </div>
                     )}
                 </div>
             </div>
-
-            {/* Summary Metrics removed */}
 
             {/* Desktop Chart View */}
             {isDesktop && (
@@ -187,8 +187,8 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                             data={currentData}
                             margin={{
                                 top: 5,
-                                right: 30,
-                                left: 30,
+                                right: 10,
+                                left: 10,
                                 bottom: 0,
                             }}
                         >
@@ -200,37 +200,38 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.2)" />
                             <XAxis
-                                dataKey="label"
+                                dataKey="uniqueKey"
                                 axisLine={false}
                                 tickLine={false}
-                                tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
+                                tickFormatter={(value, index) => {
+                                    // Retrieve the original label based on index if needed, or parse unique key?
+                                    // Easier: The uniqueKey is mapped 1:1. 
+                                    // But tickFormatter receives the value of uniqueKey.
+                                    // Wait, uniqueKey is the axis value.
+                                    // But we want to display the DATE.
+                                    // We can use the data array to lookup, but simpler to just use currentData[index].label
+                                    if (currentData && currentData[index]) {
+                                        return currentData[index].label
+                                    }
+                                    return ''
+                                }}
+                                tick={{ fill: '#64748b', fontSize: 10, fontWeight: 500 }}
                                 dy={10}
-                                interval={0}
+                                interval="preserveStartEnd"
                             />
-                            <YAxis type="number" hide />
+                            <YAxis type="number" hide domain={[0, 'auto']} />
                             <Tooltip
                                 content={({ active, payload, label }) => {
                                     if (active && payload && payload.length) {
                                         const value = payload[0].value as number;
-                                        const diff = value - averageConsumption;
-                                        const diffPercent = ((diff / averageConsumption) * 100).toFixed(1);
+                                        const fullDate = payload[0].payload.fullDate;
 
                                         return (
-                                            <div className="bg-white/60 dark:bg-black/80 backdrop-blur-[50px] border border-white/50 dark:border-white/20 rounded-xl p-3 shadow-xl box-border min-w-[140px]">
-                                                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 uppercase tracking-wide">{label}</p>
-                                                <div className="flex items-baseline gap-1 mb-2">
+                                            <div className="bg-white dark:bg-[#1e1e1e] border border-slate-100 dark:border-white/10 rounded-xl p-3 shadow-lg box-border min-w-[140px]">
+                                                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 uppercase tracking-wide">{fullDate}</p>
+                                                <div className="flex items-baseline gap-1">
                                                     <p className="text-2xl font-bold text-slate-800 dark:text-white">{value.toLocaleString()}</p>
                                                     <p className="text-xs text-slate-500 dark:text-slate-400">Mc</p>
-                                                </div>
-                                                <div className="pt-2 border-t border-slate-200/60 dark:border-white/10">
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-slate-500 dark:text-slate-400">Media periodo:</span>
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{averageConsumption}</span>
-                                                    </div>
-                                                    <div className={`text-xs font-semibold mt-1 flex items-center ${diff > 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                                        {diff > 0 ? '+' : ''}{diffPercent}%
-                                                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 ml-1 font-normal">vs media</span>
-                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -238,14 +239,18 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                                     return null;
                                 }}
                                 cursor={{ stroke: '#818cf8', strokeWidth: 1, strokeDasharray: '4 4' }}
+                                isAnimationActive={false}
                             />
                             <Area
-                                type="monotone"
+                                type="linear"
                                 dataKey="consumption"
                                 stroke="#818cf8"
                                 strokeWidth={3}
                                 fillOpacity={1}
                                 fill="url(#colorConsumption)"
+                                isAnimationActive={false}
+                                dot={{ r: 4, strokeWidth: 2, stroke: "#818cf8", fill: "white" }}
+                                activeDot={{ r: 6, strokeWidth: 0, fill: "#818cf8" }}
                             />
                         </AreaChart>
                     </ResponsiveContainer>
@@ -257,12 +262,27 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                 <div className="md:hidden flex flex-col gap-4 mt-2">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white/40 dark:bg-white/5 rounded-2xl p-3 border border-white/20 dark:border-white/10 transition-all duration-300">
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Periodo</p>
-                            <p className="text-lg font-bold text-slate-800 dark:text-white">{activeData.label}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Data</p>
+                            <p className="text-sm font-bold text-slate-800 dark:text-white">{activeData.fullDate}</p>
                         </div>
                         <div className="bg-white/40 dark:bg-white/5 rounded-2xl p-3 border border-white/20 dark:border-white/10 transition-all duration-300">
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Consumo</p>
-                            <p className="text-lg font-bold text-[#005A9C] dark:text-sky-400">{activeData.consumption.toLocaleString()} Mc</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-lg font-bold text-[#005A9C] dark:text-sky-400">{activeData.consumption.toLocaleString()} Mc</p>
+                                {(() => {
+                                    const average = currentData.reduce((acc, curr) => acc + curr.consumption, 0) / currentData.length;
+                                    const diff = average !== 0 ? ((activeData.consumption - average) / average) * 100 : 0;
+                                    const isPositive = diff > 0;
+                                    return (
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${isPositive
+                                            ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20'
+                                            : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20'
+                                            }`}>
+                                            {isPositive ? '+' : ''}{diff.toFixed(0)}%
+                                        </span>
+                                    );
+                                })()}
+                            </div>
                         </div>
                     </div>
 
@@ -270,21 +290,7 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                         <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
                             <AreaChart
                                 data={currentData}
-                                onClick={(e: any) => {
-                                    if (e && typeof e.activeTooltipIndex === 'number') {
-                                        setActiveIndex(e.activeTooltipIndex);
-                                    }
-                                }}
-                                onMouseMove={(e: any) => {
-                                    if (e && typeof e.activeTooltipIndex === 'number') {
-                                        setActiveIndex(e.activeTooltipIndex);
-                                    }
-                                }}
-                                onTouchMove={(e: any) => {
-                                    if (e && typeof e.activeTooltipIndex === 'number') {
-                                        setActiveIndex(e.activeTooltipIndex);
-                                    }
-                                }}
+                                margin={{ top: 10, right: 20, left: 10, bottom: 20 }}
                             >
                                 <defs>
                                     <linearGradient id="colorMobile" x1="0" y1="0" x2="0" y2="1">
@@ -292,8 +298,23 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                                         <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+                                <XAxis
+                                    dataKey="label"
+                                    tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    interval="preserveStartEnd"
+                                    dy={10}
+                                />
+                                <YAxis
+                                    tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    width={30}
+                                />
                                 <Tooltip
-                                    content={() => null} // Hide default tooltip, using custom cards above
+                                    content={(props) => <ChartSync {...props} onUpdate={handleSync} />}
                                     cursor={{ stroke: '#818cf8', strokeWidth: 1, strokeDasharray: '4 4' }}
                                 />
                                 <Area

@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { Search, Filter, Mail, Phone, CheckCircle, AlertCircle, Clock, ChevronLeft, ChevronRight, ChevronDown, User, Ghost, FileText, MapPin } from 'lucide-react'
+import { Filter, Mail, Phone, CheckCircle, AlertCircle, Clock, ChevronLeft, ChevronRight, ChevronDown, User, Ghost, FileText, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { SearchBar } from '@/components/ui/search-bar'
 
 interface UserProfile {
     id: string
@@ -89,26 +90,50 @@ export default function AdminUsersPage() {
         setLoading(true)
 
         try {
-            let query = supabase
-                .from('profiles')
-                .select('*', { count: 'exact' })
+            let query
+            let countQuery
 
-            // Search Filter
+            // Search Mode using RPC to search in bills too
             if (debouncedSearchTerm) {
-                // Using .or() with ilike for multiple fields
-                const term = `%${debouncedSearchTerm}%`
-                // Fix: Do not quote the term inside the filter string for Supabase .or()
-                // Removed surname as it was deleted from DB
-                query = query.or(`name.ilike.${term},email.ilike.${term},cif.ilike.${term},codice_cliente.ilike.${term},cfpi.ilike.${term}`)
+                const { data, error } = await supabase
+                    .rpc('search_users', {
+                        search_term: debouncedSearchTerm,
+                        _limit: itemsPerPage,
+                        _offset: (currentPage - 1) * itemsPerPage
+                    })
+
+                if (error) throw error
+
+                if (data) {
+                    const adapted = data.map((p: any) => ({
+                        id: p.id,
+                        fullName: p.name || "Utente non registrato",
+                        email: p.email || '',
+                        cfpi: p.cfpi || '',
+                        address: p.address || '',
+                        city: p.city || '',
+                        clientCode: p.codice_cliente || '',
+                        isShadow: p.is_shadow || (p.legacy_id && p.legacy_id < 0) || !p.email || !p.name,
+                        invoices: [],
+                        cif: p.cif || ''
+                    }))
+                    setUsers(adapted)
+                    // The RPC returns total_count in every row, take the first one
+                    setTotalResults(data[0]?.total_count || 0)
+                }
+                setLoading(false)
+                return
             }
 
-            // Pagination
-            const from = (currentPage - 1) * itemsPerPage
-            const to = from + itemsPerPage - 1
+            // Standard Mode (No Search)
+            query = supabase
+                .from('profiles')
+                .select('*', { count: 'exact' })
+                .order('created_at', { ascending: false })
+
+            query = query.range((currentPage - 1) * itemsPerPage, ((currentPage - 1) * itemsPerPage) + itemsPerPage - 1)
 
             const { data, count, error } = await query
-                .order('created_at', { ascending: false }) // Show newest first? Or legacy? Let's use created_at or legacy_id
-                .range(from, to)
 
             if (error) throw error
 
@@ -170,32 +195,59 @@ export default function AdminUsersPage() {
         handleLimitChange(size)
     }
 
-    const copyToClipboard = (text: string, e: React.MouseEvent) => {
+    const [copiedState, setCopiedState] = useState<{ id: string, field: string } | null>(null)
+
+    const copyToClipboard = async (text: string, e: React.MouseEvent, id: string, field: string) => {
         e.stopPropagation()
-        navigator.clipboard.writeText(text)
-        // could add toast here
+        if (!text) return
+
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text)
+            } else {
+                throw new Error('Clipboard API unavailable')
+            }
+        } catch (err) {
+            // Fallback for non-secure contexts
+            const textarea = document.createElement('textarea')
+            textarea.value = text
+            textarea.style.position = 'fixed'
+            textarea.style.opacity = '0'
+            document.body.appendChild(textarea)
+            textarea.focus()
+            textarea.select()
+            try {
+                document.execCommand('copy')
+            } catch (fallbackErr) {
+                console.error('Copy failed', fallbackErr)
+                return
+            }
+            document.body.removeChild(textarea)
+        }
+
+        setCopiedState({ id, field })
+        setTimeout(() => setCopiedState(null), 2000)
     }
 
     return (
         <div className="h-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out max-w-[1600px] mx-auto w-full">
 
             {/* HEADER */}
+            {/* HEADER */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/70 dark:bg-[#1e1e1e] backdrop-blur-2xl p-6 rounded-2xl border border-slate-200 dark:border-[#333333] flex-shrink-0 shadow-sm">
                 <div>
-                    <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Ricerca Utenti</h1>
+                    <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-3">
+                        Anagrafica Clienti
+                    </h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">Gestione e monitoraggio delle utenze attive</p>
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
                     <div className="relative group w-full md:w-96">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400 group-focus-within:bg-sky-500 group-focus-within:text-white transition-all duration-300">
-                            <Search size={14} strokeWidth={2.5} />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Cerca utente per nome, email o CF..."
+                        <SearchBar
+                            placeholder="Cerca..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white dark:bg-[#2a2a2a] border border-slate-200 dark:border-[#333333] rounded-full py-2.5 pl-12 pr-4 text-xs font-bold focus:border-sky-500 dark:focus:border-sky-500 focus:ring-4 ring-sky-500/10 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-stone-500 dark:text-slate-100 shadow-sm hover:shadow-md hover:border-sky-200 dark:hover:border-sky-800"
+                            onChange={setSearchTerm}
                         />
                     </div>
                 </div>
@@ -266,15 +318,33 @@ export default function AdminUsersPage() {
                                         <div className="space-y-1">
                                             <div className="flex flex-col gap-1 mt-1">
                                                 {user.cif && (
-                                                    <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                                                    <div
+                                                        className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer group/cif"
+                                                        onClick={(e) => copyToClipboard(user.cif, e, user.id, 'cif')}
+                                                        title="Clicca per copiare"
+                                                    >
                                                         <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase w-8">CIF</span>
-                                                        <span className="font-mono bg-slate-50 dark:bg-slate-800 px-1.5 rounded select-all">{user.cif}</span>
+                                                        <span className="font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 rounded select-all transition-all duration-200 group-hover/cif:bg-indigo-50 group-hover/cif:text-indigo-600 group-hover/cif:border-indigo-200 dark:group-hover/cif:bg-indigo-900/40 dark:group-hover/cif:text-indigo-300 dark:group-hover/cif:border-indigo-500/30 relative">
+                                                            {user.cif}
+                                                            {copiedState?.id === user.id && copiedState?.field === 'cif' && (
+                                                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded shadow-lg animate-in fade-in zoom-in whitespace-nowrap z-20">Copiato!</span>
+                                                            )}
+                                                        </span>
                                                     </div>
                                                 )}
                                                 {user.cfpi && (
-                                                    <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
-                                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase w-8">CFPI</span>
-                                                        <span className="font-mono bg-slate-50 dark:bg-slate-800 px-1.5 rounded select-all">{user.cfpi}</span>
+                                                    <div
+                                                        className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer group/cfpi"
+                                                        onClick={(e) => copyToClipboard(user.cfpi, e, user.id, 'cfpi')}
+                                                        title="Clicca per copiare"
+                                                    >
+                                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase whitespace-nowrap">CF - PI</span>
+                                                        <span className="font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 rounded select-all transition-all duration-200 group-hover/cfpi:bg-violet-50 group-hover/cfpi:text-violet-600 group-hover/cfpi:border-violet-200 dark:group-hover/cfpi:bg-violet-900/40 dark:group-hover/cfpi:text-violet-300 dark:group-hover/cfpi:border-violet-500/30 relative">
+                                                            {user.cfpi}
+                                                            {copiedState?.id === user.id && copiedState?.field === 'cfpi' && (
+                                                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded shadow-lg animate-in fade-in zoom-in whitespace-nowrap z-20">Copiato!</span>
+                                                            )}
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>

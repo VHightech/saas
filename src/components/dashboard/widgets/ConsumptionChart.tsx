@@ -5,10 +5,17 @@ import { useState, useEffect } from 'react'
 import { TrendingUp, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMediaQuery } from '@/hooks/use-media-query'
+import { useTheme } from 'next-themes'
 
 import { createClient } from '@/lib/supabase/client'
 
-export function ConsumptionChart() {
+interface ConsumptionChartProps {
+    settings?: Record<string, any>
+    initialData?: any[]
+}
+
+export function ConsumptionChart({ settings = {}, initialData = [] }: ConsumptionChartProps) {
+    const chartColor = settings.chart_color || '#0ea5e9'
     const [data, setData] = useState<{ name: string; value: number }[]>([])
     const [loading, setLoading] = useState(true)
     const [activeIndex, setActiveIndex] = useState(0)
@@ -16,11 +23,86 @@ export function ConsumptionChart() {
     const [mounted, setMounted] = useState(false)
 
     const supabase = createClient()
+    const { theme } = useTheme()
+    // Determine unselected color based on theme
+    const unselectedColor = theme === 'dark' ? '#334155' : '#e2e8f0'
 
     useEffect(() => {
         setMounted(true)
-        fetchData()
-    }, [])
+        if (initialData && initialData.length > 0) {
+            processBills(initialData)
+        } else {
+            fetchData()
+        }
+    }, [initialData])
+
+    const processBills = (bills: any[]) => {
+        if (bills && bills.length > 0) {
+            // Sort bills by date ascending
+            const sortedBills = [...bills].sort((a, b) => new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime());
+
+            // Generate last 6 months labels based on current date
+            const months: { name: string; value: number; monthIndex: number; year: number }[] = [];
+            // Generate last 6 months labels based on LATEST BILL DATE
+            // This prevents showing empty future months (e.g. Feb) if we only have data up to Dec
+            let anchorDate = new Date();
+            if (sortedBills.length > 0) {
+                const lastBillDate = new Date(sortedBills[sortedBills.length - 1].data_emissione);
+                // If last bill is in the past compared to today, use it as anchor?
+                // Or just use today? User complained about "gen and feb even if no data".
+                // So if today is Feb, but data ends in Dec, user likely wants to see Dec as the end.
+                // Let's use the max date from bills as the anchor, but ensure we don't go into the future if bills are weird.
+                // Actually, usually we want to see "up to now", but if "now" is empty and user hates it...
+                // SAFE BET: Use max(today, lastBill) -> no, use lastBillDate directly as anchor for "Consumption History"
+                anchorDate = lastBillDate;
+            }
+
+            // Create rolling 6 months window ending at anchorDate
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i, 1);
+                const monthName = d.toLocaleString('it-IT', { month: 'short' });
+                // Capitalize first letter
+                const formattedName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+                months.push({
+                    name: formattedName,
+                    value: 0,
+                    monthIndex: d.getMonth(),
+                    year: d.getFullYear()
+                });
+            }
+
+            // Populate values
+            sortedBills.forEach(bill => {
+                const billDate = new Date(bill.data_emissione);
+                const billMonth = billDate.getMonth();
+                const billYear = billDate.getFullYear();
+                const billConsumo = Number(bill.consumo || 0);
+
+                // Find matching bucket
+                const bucket = months.find(m => m.monthIndex === billMonth && m.year === billYear);
+                if (bucket) {
+                    bucket.value += billConsumo;
+                }
+            });
+
+            const finalData = months.map(m => ({ name: m.name, value: m.value }));
+            setData(finalData);
+
+            // Default to last month with value > 0, or last month match if all 0
+            let defaultIndex = finalData.length - 1;
+            for (let i = finalData.length - 1; i >= 0; i--) {
+                if (finalData[i].value > 0) {
+                    defaultIndex = i;
+                    break;
+                }
+            }
+            setActiveIndex(defaultIndex);
+        } else {
+            setData([])
+        }
+        setLoading(false)
+    }
 
     const fetchData = async () => {
         try {
@@ -104,7 +186,9 @@ export function ConsumptionChart() {
     // Map for full month names
     const monthNames: Record<string, string> = {
         'Gen': 'Gennaio', 'Feb': 'Febbraio', 'Mar': 'Marzo',
-        'Apr': 'Aprile', 'Mag': 'Maggio', 'Giu': 'Giugno'
+        'Apr': 'Aprile', 'Mag': 'Maggio', 'Giu': 'Giugno',
+        'Lug': 'Luglio', 'Ago': 'Agosto', 'Set': 'Settembre',
+        'Ott': 'Ottobre', 'Nov': 'Novembre', 'Dic': 'Dicembre'
     }
 
 
@@ -113,7 +197,7 @@ export function ConsumptionChart() {
     const average = data.reduce((acc, curr) => acc + curr.value, 0) / data.length
 
     // Mobile dynamic stats
-    const currentDiff = ((activeItem.value - average) / average) * 100
+    const currentDiff = average !== 0 ? ((activeItem.value - average) / average) * 100 : 0
 
     // Desktop static stats (current month)
     const currentDesktop = data[data.length - 1].value // Using data for current month
@@ -130,18 +214,18 @@ export function ConsumptionChart() {
                                 <TrendingUp size={16} className="md:w-6 md:h-6" />
                             </div>
                             <div>
-                                <h5 className="text-lg md:text-2xl font-bold text-slate-800 dark:text-white">145 Mc</h5>
-                                <p className="text-[10px] md:text-sm text-slate-500 dark:text-slate-400">Consumo Giugno</p>
+                                <h5 className="text-lg md:text-2xl font-bold text-slate-800 dark:text-white">{activeItem.value} Mc</h5>
+                                <p className="text-[10px] md:text-sm text-slate-500 dark:text-slate-400">Consumo {monthNames[activeItem.name] || activeItem.name}</p>
                             </div>
                         </div>
                         <div>
                             <span className={cn(
                                 "inline-flex items-center text-[10px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-sm border",
-                                percentageDiff > 0
+                                currentDiff > 0
                                     ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20"
                                     : "bg-red-50 text-red-600 border-red-100"
                             )}>
-                                {percentageDiff > 0 ? '+' : ''}{percentageDiff.toFixed(1)}%
+                                {currentDiff > 0 ? '+' : ''}{currentDiff.toFixed(1)}%
                                 <span className="hidden md:inline ml-1 text-[10px] opacity-90 font-medium uppercase tracking-wide">vs Media</span>
                             </span>
                         </div>
@@ -190,14 +274,18 @@ export function ConsumptionChart() {
                                     radius={[8, 8, 8, 8]}
                                     barSize={28}
                                 >
-                                    {data.map((entry, index) => (
-                                        <Cell
-                                            key={`cell-${index}`}
-                                            fill={entry.name === 'Giu' ? '#0ea5e9' : '#ffffff'}
-                                            style={entry.name !== 'Giu' ? { filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.05))' } : {}}
-                                            className="transition-all duration-300 ease-out hover:!fill-[#0ea5e9] dark:hover:!fill-sky-400 cursor-pointer"
-                                        />
-                                    ))}
+                                    {data.map((entry, index) => {
+                                        const isHighlighted = index === activeIndex
+                                        return (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={chartColor}
+                                                fillOpacity={isHighlighted ? 1 : 0.4}
+                                                onClick={() => setActiveIndex(index)}
+                                                className="transition-all duration-300 ease-out hover:opacity-100 cursor-pointer"
+                                            />
+                                        )
+                                    })}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -260,10 +348,10 @@ export function ConsumptionChart() {
                                     {data.map((entry, index) => (
                                         <Cell
                                             key={`cell-mobile-${index}`}
-                                            fill={index === activeIndex ? '#bae6fd' : '#e2e8f0'}
+                                            fill={chartColor}
+                                            fillOpacity={index === activeIndex ? 1 : 0.4}
                                             onClick={() => setActiveIndex(index)}
-                                            className="dark:fill-slate-700 opacity-100 transition-colors duration-300"
-                                            style={index === activeIndex ? { fill: '#0ea5e9' } : {}}
+                                            className="transition-all duration-300 cursor-pointer"
                                         />
                                     ))}
                                 </Bar>

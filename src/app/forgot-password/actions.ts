@@ -38,7 +38,7 @@ export async function lookupUser(identifier: string) {
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('email, name, surname')
-            .or(`cif.eq.${identifier},codice_cliente.eq.${identifier},user_name.eq.${identifier}`)
+            .or(`cif.eq.${identifier.trim()},codice_cliente.eq.${identifier.trim()},username.eq.${identifier.trim()}`)
             .single()
 
         if (profile && profile.email) {
@@ -77,7 +77,7 @@ export async function sendRecoveryOTP(identifier: string) {
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('email')
-            .or(`cif.eq.${identifier},codice_cliente.eq.${identifier},user_name.eq.${identifier}`)
+            .or(`cif.eq.${identifier.trim()},codice_cliente.eq.${identifier.trim()},username.eq.${identifier.trim()}`)
             .single()
 
         if (!profile?.email) return { success: false, error: 'Errore tecnico. Riprova.' }
@@ -124,7 +124,7 @@ export async function verifyRecoveryOTP(identifier: string, token: string) {
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('email')
-            .or(`cif.eq.${identifier},codice_cliente.eq.${identifier},user_name.eq.${identifier}`)
+            .or(`cif.eq.${identifier.trim()},codice_cliente.eq.${identifier.trim()},username.eq.${identifier.trim()}`)
             .single()
 
         if (!profile?.email) return { success: false, error: 'Utenza non trovata.' }
@@ -163,12 +163,22 @@ export async function updatePassword(password: string) {
         return { success: false, error: 'Sessione scaduta. Ricomincia la procedura.' }
     }
 
+    // Password Complexity Validation
+    // Requires: Lowercase, Uppercase, Digit, Special Character, Min 8 chars
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"|<>?,./`~]).{8,}$/
+    if (!passwordRegex.test(password)) {
+        return {
+            success: false,
+            error: "La password deve contenere almeno 8 caratteri, una lettera maiuscola, una minuscola, un numero e un carattere speciale (es. ! @ # $ % & *)."
+        }
+    }
+
     const { error } = await supabase.auth.updateUser({
         password: password
     })
 
     if (error) {
-        return { success: false, error: 'Errore aggiornamento password.' }
+        return { success: false, error: error.message }
     }
 
     return { success: true }

@@ -1,14 +1,13 @@
 'use client'
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 import { FileText, FileDown, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, CheckCircle, Eye } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { parse } from 'date-fns'
+import { cn } from '@/lib/utils'
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Client initialized inside component or imported as singleton from lib
+
 
 type Bill = {
     id: number
@@ -21,17 +20,41 @@ type Bill = {
     pdf_url: string | null
 }
 
-export function RecentBillsWidget() {
+interface RecentBillsWidgetProps {
+    settings?: Record<string, any>
+    initialData?: Bill[] | any[]
+}
+
+export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBillsWidgetProps) {
+    const limitSetting = parseInt(settings.limit || '10')
+    const showStatus = settings.show_status ?? true
     const [documents, setDocuments] = useState<Bill[]>([])
     const [currentDate, setCurrentDate] = useState<Date | null>(null)
     const [sortConfig, setSortConfig] = useState<{ key: 'cif' | 'expiry' | null, direction: 'asc' | 'desc' }>({ key: null, direction: 'asc' })
     const [searchTerm, setSearchTerm] = useState('')
     const [loading, setLoading] = useState(true)
+    const supabase = createClient()
 
     useEffect(() => {
         setCurrentDate(new Date())
-        fetchBills()
-    }, [])
+
+        if (initialData && initialData.length > 0) {
+            const mappedBills = initialData.map((bill: any) => ({
+                id: bill.id,
+                emission: new Date(bill.data_emissione).toLocaleDateString('it-IT'),
+                cif: bill.cif || bill.codice_cliente,
+                expiry: new Date(bill.scadenza).toLocaleDateString('it-IT'),
+                amount: `€ ${bill.importo?.toFixed(2).replace('.', ',')}`,
+                consumption: `${bill.consumo?.toFixed(2).replace('.', ',')} Mc`,
+                nome_pdf: bill.nome_pdf,
+                pdf_url: bill.pdf_url
+            }))
+            setDocuments(mappedBills)
+            setLoading(false)
+        } else {
+            fetchBills()
+        }
+    }, [initialData])
 
     const fetchBills = async () => {
         try {
@@ -134,7 +157,12 @@ export function RecentBillsWidget() {
     };
 
 
-    const [visibleCount, setVisibleCount] = useState(10)
+    const [visibleCount, setVisibleCount] = useState(limitSetting)
+
+    // Sync visibleCount if limitSetting changes (e.g. in preview)
+    useEffect(() => {
+        setVisibleCount(limitSetting)
+    }, [limitSetting])
 
     const handleShowMore = () => {
         setVisibleCount(prev => prev + 10)
@@ -165,7 +193,7 @@ export function RecentBillsWidget() {
                         <div className="flex-1 py-3 pl-4 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-left text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 rounded-tl-2xl rounded-bl-2xl flex items-center">Emissione</div>
 
                         <div className="flex-1 py-3 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-center text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 cursor-pointer group hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-1" onClick={() => handleSort('cif')}>
-                            CIF
+                            Bolletta
                             {sortConfig.key === 'cif' ? (
                                 sortConfig.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
                             ) : (
@@ -213,11 +241,11 @@ export function RecentBillsWidget() {
                                         return (
                                             <div key={doc.id} className="flex w-[96%] mx-auto relative group hover:scale-[1.002] hover:z-10 transition-all duration-200">
                                                 <div className="flex-1 py-2 pl-4 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 rounded-l-xl border-y border-l border-white/20 dark:border-white/5 flex items-center">
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-500/20">
                                                         {doc.emission}
                                                     </span>
                                                 </div>
-                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 text-sm text-slate-500 dark:text-slate-400 flex items-center justify-center">{doc.cif}</div>
+                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 text-sm text-slate-500 dark:text-slate-300 flex items-center justify-center font-medium">{doc.nome_pdf}</div>
                                                 <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 flex items-center justify-center">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${isExpired
                                                         ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20'
@@ -226,10 +254,11 @@ export function RecentBillsWidget() {
                                                         {doc.expiry}
                                                     </span>
                                                 </div>
-                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center justify-center">{doc.amount}</div>
-                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 font-medium text-slate-800 dark:text-slate-300 text-sm flex items-center justify-center">{doc.consumption}</div>
+                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center justify-center">{doc.amount}</div>
+                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 font-medium text-slate-800 dark:text-slate-200 text-sm flex items-center justify-center">{doc.consumption}</div>
                                                 <div className="flex-1 py-2 pr-4 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 rounded-r-xl border-y border-r border-white/20 dark:border-white/5 text-center flex items-center justify-center">
                                                     <div className="flex items-center justify-end gap-2">
+
                                                         <button
                                                             onClick={() => handleDownload(doc.pdf_url)}
                                                             className="p-1.5 rounded-lg transition-all shadow-sm btn-glass btn-glass-sky cursor-pointer"
@@ -262,8 +291,8 @@ export function RecentBillsWidget() {
                                                 <div className="px-4 pt-3 pb-2">
                                                     <div className="flex justify-between items-start mb-1">
                                                         <div className="flex flex-col">
-                                                            <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider mb-0.5">CIF</span>
-                                                            <span className="font-mono text-slate-900 dark:text-slate-200 font-bold text-sm tracking-tight">{doc.cif}</span>
+                                                            <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider mb-0.5">Bolletta</span>
+                                                            <span className="font-mono text-slate-900 dark:text-slate-200 font-bold text-sm tracking-tight">{doc.nome_pdf}</span>
                                                         </div>
                                                         <div className="text-right">
                                                             <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider block mb-0.5">Importo</span>
@@ -275,45 +304,50 @@ export function RecentBillsWidget() {
                                                     <div className="grid grid-cols-2 gap-2 py-1.5 border-t border-slate-100/80 dark:border-white/10">
                                                         <div>
                                                             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold block mb-0.5">Emissione</span>
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5">
+                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-500/20">
                                                                 {doc.emission}
                                                             </span>
                                                         </div>
                                                         <div className="text-right">
                                                             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold block mb-0.5">Consumo</span>
-                                                            <span className="text-sm font-semibold text-[#005A9C] dark:text-sky-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md inline-block border border-blue-100/50 dark:border-blue-500/20">{doc.consumption}</span>
+                                                            <span className="text-base font-bold text-[#005A9C] dark:text-sky-400 bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-md inline-block border border-blue-100/50 dark:border-blue-500/20">{doc.consumption}</span>
+                                                        </div>
+                                                        <div>
+                                                            {showStatus && (
+                                                                <>
+                                                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold block mb-0.5">Scadenza</span>
+                                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border w-fit ${isExpired
+                                                                        ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20'
+                                                                        : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20'
+                                                                        }`}>
+                                                                        {isExpired ? (
+                                                                            <><AlertCircle size={12} className="mr-1" /> {doc.expiry}</>
+                                                                        ) : (
+                                                                            <><CheckCircle size={12} className="mr-1" /> {doc.expiry}</>
+                                                                        )}
+                                                                    </span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
 
                                                 {/* Footer Actions */}
-                                                <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${isExpired
-                                                            ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20'
-                                                            : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20'
-                                                            }`}>
-                                                            {isExpired ? (
-                                                                <><AlertCircle size={10} className="mr-1" /> Scaduta {doc.expiry}</>
-                                                            ) : (
-                                                                <><CheckCircle size={10} className="mr-1" /> Scade {doc.expiry}</>
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
+                                                <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-700/50">
+                                                    <div className="flex items-center gap-3 w-full">
                                                         <button
                                                             onClick={() => handleDownload(doc.pdf_url)}
-                                                            className="p-1.5 rounded-lg transition-all shadow-sm btn-glass btn-glass-sky cursor-pointer"
-                                                            title="Vedi PDF"
+                                                            className="flex-1 py-2.5 rounded-xl transition-all shadow-sm btn-glass btn-glass-sky cursor-pointer flex items-center justify-center gap-2"
                                                         >
-                                                            <Eye size={16} strokeWidth={2.5} />
+                                                            <Eye size={18} strokeWidth={2.5} />
+                                                            <span className="text-xs font-bold uppercase tracking-wide">Vedi</span>
                                                         </button>
                                                         <button
                                                             onClick={() => handleDownload(doc.pdf_url)}
-                                                            className="p-1.5 rounded-lg transition-all shadow-sm btn-glass btn-glass-emerald cursor-pointer"
-                                                            title="Scarica PDF"
+                                                            className="flex-1 py-2.5 rounded-xl transition-all shadow-sm btn-glass btn-glass-emerald cursor-pointer flex items-center justify-center gap-2"
                                                         >
-                                                            <FileDown size={16} strokeWidth={2.5} />
+                                                            <FileDown size={18} strokeWidth={2.5} />
+                                                            <span className="text-xs font-bold uppercase tracking-wide">Scarica</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -322,17 +356,19 @@ export function RecentBillsWidget() {
                                     })}
                                 </div>
 
-                                {visibleCount < sortedDocuments.length && (
-                                    <div className="flex justify-center pb-4">
-                                        <button
-                                            onClick={handleShowMore}
-                                            className="px-6 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 rounded-full text-xs font-bold transition-all shadow-sm hover:shadow-md border border-slate-200 dark:border-white/10 active:scale-95 flex items-center gap-2"
-                                        >
-                                            <ArrowDown size={14} />
-                                            Mostra altro
-                                        </button>
-                                    </div>
-                                )}
+                                {
+                                    visibleCount < sortedDocuments.length && (
+                                        <div className="flex justify-center pb-4">
+                                            <button
+                                                onClick={handleShowMore}
+                                                className="px-6 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 rounded-full text-xs font-bold transition-all shadow-sm hover:shadow-md border border-slate-200 dark:border-white/10 active:scale-95 flex items-center gap-2"
+                                            >
+                                                <ArrowDown size={14} />
+                                                Mostra altro
+                                            </button>
+                                        </div>
+                                    )
+                                }
                             </>
                         )}
                     </div>
@@ -340,6 +376,6 @@ export function RecentBillsWidget() {
             </div>
 
 
-        </div>
+        </div >
     )
 }

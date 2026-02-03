@@ -1,7 +1,10 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+
+// Helper to create Admin Client (bypass RLS)
 
 // Helper to create Admin Client (bypass RLS)
 function createAdminClient() {
@@ -17,7 +20,14 @@ function createAdminClient() {
     )
 }
 
-export async function inviteAdmin(formData: FormData) {
+function createStandardClient() {
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+}
+
+export async function inviteAdmin(formData: FormData): Promise<{ success: boolean; error?: string }> {
     const email = formData.get('email') as string
     const fullName = formData.get('fullName') as string
 
@@ -26,13 +36,35 @@ export async function inviteAdmin(formData: FormData) {
     const supabaseAdmin = createAdminClient()
 
     try {
+        // 0. Get Current Admin's Tenant ID
+        const supabaseSession = await createServerClient()
+        const { data: { user: inviter } } = await supabaseSession.auth.getUser()
+
+        if (!inviter) return { success: false, error: 'Sessione scaduta' }
+
+        const { data: inviterProfile } = await supabaseSession
+            .from('tenant_admins')
+            .select('tenant_id')
+            .eq('id', inviter.id)
+            .single()
+
+        const tenantId = inviterProfile?.tenant_id
+
+        if (!tenantId) {
+            // Fallback or Error? If inviter is super_admin might not have tenant_id? 
+            // Or maybe they do. Let's assume they MUST have one for now.
+            return { success: false, error: 'Impossibile determinare il Tenant ID del chiamante.' }
+        }
+
         // 1. Invite User
         const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
             email,
             {
                 data: {
-                    full_name: fullName || 'Admin'
-                }
+                    full_name: fullName || 'Admin',
+                    is_admin: true // Flag to prevent profile creation via trigger
+                },
+                redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/confirm-invite`
             }
         )
 
@@ -45,7 +77,26 @@ export async function inviteAdmin(formData: FormData) {
             return { success: false, error: 'Utente non creato' }
         }
 
-        // 2. Set Admin Role
+        // 2. Insert into tenant_admins
+        const { error: insertError } = await supabaseAdmin
+            .from('tenant_admins')
+            .insert({
+                id: data.user.id,
+                email: email,
+                full_name: fullName || 'Admin',
+                role: 'admin',
+                tenant_id: tenantId,
+                created_at: new Date().toISOString()
+            })
+
+        if (insertError) {
+            console.error('Tenant Admin Insert Error:', insertError)
+            // Clean up auth user if db insert fails? Or just return error?
+            // For now return error but keep user (can be retried or fixed manually)
+            return { success: false, error: 'Utente auth creato ma aggiunta a tenant_admins fallita: ' + insertError.message }
+        }
+
+        // 3. Set Admin Role in Auth Metadata (as backup/sync)
         const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
             data.user.id,
             {
@@ -57,7 +108,6 @@ export async function inviteAdmin(formData: FormData) {
 
         if (updateError) {
             console.error('Update Role Error:', updateError)
-            return { success: false, error: 'Invito inviato ma errore assegnazione ruolo' }
         }
 
         revalidatePath('/admin/admins')

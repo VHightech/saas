@@ -6,6 +6,7 @@ import Image from "next/image"
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useTenant } from '@/components/tenant-provider'
 
 export default function DashboardLayout({
     children,
@@ -15,6 +16,8 @@ export default function DashboardLayout({
     const router = useRouter()
     const [checking, setChecking] = useState(true)
     const supabase = createClient()
+    const { tenant } = useTenant()
+    const [userData, setUserData] = useState<{ name: string; email: string } | null>(null)
 
     useEffect(() => {
         checkProfile()
@@ -31,13 +34,20 @@ export default function DashboardLayout({
 
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('user_name') // Add other fields if needed
+                .select('name, user_name') // Add other fields if needed
                 .eq('id', user.id)
                 .single()
 
             if (profile && !profile.user_name) {
                 // If user_name is missing (was reset), redirect to complete profile
                 router.push('/profile/complete')
+            }
+
+            if (user && profile) {
+                setUserData({
+                    name: profile.name || 'Utente',
+                    email: user.email || ''
+                })
             }
         } catch (e) {
             console.error(e)
@@ -61,13 +71,23 @@ export default function DashboardLayout({
                 {/* Logo / Title */}
                 <div className="flex items-center gap-12">
                     <div className="flex items-center space-x-3">
-                        <Image
-                            src="/brand-logo.jpg"
-                            alt="Brand Logo"
-                            width={40}
-                            height={40}
-                            className="object-contain rounded-xl"
-                        />
+                        <div className="w-10 h-10 relative flex items-center justify-center bg-white rounded-xl overflow-hidden p-1 shadow-sm">
+                            {tenant?.logo_url ? (
+                                <img
+                                    src={tenant.logo_url}
+                                    alt={tenant.name || "Brand Logo"}
+                                    className="w-full h-full object-contain"
+                                />
+                            ) : (
+                                <Image
+                                    src="/acq_logo.jpg"
+                                    alt="Brand Logo"
+                                    width={40}
+                                    height={40}
+                                    className="object-contain"
+                                />
+                            )}
+                        </div>
                         <span className="text-lg font-bold text-slate-700 dark:text-slate-200 hidden sm:block tracking-tight">
                             Area Personale
                         </span>
@@ -76,6 +96,19 @@ export default function DashboardLayout({
 
                 {/* Right Actions */}
                 <div className="flex items-center gap-4">
+                    {/* User Badge */}
+                    {userData && (
+                        <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-white/50 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10 rounded-full shadow-sm mr-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 font-bold text-xs uppercase">
+                                {userData.name.substring(0, 2)}
+                            </div>
+                            <div className="flex flex-col pr-2">
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-none">{userData.name}</span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-none mt-1 font-medium">{userData.email}</span>
+                            </div>
+                        </div>
+                    )}
+
                     <ModeToggle />
 
                     <button

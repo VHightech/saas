@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminLayoutShell } from '@/components/admin/admin-layout-shell'
+import { getCurrentUserRole } from '@/lib/auth'
 
 export default async function AdminLayout({
     children,
@@ -16,9 +17,11 @@ export default async function AdminLayout({
         redirect('/login')
     }
 
-    // 2. Check Role in app_metadata
-    if (user.app_metadata.role !== 'admin') {
-        // Not an admin, redirect to normal dashboard
+    // 2. Check Role (Using new Auth Logic)
+    const role = await getCurrentUserRole()
+
+    // Allow either 'admin' or 'super_admin' to access the admin area
+    if (role !== 'admin' && role !== 'super_admin') {
         redirect('/dashboard')
     }
 
@@ -43,7 +46,7 @@ export default async function AdminLayout({
 
             {/* Desktop Admin Interface */}
             <div className="hidden md:block">
-                <AdminLayoutShell userName={userName}>
+                <AdminLayoutShell userName={userName} userRole={role}>
                     {children}
                 </AdminLayoutShell>
             </div>

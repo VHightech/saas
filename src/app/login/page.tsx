@@ -2,22 +2,36 @@
 
 import { login } from '@/app/login/actions'
 import { ArrowRight, Sparkles, CheckCircle2, TrendingUp, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { ModeToggle } from '@/components/mode-toggle'
+import { useTenant } from '@/components/tenant-provider'
+import HCaptcha from '@hcaptcha/react-hcaptcha'
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
+    const { tenant } = useTenant()
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+    const captchaRef = useRef<HCaptcha>(null)
 
     async function handleSubmit(formData: FormData) {
         setLoading(true)
         setError(null)
 
+        if (!captchaToken) {
+            setError("Per favore, completa il controllo di sicurezza (Captcha).")
+            setLoading(false)
+            return
+        }
+
+        formData.append('captchaToken', captchaToken)
         const result = await login(formData)
 
         if (result?.error) {
             setError(result.error)
             setLoading(false)
+            captchaRef.current?.resetCaptcha()
+            setCaptchaToken(null)
         }
     }
 
@@ -34,9 +48,15 @@ export default function LoginPage() {
 
                 {/* Logo */}
                 <div className="mb-12">
-                    <span className="font-black text-2xl tracking-tighter text-black dark:text-white flex items-center gap-2">
-                        <div className="w-8 h-8 bg-black dark:bg-white rounded-lg flex items-center justify-center text-white dark:text-black text-sm">AQ</div>
-                        ACQDASH
+                    <span className="font-black text-2xl tracking-tighter text-black dark:text-white flex items-center gap-3">
+                        <div className="w-10 h-10 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black shadow-sm overflow-hidden p-1 bg-white">
+                            {tenant?.logo_url ? (
+                                <img src={tenant.logo_url} alt={tenant.name || "Logo"} className="w-full h-full object-contain" />
+                            ) : (
+                                <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
+                            )}
+                        </div>
+                        {tenant?.name || "Portale Acquambiente"}
                     </span>
                 </div>
 
@@ -84,6 +104,17 @@ export default function LoginPage() {
                         </a>
                     </div>
 
+                    <div className="py-2 flex justify-center">
+                        <HCaptcha
+                            sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY!}
+                            onVerify={(token) => {
+                                setCaptchaToken(token)
+                                setError(null)
+                            }}
+                            ref={captchaRef}
+                        />
+                    </div>
+
                     <button
                         disabled={loading}
                         className="w-full py-3.5 px-6 rounded-lg bg-black dark:bg-white text-white dark:text-black font-bold hover:bg-slate-800 dark:hover:bg-slate-200 hover:-translate-y-0.5 transition-all duration-200 shadow-xl shadow-slate-200/50 dark:shadow-none disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -103,13 +134,13 @@ export default function LoginPage() {
                 </form>
 
                 <div className="mt-auto pt-10 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
-                    <span>© 2026 ACQDASH</span>
+                    <span>© 2026 {tenant?.name || "Portale Acquambiente"}</span>
                     <a href="#" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
-            </div>
+            </div >
 
             {/* RIGHT: VISUAL SECTION (60-65%) */}
-            <div className="hidden lg:flex flex-1 bg-slate-50 dark:bg-[#111] relative overflow-hidden items-center justify-center p-12 transition-colors duration-500">
+            < div className="hidden lg:flex flex-1 bg-slate-50 dark:bg-[#111] relative overflow-hidden items-center justify-center p-12 transition-colors duration-500" >
                 {/* Decorative Circle */}
                 {/* Light Mode Circles */}
                 <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] rounded-full border border-slate-200/50 dark:border-white/5 opacity-50 dark:opacity-20" />
@@ -181,7 +212,7 @@ export default function LoginPage() {
                     </div>
 
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }

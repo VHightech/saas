@@ -2,12 +2,13 @@
 
 import { use, useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, ShieldAlert, TrendingUp, TrendingDown, CheckCircle, Smartphone, Mail, MapPin, Calendar, FileText, Search, AlertCircle, Clock, Save, Edit2, Key, ChevronLeft, ChevronRight, Zap, Ghost, Droplets, Eye, Trash2, Inbox, User } from 'lucide-react'
+import { ArrowLeft, Download, ShieldAlert, TrendingUp, TrendingDown, CheckCircle, Smartphone, Mail, MapPin, Calendar, FileText, AlertCircle, Clock, Save, Edit2, Key, ChevronLeft, ChevronRight, Zap, Ghost, Droplets, Eye, Trash2, Inbox, User } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { deleteUser, updateUser } from '../actions'
 import { ExpensesTrendChart } from '@/components/dashboard/widgets/ExpensesTrendChart'
+import { SearchBar } from '@/components/ui/search-bar'
 
 interface Profile {
     id: string
@@ -452,18 +453,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                     {/* LEFT COL: Analytics */}
                     <div className="lg:col-span-1 space-y-4 overflow-y-auto custom-scrollbar pr-2">
 
-                        {/* Anomaly */}
-                        {analytics.hasAnomaly && (
-                            <div className="bg-red-50/90 backdrop-blur-xl rounded-2xl p-5 border border-red-200 flex items-center gap-4 animate-pulse">
-                                <div className="p-3 bg-red-100 text-red-600 rounded-xl">
-                                    <ShieldAlert size={24} />
-                                </div>
-                                <div>
-                                    <h3 className="text-red-900 font-black text-xs uppercase tracking-wide">Attenzione</h3>
-                                    <p className="text-red-700 text-[10px] font-semibold leading-tight mt-0.5">{analytics.overdueInvoices} fatture scadute.</p>
-                                </div>
-                            </div>
-                        )}
+
 
                         {/* Reliability - DISABLED (No Data) */}
                         {/*
@@ -481,7 +471,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                         {/* Summary */}
 
                         <div className="h-[250px] w-full mb-4">
-                            <ExpensesTrendChart bills={bills} className="!p-4 !rounded-2xl !bg-white/30 dark:!bg-[#1e1e1e] !border-white/50 dark:!border-[#333333]" />
+                            <ExpensesTrendChart bills={bills.filter(b => Number(b.importo) > 0)} className="!p-4 !rounded-2xl !bg-white/30 dark:!bg-[#1e1e1e] !border-white/50 dark:!border-[#333333]" />
                         </div>
 
                         <div className="bg-white/30 dark:bg-[#1e1e1e] backdrop-blur-2xl rounded-2xl p-6 border border-white/50 dark:border-[#333333]">
@@ -501,7 +491,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                             </div>
                             */}
                                 <div className="pt-4 mt-2 border-t border-slate-100 dark:border-[#333333] flex justify-between items-center">
-                                    <span className="text-slate-900 dark:text-white font-bold text-sm uppercase">Totale Emesso</span>
+                                    <span className="text-slate-900 dark:text-white font-bold text-sm uppercase">Totale Fatture</span>
                                     <span className="font-bold text-slate-800 dark:text-slate-200 text-xl tracking-tight">€ {analytics.unpaidAmount.toFixed(2)}</span>
                                 </div>
                             </div>
@@ -509,7 +499,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                     </div>
 
                     {/* RIGHT COL: Invoice Table */}
-                    <div className="lg:col-span-3 h-fit flex flex-col bg-white/70 dark:bg-[#1e1e1e] backdrop-blur-2xl rounded-2xl border border-slate-200 dark:border-[#333333] overflow-hidden shadow-sm">
+                    <div className="lg:col-span-3 h-full min-h-0 flex flex-col bg-white/70 dark:bg-[#1e1e1e] backdrop-blur-2xl rounded-2xl border border-slate-200 dark:border-[#333333] overflow-hidden shadow-sm">
 
                         {/* Header */}
                         <div className="p-5 border-b border-slate-100 dark:border-[#333333] flex items-center justify-between gap-4">
@@ -522,14 +512,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide">Storico importato</p>
                                 </div>
                             </div>
-                            <div className="relative w-64 group">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-sky-500 transition-colors" size={16} />
-                                <input
-                                    type="text"
-                                    placeholder="Cerca importo o nome..."
+                            <div className="w-64">
+                                <SearchBar
+                                    placeholder="Cerca..."
                                     value={invoiceSearch}
-                                    onChange={(e) => { setInvoiceSearch(e.target.value); setCurrentPage(1); }}
-                                    className="w-full bg-white dark:bg-[#2a2a2a] border-2 border-slate-100 dark:border-[#333333] rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium focus:border-sky-500 focus:ring-4 ring-sky-500/10 outline-none transition-all dark:text-slate-100 dark:placeholder:text-slate-500"
+                                    onChange={(val) => { setInvoiceSearch(val); setCurrentPage(1); }}
                                 />
                             </div>
                         </div>
@@ -539,7 +526,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                             <table className="w-full text-left border-collapse">
                                 <thead className="sticky top-0 z-10">
                                     <tr className="border-b border-slate-200 dark:border-[#333333] text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/95 dark:bg-[#1e1e1e] backdrop-blur-sm">
-                                        <th className="p-3 pl-6">Documento (PDF)</th>
+                                        <th className="p-3 pl-6">Bolletta n°</th>
                                         <th className="p-3">Emissione</th>
                                         <th className="p-3">Scadenza</th>
                                         <th className="p-3">Consumo</th>
@@ -554,7 +541,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                         return (
                                             <tr key={inv.id} className="hover:bg-sky-50 dark:hover:bg-sky-900/10 transition-all group border-l-4 border-l-transparent hover:border-l-sky-500 hover:shadow-md">
                                                 <td className="p-3 pl-6 font-black text-slate-700 dark:text-slate-300 group-hover:text-sky-700 dark:group-hover:text-sky-400 transition-colors">
-                                                    {inv.nome_pdf || 'N/A'}
+                                                    {inv.nome_pdf?.replace('.pdf', '') || 'N/A'}
                                                 </td>
                                                 <td className="p-3 text-slate-500 font-medium">
                                                     <div className="btn-glass btn-glass-sky inline-flex items-center gap-1.5 !p-1 !px-2 rounded-lg text-[10px] font-bold w-fit">
@@ -570,14 +557,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                                         >
                                                             <AlertCircle size={10} strokeWidth={3} /> {inv.scadenza ? format(new Date(inv.scadenza), 'dd/MM/yyyy') : 'Scaduta'}
                                                         </span>
-                                                    ) : (
+                                                    ) : inv.scadenza ? (
                                                         <span
                                                             title="In Scadenza"
                                                             className="btn-glass btn-glass-amber inline-flex items-center gap-1.5 !p-1 !px-2 rounded-lg text-[10px] font-black uppercase tracking-wide cursor-help w-fit"
                                                         >
-                                                            <Clock size={10} strokeWidth={3} /> {inv.scadenza ? format(new Date(inv.scadenza), 'dd/MM/yyyy') : 'Attesa'}
+                                                            <Clock size={10} strokeWidth={3} /> {format(new Date(inv.scadenza), 'dd/MM/yyyy')}
                                                         </span>
-                                                    )}
+                                                    ) : null}
                                                 </td>
 
                                                 <td className="p-3">

@@ -69,6 +69,7 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
     }
 
     const uploadFiles = async (csvFile: File, archiveFile: File) => {
+        console.log('[UploadProvider] Starting upload...', { csv: csvFile.name, archive: archiveFile.name })
         resetUpload()
         setIsUploading(true)
         setStatus('Preparazione file...')
@@ -76,6 +77,7 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
 
         // Generate ID
         const importId = generateUUID()
+        console.log('[UploadProvider] Generated Import ID:', importId)
 
         const formData = new FormData()
         formData.append('csv', csvFile)
@@ -98,6 +100,7 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
                     setProgress(pct > 100 ? 100 : pct)
                 }
                 setStatus(`${data.current_file || 'Esecuzione...'} (${data.processed_files}/${data.total_files})`)
+                console.log('[UploadProvider] Polling status:', data.status, data.processed_files)
 
                 if (data.status === 'completed' || data.status === 'error') {
                     // Stop polling if done (though the fetch below handles the final result)
@@ -109,12 +112,15 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
         progressTimer.current = poller
 
         try {
+            console.log('[UploadProvider] Sending fetch request...')
             const res = await fetch('/api/upload', {
                 method: 'POST',
                 body: formData
             })
 
+            console.log('[UploadProvider] Fetch response received:', res.status)
             const data = await res.json()
+            console.log('[UploadProvider] Data parsed:', data)
 
             // Stop Polling
             clearInterval(poller)
@@ -125,14 +131,17 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
             setProgress(100)
             setStatus('Completato!')
             setResult(data)
+            console.log('[UploadProvider] Result set.')
 
         } catch (err: any) {
+            console.error('[UploadProvider] Error:', err)
             if (progressTimer.current) clearInterval(progressTimer.current)
             setError(err.message)
             setStatus('Errore')
             setProgress(0)
         } finally {
             setIsUploading(false)
+            console.log('[UploadProvider] Upload process finished.')
         }
     }
 
