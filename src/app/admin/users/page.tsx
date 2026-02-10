@@ -98,14 +98,20 @@ export default function AdminUsersPage() {
                 const { data, error } = await supabase
                     .rpc('search_users', {
                         search_term: debouncedSearchTerm,
-                        _limit: itemsPerPage,
+                        _limit: itemsPerPage * 2, // Fetch more to allow for client-side filtering
                         _offset: (currentPage - 1) * itemsPerPage
                     })
 
                 if (error) throw error
 
                 if (data) {
-                    const adapted = data.map((p: any) => ({
+                    // Filter out admins from search results
+                    // Assuming RPC returns role, or we rely on backend. 
+                    // Since we can't easily change RPC right now, we filter client side 
+                    // (and increased limit above to compensate partially)
+                    const filteredData = data.filter((p: any) => p.role !== 'admin' && p.role !== 'super_admin')
+
+                    const adapted = filteredData.map((p: any) => ({
                         id: p.id,
                         fullName: p.name || "Utente non registrato",
                         email: p.email || '',
@@ -113,12 +119,13 @@ export default function AdminUsersPage() {
                         address: p.address || '',
                         city: p.city || '',
                         clientCode: p.codice_cliente || '',
-                        isShadow: p.is_shadow || (p.legacy_id && p.legacy_id < 0) || !p.email || !p.name,
+                        isShadow: p.is_shadow || !p.email || !p.name,
                         invoices: [],
                         cif: p.cif || ''
                     }))
                     setUsers(adapted)
                     // The RPC returns total_count in every row, take the first one
+                    // Note: Total count usually includes everything, so it might be slightly off due to filtering
                     setTotalResults(data[0]?.total_count || 0)
                 }
                 setLoading(false)
@@ -129,6 +136,7 @@ export default function AdminUsersPage() {
             query = supabase
                 .from('profiles')
                 .select('*', { count: 'exact' })
+                .neq('role', 'admin') // Exclude Admins
                 .order('created_at', { ascending: false })
 
             query = query.range((currentPage - 1) * itemsPerPage, ((currentPage - 1) * itemsPerPage) + itemsPerPage - 1)
@@ -149,7 +157,7 @@ export default function AdminUsersPage() {
                         address: p.address || '',
                         city: p.city || '',
                         clientCode: p.codice_cliente || '',
-                        isShadow: p.is_shadow || (p.legacy_id && p.legacy_id < 0) || !p.email || !p.name,
+                        isShadow: p.is_shadow || !p.email || !p.name,
                         invoices: [],
                         cif: p.cif || ''
                     }

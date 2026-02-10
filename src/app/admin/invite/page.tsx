@@ -132,11 +132,11 @@ export default function AdminManagementPage() {
                                     <div key={admin.id} className="p-4 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm">
-                                                {(admin.user_metadata?.full_name || admin.email || 'A')[0].toUpperCase()}
+                                                {(admin.name || admin.email || 'A')[0].toUpperCase()}
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-900 dark:text-white text-sm">
-                                                    {admin.user_metadata?.full_name || 'Admin'}
+                                                    {admin.name || 'Admin'}
                                                 </div>
                                                 <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                                                     {admin.email}
@@ -146,9 +146,9 @@ export default function AdminManagementPage() {
 
                                         <div className="flex items-center gap-4">
                                             <div className="text-right hidden sm:block">
-                                                <div className="text-[10px] uppercase font-bold text-slate-400">Ultimo Accesso</div>
-                                                <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                                                    {admin.last_sign_in_at ? new Date(admin.last_sign_in_at).toLocaleDateString('it-IT') : 'Mai'}
+                                                <div className="text-[10px] uppercase font-bold text-slate-400">Ruolo</div>
+                                                <div className="text-xs font-medium text-slate-600 dark:text-slate-300 capitalize">
+                                                    {admin.role}
                                                 </div>
                                             </div>
 

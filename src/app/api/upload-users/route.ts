@@ -45,47 +45,94 @@ export async function POST(req: NextRequest) {
         const errors: string[] = []
 
         // Batch processing could be better but loop is fine for <10k records
+        // Deduplicate input by Codice Cliente
+        const uniquePayloads = new Map<string, any>()
+
         for (const row of records as any[]) {
+            const cif = row['cif'] || row['CIF']
+            const nominativo = row['nominativo'] || row['Nominativo'] || row['Ragione Sociale'] || row['denominazione']
+            const cf = row['Codice Fiscale'] || row['codice fiscale']
+            const piva = row['Partita Iva'] || row['partita iva']
+            const address = row['indirizzo utenza'] || row['inidrizzo utenza']
+            const city = row['Comune'] || row['comune']
+
+            if (!cif) continue
+
+            // 1. Try to read Codice Cliente from CSV
+            let clientCode = row['codice_cliente'] || row['Codice Cliente'] || row['CodiceCliente']
+
+            const cleanCif = cif.trim()
+
+            // 2. If missing, derive from CIF
+            if (!clientCode && cleanCif.length >= 6) {
+                clientCode = cleanCif.substring(0, 6)
+            }
+
+            if (!clientCode) {
+                errors.push(`Excluded: No Codice Cliente and CIF too short: ${cleanCif}`)
+                errorCount++
+                continue
+            }
+
+            // Prefer last encountered or handle merging? Last wins for now.
+            uniquePayloads.set(clientCode, {
+                codice_cliente: clientCode,
+                cif: cleanCif, // Keep full CIF for reference
+                name: nominativo,
+                cfpi: cf || piva,
+                address: address,
+                city: city,
+                is_shadow: true // Mark as shadow user
+            })
+        }
+
+        console.log(`[API] Processing ${uniquePayloads.size} unique client codes...`)
+
+        for (const payload of uniquePayloads.values()) {
             try {
-                const cif = row['cif'] || row['CIF']
-                const nominativo = row['nominativo'] || row['Nominativo'] || row['Ragione Sociale']
-                const cf = row['Codice Fiscale'] || row['codice fiscale']
-                const piva = row['Partita Iva'] || row['partita iva']
-                // Handle specific typo observed in user file 'inidrizzo utenza'
-                const address = row['indirizzo utenza'] || row['inidrizzo utenza']
-                const city = row['Comune'] || row['comune']
-
-                if (!cif) {
-                    // Skip or log?
-                    // console.warn('Skipping row missing CIF', row)
-                    continue
-                }
-
-                const cfpi = cf || piva
-
-                const payload = {
-                    cif: cif,
-                    name: nominativo,
-
-                    cfpi: cfpi,
-                    address: address,
-                    city: city,
-                    // created_at? default
-                }
-
-                const { error } = await supabase
+                // Find existing user by Codice Cliente OR CIF
+                // We want to avoid duplicates and only patch missing info
+                const { data: existing, error: fetchError } = await supabase
                     .from('profiles')
-                    .upsert(payload, { onConflict: 'cif' })
+                    .select('id, codice_cliente, cif')
+                    .or(`codice_cliente.eq.${payload.codice_cliente},cif.eq.${payload.cif}`)
+                    .maybeSingle()
 
-                if (error) {
-                    errors.push(`CIF ${cif}: ${error.message}`)
-                    errorCount++
+                if (fetchError) throw fetchError
+
+                if (existing) {
+                    // Update ONLY if missing key fields (Safe Update)
+                    const updates: any = {}
+
+                    if (!existing.codice_cliente) updates.codice_cliente = payload.codice_cliente
+                    if (!existing.cif) updates.cif = payload.cif
+
+                    if (Object.keys(updates).length > 0) {
+                        const { error } = await supabase
+                            .from('profiles')
+                            .update(updates)
+                            .eq('id', existing.id)
+
+                        if (error) throw error
+                        // console.log(`Patched User ${existing.id}: ${JSON.stringify(updates)}`)
+                    }
+                    successCount++
                 } else {
+                    // Start: Insert new Shadow User
+                    // We must generate a random UUID because profiles.id is likely PK
+                    // And logically, shadow users have a random ID until they register (and claim the profile)
+                    // Note: This relies on profiles.id NOT being a strict FK to auth.users, or having a fallback.
+
+                    const { error } = await supabase
+                        .from('profiles')
+                        .insert(payload) // Supabase should auto-gen ID if configured, else we might need `crypto.randomUUID()`
+
+                    if (error) throw error
                     successCount++
                 }
-
             } catch (err: any) {
-                errors.push(`Row Error: ${err.message}`)
+                console.error(`[API] Profile Error for ${payload.codice_cliente}:`, err)
+                errors.push(`Err ${payload.codice_cliente}: ${err.message}`)
                 errorCount++
             }
         }

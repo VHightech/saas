@@ -8,6 +8,9 @@ export interface Bill {
     codice_cliente: string
     nome_pdf: string
     pdf_url?: string
+    ulm?: string
+    tipo_servizio?: string
+    original_row_index?: number
 }
 
 export interface Profile {

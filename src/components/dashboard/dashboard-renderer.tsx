@@ -36,7 +36,58 @@ interface DashboardRendererProps {
     uploads?: UploadLog[]
 }
 
+import { useDashboard } from '@/components/dashboard/dashboard-context'
+
 export function DashboardRenderer({ layout, profile, bills, stats, adminStats, uploads }: DashboardRendererProps) {
+    // --- MULTI-SUPPLY LOGIC ---
+    // Use Global Context for Supply Selector
+    const { setSupplies, selectedSupply } = useDashboard()
+
+    // 1. Extract Unique Supplies (ULM or fallback to 'N/A' if missing, but we only list existing ones)
+    const uniqueSupplies = React.useMemo(() => {
+        const supplies = new Set<string>()
+        bills.forEach(b => {
+            if (b.ulm) supplies.add(b.ulm)
+        })
+        const final = Array.from(supplies).sort()
+        return final
+    }, [bills])
+
+    // Sync supplies to global context
+    React.useEffect(() => {
+        setSupplies(uniqueSupplies)
+    }, [uniqueSupplies, setSupplies])
+
+    // 2. Filter Bills
+    const filteredBills = React.useMemo(() => {
+        if (selectedSupply === 'all') return bills
+        return bills.filter(b => b.ulm === selectedSupply)
+    }, [bills, selectedSupply])
+
+    // 3. Recalculate Stats based on Filtered Bills
+    const dynamicStats = React.useMemo(() => {
+        let lastCons = 0
+        let badge = null
+
+        if (filteredBills && filteredBills.length > 0) {
+            const sortedBills = [...filteredBills].sort((a, b) => new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime())
+            const lastBill = sortedBills[sortedBills.length - 1]
+            lastCons = Number(lastBill.consumo || 0)
+
+            if (sortedBills.length >= 2) {
+                const prevBill = sortedBills[sortedBills.length - 2]
+                const prevConsumption = Number(prevBill.consumo || 0)
+                const diff = prevConsumption > 0 ? ((lastCons - prevConsumption) / prevConsumption) * 100 : 0
+                const isPositive = diff > 0
+                badge = (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isPositive ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
+                        {isPositive ? '+' : ''}{diff.toFixed(1)}%
+                    </span>
+                )
+            }
+        }
+        return { lastConsumption: lastCons, percentageBadge: badge }
+    }, [filteredBills])
 
     // Helper to render a specific widget
     const renderWidget = (widgetOrId: WidgetId | any) => {
@@ -92,6 +143,7 @@ export function DashboardRenderer({ layout, profile, bills, stats, adminStats, u
                                     "text-2xl font-bold",
                                     isDarkStyle ? "text-white" : "text-slate-900 dark:text-white"
                                 )}>{stats.firstName}!</span>
+
                             </div>
                         }
                         className={cn(
@@ -143,7 +195,7 @@ export function DashboardRenderer({ layout, profile, bills, stats, adminStats, u
                             </div>
                         }
                     >
-                        <ConsumptionChart settings={settings} initialData={bills} />
+                        <ConsumptionChart settings={settings} initialData={filteredBills} />
                     </MobileCollapsibleCard>
                 )
 
@@ -158,11 +210,11 @@ export function DashboardRenderer({ layout, profile, bills, stats, adminStats, u
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Ultimi 5 Anni</span>
                                     <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-                                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{bills.length > 0 ? 'Vedi dettagli' : 'Nessun dato'}</span>
+                                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{filteredBills.length > 0 ? 'Vedi dettagli' : 'Nessun dato'}</span>
                                 </div>
                             }
                         >
-                            <ExpensesTrendChart bills={bills} />
+                            <ExpensesTrendChart bills={filteredBills} />
                         </MobileCollapsibleCard>
                     </div>
                 )
@@ -170,7 +222,7 @@ export function DashboardRenderer({ layout, profile, bills, stats, adminStats, u
             case 'recent_bills':
                 return (
                     <div className="h-[calc(100vh-140px)] max-h-[700px]">
-                        <RecentBillsWidget settings={settings} initialData={bills} />
+                        <RecentBillsWidget settings={settings} initialData={filteredBills} />
                     </div>
                 )
 
@@ -201,17 +253,19 @@ export function DashboardRenderer({ layout, profile, bills, stats, adminStats, u
     }
 
     // --- LEGACY COLUMN RENDERER ---
+    // User requested narrower left side (but 4 was maybe too narrow).
+    // Trying 5/12 (approx 41%) vs 7/12 (approx 59%)
     return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 fade-in-up">
-            {/* Left Column Group - Now taking 50% total (6/12) */}
-            <div className="md:col-span-6 space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column Group */}
+            <div className="md:col-span-12 xl:col-span-6 space-y-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     {layout.left.map(widgetId => {
-                        const isExpenses = widgetId === 'expenses_chart'
+                        const isHalfWidth = widgetId === 'user_widget' || widgetId === 'consumption_chart'
                         return (
                             <div key={widgetId} className={cn(
                                 "h-full",
-                                isExpenses ? "lg:col-span-2" : "lg:col-span-1"
+                                isHalfWidth ? "col-span-1" : "col-span-1 xl:col-span-2"
                             )}>
                                 {renderWidget(widgetId)}
                             </div>
@@ -220,8 +274,8 @@ export function DashboardRenderer({ layout, profile, bills, stats, adminStats, u
                 </div>
             </div>
 
-            {/* Right Column Group - Now taking 50% (6/12) */}
-            <div className="md:col-span-6 space-y-6">
+            {/* Right Column Group */}
+            <div className="md:col-span-12 xl:col-span-6 space-y-6">
                 <div className="grid grid-cols-1 gap-6">
                     {layout.right.map(widgetId => (
                         <div key={widgetId} className="h-full">

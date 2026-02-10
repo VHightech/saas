@@ -1,6 +1,6 @@
 'use client'
 
-import { Shield, Smartphone, CreditCard, User, Eye, EyeOff, Loader2, MapPin, FileText } from 'lucide-react'
+import { Shield, Smartphone, CreditCard, User, Eye, EyeOff, Loader2, MapPin, FileText, ChevronDown } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -13,92 +13,31 @@ interface UserWidgetProps {
         fiscal_code?: string
         address?: string
     }
+    supplyData?: {
+        supplies: string[]
+        selectedSupply: string
+        onSelect: (ulm: string) => void
+    }
 }
 
-export function UserWidget({ settings = {}, externalData }: UserWidgetProps) {
+export function UserWidget({ settings = {}, externalData, ...props }: UserWidgetProps) {
     const accentColor = settings.accent_color || '#10b981'
     const bgStyle = settings.bg_style || 'Vetro (Light)'
     const isDarkBg = bgStyle === 'Vetro (Dark)' || bgStyle === 'Solido Blue'
-    const [profile, setProfile] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
 
-    const supabase = createClient()
-
-    useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) return
-
-                // 1. Try Profiles (Customers)
-                const { data: profileData, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', user.id)
-                    .single()
-
-                if (profileData) {
-                    setProfile(profileData)
-                    return
-                }
-
-                // 2. Try Tenant Admins (Staff)
-                // If profile not found, they might be an admin without a customer profile
-                const { data: adminData } = await supabase
-                    .from('tenant_admins')
-                    .select('*')
-                    .eq('id', user.id)
-                    .single()
-
-                if (adminData) {
-                    // Adapt admin data to profile shape for display
-                    setProfile({
-                        name: adminData.full_name || 'Admin',
-                        email: adminData.email,
-                        ...adminData
-                    })
-                }
-
-            } catch (error) {
-                console.error('Error fetching profile:', error)
-            } finally {
-                setLoading(false)
-            }
-        }
-
-        fetchProfile()
-    }, [])
-
-    if (loading) {
-        return (
-            <div className="md:bg-white/60 dark:md:bg-[#1e1e1e]/60 md:backdrop-blur-xl md:border md:border-white/40 dark:md:border-white/10 md:rounded-3xl md:p-5 h-full flex flex-col justify-center items-center">
-                <Loader2 className="animate-spin text-slate-400" />
-            </div>
-        )
-    }
-
-    // Default Fallback if profile is empty (shouldn't happen if auth needs profile)
-    // We prioritize the fields we know we populated in the registration action
-    const fullName = externalData?.name || profile?.name || profile?.full_name || profile?.user_name || 'Utente'
-
+    // Default Fallback
+    const fullName = externalData?.name || 'Utente'
     const firstName = fullName.split(' ')[0]
-
-    // Explicitly check for our DB columns
-    const clientCode = externalData?.client_code || profile?.codice_cliente || profile?.client_code || 'N/A'
-
-    // Check both potential fiscal code fields 
-    const fiscalCode = externalData?.fiscal_code || profile?.cif || profile?.cfpi || profile?.fiscal_code || 'N/A'
-
+    const clientCode = externalData?.client_code || 'N/A'
+    const fiscalCode = externalData?.fiscal_code || 'N/A'
     // Address isn't in registration? If not, keep fallback or check if we added it?
-    const address = externalData?.address || profile?.indirizzo || profile?.address || 'Nessun indirizzo'
-
-    const email = profile?.email || 'N/A'
+    const address = externalData?.address || 'Nessun indirizzo'
 
     return (
         <div className="md:bg-white/60 dark:md:bg-[#1e1e1e]/60 md:backdrop-blur-xl md:border md:border-white/40 dark:md:border-white/10 md:rounded-3xl md:p-5 h-full flex flex-col justify-between relative overflow-hidden group md:shadow-sm">
 
             {/* Header / Verified Status */}
-            <div className="flex justify-between items-start z-10 mb-4 md:mb-0">
+            <div className="flex justify-between items-start z-10 mb-4 md:mb-2">
                 <div className="hidden md:block">
                     {(settings.show_welcome ?? true) && (
                         <span className={cn(
@@ -110,9 +49,9 @@ export function UserWidget({ settings = {}, externalData }: UserWidgetProps) {
                         <p className="text-sm block text-slate-500 dark:text-slate-400">Benvenuto nella tua area personale.</p>
                     )}
                 </div>
-                {/* Spacer to keep Badge on right on mobile */}
                 <div className="md:hidden" />
-                <div className="hidden md:flex flex-col items-end gap-2">
+                <div className="md:hidden" />
+                <div className="hidden md:flex items-center gap-3">
                     <div
                         className="flex items-center justify-center h-12 w-12 rounded-full border shadow-sm"
                         style={{

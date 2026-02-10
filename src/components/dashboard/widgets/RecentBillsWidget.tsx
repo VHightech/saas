@@ -5,6 +5,7 @@ import { FileText, FileDown, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, 
 import { useState, useEffect } from 'react'
 import { parse } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { DatePicker } from '@/components/ui/date-picker'
 
 // Client initialized inside component or imported as singleton from lib
 
@@ -18,6 +19,7 @@ type Bill = {
     consumption: string
     nome_pdf: string
     pdf_url: string | null
+    raw_emission: Date
 }
 
 interface RecentBillsWidgetProps {
@@ -32,6 +34,8 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
     const [currentDate, setCurrentDate] = useState<Date | null>(null)
     const [sortConfig, setSortConfig] = useState<{ key: 'cif' | 'expiry' | null, direction: 'asc' | 'desc' }>({ key: null, direction: 'asc' })
     const [searchTerm, setSearchTerm] = useState('')
+    const [fromDate, setFromDate] = useState('')
+    const [toDate, setToDate] = useState('')
     const [loading, setLoading] = useState(true)
     const supabase = createClient()
 
@@ -47,7 +51,8 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
                 amount: `€ ${bill.importo?.toFixed(2).replace('.', ',')}`,
                 consumption: `${bill.consumo?.toFixed(2).replace('.', ',')} Mc`,
                 nome_pdf: bill.nome_pdf,
-                pdf_url: bill.pdf_url
+                pdf_url: bill.pdf_url,
+                raw_emission: new Date(bill.data_emissione)
             }))
             setDocuments(mappedBills)
             setLoading(false)
@@ -91,7 +96,8 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
                     amount: `€ ${bill.importo?.toFixed(2).replace('.', ',')}`,
                     consumption: `${bill.consumo?.toFixed(2).replace('.', ',')} Mc`,
                     nome_pdf: bill.nome_pdf,
-                    pdf_url: bill.pdf_url
+                    pdf_url: bill.pdf_url,
+                    raw_emission: new Date(bill.data_emissione)
                 }))
                 setDocuments(mappedBills)
             }
@@ -120,13 +126,27 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
         setSortConfig({ key, direction });
     };
 
-    const filteredDocuments = documents.filter(doc =>
-        doc.cif.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.amount.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.consumption.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.emission.includes(searchTerm) ||
-        doc.expiry.includes(searchTerm)
-    );
+    const filteredDocuments = documents.filter(doc => {
+        // Date Range Filter
+        if (fromDate) {
+            const start = new Date(fromDate)
+            start.setHours(0, 0, 0, 0)
+            if (doc.raw_emission < start) return false
+        }
+        if (toDate) {
+            const end = new Date(toDate)
+            end.setHours(23, 59, 59, 999)
+            if (doc.raw_emission > end) return false
+        }
+
+        return (
+            doc.cif.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            doc.amount.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            doc.consumption.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            doc.emission.includes(searchTerm) ||
+            doc.expiry.includes(searchTerm)
+        )
+    });
 
     const sortedDocuments = [...filteredDocuments].sort((a, b) => {
         if (!sortConfig.key) return 0;
@@ -172,17 +192,48 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
 
     return (
         <div className="bg-[#D4E8E1]/60 dark:bg-[#1e1e1e]/60 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-3xl p-6 h-full text-slate-800 dark:text-slate-200 shadow-sm flex flex-col transition-colors duration-500">
-            {/* Mobile Search Bar */}
-            <div className="md:hidden w-full mb-4">
-                <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" size={16} />
-                    <input
-                        type="text"
-                        placeholder="Cerca fattura..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400"
-                    />
+            {/* Filter Toolbar (Mobile & Desktop) */}
+            <div className="w-full mb-4 flex flex-col md:flex-row gap-3 items-center justify-between relative z-20">
+                {/* Date Filters */}
+                <div className="flex gap-2 w-full md:w-auto flex-wrap items-center">
+                    <div className="flex items-center gap-2">
+                        <DatePicker
+                            value={fromDate}
+                            onChange={(date) => setFromDate(date ? date.toISOString() : '')}
+                            placeholder="Dal..."
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <DatePicker
+                            value={toDate}
+                            onChange={(date) => setToDate(date ? date.toISOString() : '')}
+                            placeholder="Al..."
+                        />
+                    </div>
+                    {(fromDate || toDate) && (
+                        <button
+                            onClick={() => { setFromDate(''); setToDate('') }}
+                            className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white underline transition-colors"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+
+                {/* Search Bar - Visible on Mobile & Desktop */}
+                <div className="relative w-full md:flex-1 ml-0 md:ml-3">
+                    <div className="relative group w-full">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-400 group-focus-within:bg-sky-500 group-focus-within:text-white transition-all duration-300 z-10">
+                            <Search size={14} strokeWidth={2.5} />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Cerca fattura..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full py-2.5 pl-12 pr-4 text-xs font-bold focus:border-sky-500 dark:focus:border-sky-500 focus:ring-4 ring-sky-500/10 outline-none transition-all placeholder:text-slate-500 dark:placeholder:text-slate-400 dark:text-slate-100 shadow-sm hover:shadow-md hover:border-sky-200 dark:hover:border-sky-800"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -191,15 +242,6 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
                     {/* Desktop Header */}
                     <div className="hidden md:flex w-[96%] mx-auto z-10">
                         <div className="flex-1 py-3 pl-4 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-left text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 rounded-tl-2xl rounded-bl-2xl flex items-center">Emissione</div>
-
-                        <div className="flex-1 py-3 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-center text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 cursor-pointer group hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-1" onClick={() => handleSort('cif')}>
-                            Bolletta
-                            {sortConfig.key === 'cif' ? (
-                                sortConfig.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
-                            ) : (
-                                <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-50 transition-opacity" />
-                            )}
-                        </div>
 
                         <div className="flex-1 py-3 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-center text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 cursor-pointer group hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-1" onClick={() => handleSort('expiry')}>
                             Scadenza
@@ -210,22 +252,21 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
                             )}
                         </div>
 
+                        <div className="flex-1 py-3 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-center text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 cursor-pointer group hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-1" onClick={() => handleSort('cif')}>
+                            Bolletta
+                            {sortConfig.key === 'cif' ? (
+                                sortConfig.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                            ) : (
+                                <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-50 transition-opacity" />
+                            )}
+                        </div>
+
                         <div className="flex-1 py-3 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-center text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 flex items-center justify-center">Importo</div>
                         <div className="flex-1 py-3 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-center text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 flex items-center justify-center">Consumo</div>
                         <div className="flex-1 py-3 pr-4 bg-[#D4E8E1]/80 dark:bg-[#1e1e1e]/80 backdrop-blur-3xl text-center text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400 rounded-tr-2xl rounded-br-2xl flex items-center justify-center">
-                            <div className="relative flex items-center bg-white/40 dark:bg-white/10 rounded-full px-2 py-1 focus-within:bg-white/80 dark:focus-within:bg-white/20 transition-colors w-full max-w-[120px]">
-                                <Search className="text-slate-500 dark:text-slate-400" size={12} />
-                                <input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="bg-transparent border-none focus:ring-0 text-xs w-full ml-1 placeholder:text-slate-500 dark:placeholder:text-slate-400 text-slate-700 dark:text-slate-200 leading-none h-4 p-0 focus:outline-none"
-                                    placeholder="Cerca..."
-                                />
-                            </div>
+
                         </div>
                     </div>
-
                     <div className="flex-1 overflow-y-auto w-full custom-scrollbar space-y-3 pt-3">
                         {loading ? (
                             <div className="text-center py-10 text-slate-500 dark:text-slate-400">Caricamento fatture...</div>
@@ -245,7 +286,6 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
                                                         {doc.emission}
                                                     </span>
                                                 </div>
-                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 text-sm text-slate-500 dark:text-slate-300 flex items-center justify-center font-medium">{doc.nome_pdf}</div>
                                                 <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 flex items-center justify-center">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${isExpired
                                                         ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20'
@@ -254,11 +294,11 @@ export function RecentBillsWidget({ settings = {}, initialData = [] }: RecentBil
                                                         {doc.expiry}
                                                     </span>
                                                 </div>
+                                                <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 text-sm text-slate-500 dark:text-slate-300 flex items-center justify-center font-medium">{doc.nome_pdf}</div>
                                                 <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center justify-center">{doc.amount}</div>
                                                 <div className="flex-1 py-2 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 border-y border-white/20 dark:border-white/5 font-medium text-slate-800 dark:text-slate-200 text-sm flex items-center justify-center">{doc.consumption}</div>
                                                 <div className="flex-1 py-2 pr-4 bg-white/40 dark:bg-white/5 group-hover:bg-white/70 dark:group-hover:bg-white/10 rounded-r-xl border-y border-r border-white/20 dark:border-white/5 text-center flex items-center justify-center">
                                                     <div className="flex items-center justify-end gap-2">
-
                                                         <button
                                                             onClick={() => handleDownload(doc.pdf_url)}
                                                             className="p-1.5 rounded-lg transition-all shadow-sm btn-glass btn-glass-sky cursor-pointer"

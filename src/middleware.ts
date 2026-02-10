@@ -35,46 +35,22 @@ export async function middleware(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    // TENANT RESOLUTION STRATEGY
-    // 1. Check for query parameter (Override for testing/preview)
-    const searchParams = request.nextUrl.searchParams
-    const tenantOverride = searchParams.get('tenant')
+    // Authenticated user check if needed (logic simplified)
 
-    // 2. Resolve by hostname (Custom Domains)
-    const hostname = request.headers.get('host') || ''
+    // Tighten CSP for better security while maintaining tunnel/Supabase compatibility
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const supabaseDomain = supabaseUrl ? new URL(supabaseUrl).hostname : ''
 
-    let tenantSlug = 'acq'
-
-    if (tenantOverride) {
-        tenantSlug = tenantOverride
-    } else if (hostname && !hostname.includes('localhost') && !hostname.includes('192.168.')) {
-        // Try finding by custom domain
-        const { data: tenantByDomain } = await supabase
-            .from('tenants')
-            .select('slug')
-            .eq('domain', hostname)
-            .single()
-
-        if (tenantByDomain) {
-            tenantSlug = tenantByDomain.slug
-        }
-    }
-
-    // Set the tenant slug in a header so server components can read it easily
-    response.headers.set('x-tenant-slug', tenantSlug)
-
-    // Add CSP for tunnel compatibility and Supabase
-    // Note: In production this should be more restrictive
     response.headers.set(
         'Content-Security-Policy',
-        "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-        "script-src * 'unsafe-inline' 'unsafe-eval'; " +
-        "style-src * 'unsafe-inline'; " +
-        "img-src * data: blob:; " +
-        "font-src * data:; " +
-        "connect-src *; " +
-        "frame-src *; " +
-        "object-src 'none';"
+        `default-src 'self'; ` +
+        `script-src 'self' 'unsafe-inline' 'unsafe-eval' *.hcaptcha.com; ` +
+        `style-src 'self' 'unsafe-inline' *.hcaptcha.com; ` +
+        `img-src 'self' data: blob: ${supabaseDomain} *.hcaptcha.com *; ` +
+        `font-src 'self' data: fonts.gstatic.com; ` +
+        `connect-src 'self' ${supabaseDomain} *.supabase.co *.trycloudflare.com *.sentry.io *.hcaptcha.com localhost:* 127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; ` +
+        `frame-src 'self' *.hcaptcha.com; ` +
+        `object-src 'none';`
     )
 
     // Protected routes logic (optional, can be expanded)

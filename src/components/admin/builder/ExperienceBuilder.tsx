@@ -156,7 +156,7 @@ export function ExperienceBuilder({ onConfigChange, initialData = [], initialMap
                     </div>
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Dashboard Builder</p>
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Personalizzazione Tenant</h3>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Personalizzazione Dashboard</h3>
                     </div>
                 </div>
 

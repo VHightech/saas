@@ -57,12 +57,19 @@ export async function login(formData: FormData) {
         return { error: 'Credenziali non valide.' }
     }
 
-    const role = data.user?.app_metadata?.role
+    // We must fetch the role from the 'profiles' table because app_metadata might not be synced
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single()
 
-    revalidatePath('/', 'layout')
+    const userRole = profile?.role || 'user'
 
-    if (role === 'admin') {
-        redirect('/admin/users')
+    console.log('User Role:', userRole)
+
+    if (userRole === 'admin') {
+        redirect('/admin/upload') // Default admin page
     } else {
         redirect('/dashboard')
     }

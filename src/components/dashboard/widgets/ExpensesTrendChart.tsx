@@ -1,7 +1,7 @@
 'use client'
 
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { ChevronDown, Loader2 } from 'lucide-react'
+import { ComposedChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { ChevronDown, Loader2, TrendingUp, Euro } from 'lucide-react'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { createClient } from '@/lib/supabase/client'
@@ -28,7 +28,7 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
     const [period, setPeriod] = useState('Tutti');
     const isDesktop = useMediaQuery("(min-width: 768px)")
     const [mounted, setMounted] = useState(false)
-    const [allData, setAllData] = useState<{ label: string, fullDate: string, consumption: number, year: string, uniqueKey: string }[] | null>(null)
+    const [allData, setAllData] = useState<{ label: string, fullDate: string, consumption: number, price: number, year: string, uniqueKey: string }[] | null>(null)
     const [years, setYears] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
     const [activeIndex, setActiveIndex] = useState(0)
@@ -84,6 +84,7 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
             label: b.data_emissione ? format(new Date(b.data_emissione), 'dd/MM/yy', { locale: it }) : '',
             fullDate: b.data_emissione ? format(new Date(b.data_emissione), 'dd MMMM yyyy', { locale: it }) : '',
             consumption: Number(b.consumo || 0),
+            price: Number(b.importo || 0),
             year: new Date(b.data_emissione).getFullYear().toString(),
             uniqueKey: `${b.data_emissione}_${b.id || i}` // Unique key for XAxis
         }))
@@ -98,9 +99,9 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
 
             const { data: bills } = await supabase
                 .from('bills')
-                .select('id, consumo, data_emissione')
+                .select('id, consumo, importo, data_emissione')
                 .eq('user_id', user.id)
-                .gt('importo', 0)
+                .order('data_emissione', { ascending: true }) // Ensure order
 
             if (bills) processData(bills)
         } catch (e) {
@@ -124,7 +125,7 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
     if (!allData || allData.length === 0) {
         return (
             <div className={`md:bg-white/30 dark:md:bg-[#1e1e1e]/60 md:backdrop-blur-xl md:border md:border-white/40 dark:md:border-white/10 w-full md:rounded-3xl md:p-6 md:shadow-sm h-full flex flex-col justify-center items-center text-center relative overflow-hidden transition-colors duration-500 ${className}`}>
-                <h3 className="font-bold text-slate-800 dark:text-white text-lg mb-2">Andamento Consumi</h3>
+                <h3 className="font-bold text-slate-800 dark:text-white text-lg mb-2">Andamento Spese & Consumi</h3>
                 <p className="text-slate-500 dark:text-slate-400 font-medium">Nessuna fattura presente</p>
             </div>
         )
@@ -146,8 +147,8 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
         <div className={`md:bg-white/30 dark:md:bg-[#1e1e1e]/60 md:backdrop-blur-xl md:border md:border-white/40 dark:md:border-white/10 md:rounded-3xl md:p-6 h-full flex flex-col relative overflow-visible md:shadow-sm transition-colors duration-500 ${className}`}>
             <div className="flex justify-between items-start mb-2 z-20">
                 <div>
-                    <h3 className="font-bold text-slate-800 dark:text-white text-lg">Andamento Consumi</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Storico Letture</p>
+                    <h3 className="font-bold text-slate-800 dark:text-white text-lg">Costi & Consumi</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Andamento Storico</p>
                 </div>
                 <div className="relative">
                     <button
@@ -183,7 +184,7 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
             {isDesktop && (
                 <div className="flex-1 w-full min-h-0 z-10 hidden md:block">
                     <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
-                        <AreaChart
+                        <ComposedChart
                             data={currentData}
                             margin={{
                                 top: 5,
@@ -194,65 +195,93 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                         >
                             <defs>
                                 <linearGradient id="colorConsumption" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#818cf8" stopOpacity={0.6} />
+                                    <stop offset="5%" stopColor="#818cf8" stopOpacity={0.4} />
                                     <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.2)" />
+
                             <XAxis
                                 dataKey="uniqueKey"
                                 axisLine={false}
                                 tickLine={false}
-                                tickFormatter={(value, index) => {
-                                    // Retrieve the original label based on index if needed, or parse unique key?
-                                    // Easier: The uniqueKey is mapped 1:1. 
-                                    // But tickFormatter receives the value of uniqueKey.
-                                    // Wait, uniqueKey is the axis value.
-                                    // But we want to display the DATE.
-                                    // We can use the data array to lookup, but simpler to just use currentData[index].label
-                                    if (currentData && currentData[index]) {
-                                        return currentData[index].label
-                                    }
-                                    return ''
-                                }}
+                                tickFormatter={(value, index) => currentData[index] ? currentData[index].label : ''}
                                 tick={{ fill: '#64748b', fontSize: 10, fontWeight: 500 }}
                                 dy={10}
                                 interval="preserveStartEnd"
                             />
-                            <YAxis type="number" hide domain={[0, 'auto']} />
+
+                            {/* Left Axis: Consumption */}
+                            <YAxis
+                                yAxisId="left"
+                                type="number"
+                                hide
+                                domain={[0, 'auto']}
+                            />
+
+                            {/* Right Axis: Price */}
+                            <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                type="number"
+                                hide
+                                domain={[0, 'auto']}
+                            />
+
                             <Tooltip
                                 content={({ active, payload, label }) => {
                                     if (active && payload && payload.length) {
-                                        const value = payload[0].value as number;
+                                        const consumption = payload.find(p => p.dataKey === 'consumption')?.value as number;
+                                        const price = payload.find(p => p.dataKey === 'price')?.value as number;
                                         const fullDate = payload[0].payload.fullDate;
 
                                         return (
                                             <div className="bg-white dark:bg-[#1e1e1e] border border-slate-100 dark:border-white/10 rounded-xl p-3 shadow-lg box-border min-w-[140px]">
-                                                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 uppercase tracking-wide">{fullDate}</p>
-                                                <div className="flex items-baseline gap-1">
-                                                    <p className="text-2xl font-bold text-slate-800 dark:text-white">{value.toLocaleString()}</p>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">Mc</p>
+                                                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-2 uppercase tracking-wide border-b border-slate-100 dark:border-white/10 pb-1">{fullDate}</p>
+
+                                                <div className="flex items-center justify-between gap-4 mb-1">
+                                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Importo</span>
+                                                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">€ {(price || 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Consumo</span>
+                                                    <span className="text-sm font-bold text-indigo-500 dark:text-indigo-400">{consumption?.toLocaleString()} Mc</span>
                                                 </div>
                                             </div>
                                         );
                                     }
                                     return null;
                                 }}
-                                cursor={{ stroke: '#818cf8', strokeWidth: 1, strokeDasharray: '4 4' }}
+                                cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }}
                                 isAnimationActive={false}
                             />
+
+                            {/* Consumption Area (Background) */}
                             <Area
-                                type="linear"
+                                yAxisId="left"
+                                type="monotone"
                                 dataKey="consumption"
                                 stroke="#818cf8"
-                                strokeWidth={3}
+                                strokeWidth={2}
                                 fillOpacity={1}
                                 fill="url(#colorConsumption)"
-                                isAnimationActive={false}
-                                dot={{ r: 4, strokeWidth: 2, stroke: "#818cf8", fill: "white" }}
+                                isAnimationActive={true}
                                 activeDot={{ r: 6, strokeWidth: 0, fill: "#818cf8" }}
                             />
-                        </AreaChart>
+
+                            {/* Price Line (Foreground) */}
+                            <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="price"
+                                stroke="#10b981" // Emerald 500
+                                strokeWidth={3}
+                                dot={{ r: 4, strokeWidth: 2, stroke: "#10b981", fill: "white" }}
+                                activeDot={{ r: 6, strokeWidth: 0, fill: "#10b981" }}
+                                isAnimationActive={true}
+                            />
+
+                        </ComposedChart>
                     </ResponsiveContainer>
                 </div>
             )}
@@ -262,35 +291,32 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                 <div className="md:hidden flex flex-col gap-4 mt-2">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white/40 dark:bg-white/5 rounded-2xl p-3 border border-white/20 dark:border-white/10 transition-all duration-300">
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Data</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-white">{activeData.fullDate}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Importo</p>
+                            <div className="flex items-center gap-2">
+                                <Euro size={18} className="text-emerald-500" />
+                                {(() => {
+                                    const rawPrice = activeData?.price;
+                                    const safePrice = (typeof rawPrice === 'number' && !isNaN(rawPrice)) ? rawPrice : 0;
+                                    return (
+                                        <p className="text-lg font-bold text-slate-800 dark:text-white">{safePrice.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</p>
+                                    )
+                                })()}
+                            </div>
                         </div>
                         <div className="bg-white/40 dark:bg-white/5 rounded-2xl p-3 border border-white/20 dark:border-white/10 transition-all duration-300">
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Consumo</p>
                             <div className="flex items-center gap-2">
-                                <p className="text-lg font-bold text-[#005A9C] dark:text-sky-400">{activeData.consumption.toLocaleString()} Mc</p>
-                                {(() => {
-                                    const average = currentData.reduce((acc, curr) => acc + curr.consumption, 0) / currentData.length;
-                                    const diff = average !== 0 ? ((activeData.consumption - average) / average) * 100 : 0;
-                                    const isPositive = diff > 0;
-                                    return (
-                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${isPositive
-                                            ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20'
-                                            : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20'
-                                            }`}>
-                                            {isPositive ? '+' : ''}{diff.toFixed(0)}%
-                                        </span>
-                                    );
-                                })()}
+                                <TrendingUp size={18} className="text-indigo-500" />
+                                <p className="text-lg font-bold text-slate-800 dark:text-white">{activeData.consumption.toLocaleString()} Mc</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="h-[150px] w-full bg-white/30 dark:bg-white/5 rounded-2xl p-2 border border-white/20 dark:border-white/10">
+                    <div className="h-[180px] w-full bg-white/30 dark:bg-white/5 rounded-2xl p-2 border border-white/20 dark:border-white/10">
                         <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
-                            <AreaChart
+                            <ComposedChart
                                 data={currentData}
-                                margin={{ top: 10, right: 20, left: 10, bottom: 20 }}
+                                margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
                             >
                                 <defs>
                                     <linearGradient id="colorMobile" x1="0" y1="0" x2="0" y2="1">
@@ -299,6 +325,7 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+
                                 <XAxis
                                     dataKey="label"
                                     tick={{ fontSize: 10, fill: '#94a3b8' }}
@@ -307,26 +334,31 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
                                     interval="preserveStartEnd"
                                     dy={10}
                                 />
-                                <YAxis
-                                    tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                    width={30}
-                                />
+                                <YAxis yAxisId="left" hide />
+                                <YAxis yAxisId="right" orientation="right" hide />
+
                                 <Tooltip
                                     content={(props) => <ChartSync {...props} onUpdate={handleSync} />}
                                     cursor={{ stroke: '#818cf8', strokeWidth: 1, strokeDasharray: '4 4' }}
                                 />
                                 <Area
+                                    yAxisId="left"
                                     type="monotone"
                                     dataKey="consumption"
                                     stroke="#818cf8"
                                     strokeWidth={2}
                                     fillOpacity={1}
                                     fill="url(#colorMobile)"
-                                    activeDot={{ r: 6, fill: "#005A9C", stroke: "white", strokeWidth: 2 }}
                                 />
-                            </AreaChart>
+                                <Line
+                                    yAxisId="right"
+                                    type="monotone"
+                                    dataKey="price"
+                                    stroke="#10b981"
+                                    strokeWidth={2}
+                                    dot={false}
+                                />
+                            </ComposedChart>
                         </ResponsiveContainer>
                     </div>
                 </div>

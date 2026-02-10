@@ -20,7 +20,7 @@ interface Profile {
     address: string | null
     city: string | null
     codice_cliente: string | null
-    legacy_id: number | null
+    is_shadow?: boolean
 }
 
 interface Bill {
@@ -260,7 +260,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     if (!profile) return <div className="p-10 text-center text-red-500 font-bold">Utente non trovato</div>
     if (!analytics) return null
 
-    const isShadow = profile.legacy_id && profile.legacy_id < 0
+    const isShadow = profile.is_shadow === true
 
     return (
         <div className="flex flex-col h-full overflow-hidden gap-6">

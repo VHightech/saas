@@ -2,14 +2,12 @@
 
 import { ArrowRight, ArrowLeft, TrendingUp, ShieldCheck, Sparkles, CheckCircle2, Lock, Mail, UserSearch } from 'lucide-react'
 import { ModeToggle } from '@/components/mode-toggle'
-import { useTenant } from '@/components/tenant-provider'
 import { useState } from 'react'
 import { lookupUser, sendRecoveryOTP, verifyRecoveryOTP, updatePassword } from './actions'
 import { useRouter } from 'next/navigation'
 
 export default function ForgotPasswordPage() {
     const router = useRouter()
-    const { tenant } = useTenant()
     const [step, setStep] = useState(1) // 1: Search, 2: Confirm Email, 3: OTP, 4: New Password, 5: Success
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -84,13 +82,9 @@ export default function ForgotPasswordPage() {
                 <div className="mb-12">
                     <span className="font-black text-2xl tracking-tighter text-black dark:text-white flex items-center gap-3">
                         <div className="w-10 h-10 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black shadow-sm overflow-hidden p-1 bg-white">
-                            {tenant?.logo_url ? (
-                                <img src={tenant.logo_url} alt={tenant.name || "Logo"} className="w-full h-full object-contain" />
-                            ) : (
-                                <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
-                            )}
+                            <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
                         </div>
-                        {tenant?.name || "Acquambiente"}
+                        Portale Acquambiente
                     </span>
                 </div>
 
@@ -215,7 +209,7 @@ export default function ForgotPasswordPage() {
                 )}
 
                 <div className="mt-auto pt-10 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
-                    <span>© 2026 {tenant?.name || "Portale Acquambiente"}</span>
+                    <span>© 2026 Portale Acquambiente</span>
                     <a href="#" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
             </div>

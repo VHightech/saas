@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUserDashboardData } from '@/actions/user-data'
 import { DashboardRenderer } from "@/components/dashboard/dashboard-renderer"
 import { DashboardLayout } from "@/components/admin/dashboard-builder"
 import { headers } from "next/headers"
@@ -9,115 +10,162 @@ export default async function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const role = await getCurrentUserRole()
 
-    let profile = null
-    let bills: any[] = []
 
-    if (user) {
-        const [profileRes, billsRes] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', user.id).single(),
-            supabase.from('bills').select('*').eq('user_id', user.id).order('data_emissione', { ascending: true })
-        ])
+    const { profile, bills, error } = await getUserDashboardData()
 
-        profile = profileRes.data
-        bills = billsRes.data || []
+    if (error) {
+        console.error('Error loading dashboard data:', error)
+    }
 
-        // MOCK DATA INJECTION for testing
-        if (user.email === 'matteo.volterrani@valdelsahightech.com' && bills.length === 0) {
-            console.log('[Dashboard] Injecting mock data for test user.');
-            bills = [
-                {
-                    id: 20250001,
-                    data_emissione: '2025-07-15',
-                    scadenza: '2025-08-15',
-                    importo: 48.50,
-                    consumo: 18,
-                    nome_pdf: '202507_Bolletta.pdf',
-                    cif: profile?.cif || 'VOLMAT90A01H501Z',
-                    codice_cliente: profile?.codice_cliente || '854125'
-                },
-                {
-                    id: 20250002,
-                    data_emissione: '2025-08-15',
-                    scadenza: '2025-09-15',
-                    importo: 52.30,
-                    consumo: 21,
-                    nome_pdf: '202508_Bolletta.pdf',
-                    cif: profile?.cif || 'VOLMAT90A01H501Z',
-                    codice_cliente: profile?.codice_cliente || '854125'
-                },
-                {
-                    id: 20250003,
-                    data_emissione: '2025-09-15',
-                    scadenza: '2025-10-15',
-                    importo: 65.10,
-                    consumo: 24,
-                    nome_pdf: '202509_Bolletta.pdf',
-                    cif: profile?.cif || 'VOLMAT90A01H501Z',
-                    codice_cliente: profile?.codice_cliente || '854125'
-                },
-                {
-                    id: 20250004,
-                    data_emissione: '2025-10-15',
-                    scadenza: '2025-11-15',
-                    importo: 89.90,
-                    consumo: 32,
-                    nome_pdf: '202510_Bolletta.pdf',
-                    cif: profile?.cif || 'VOLMAT90A01H501Z',
-                    codice_cliente: profile?.codice_cliente || '854125'
-                },
-                {
-                    id: 20250005,
-                    data_emissione: '2025-11-15',
-                    scadenza: '2025-12-15',
-                    importo: 112.45,
-                    consumo: 38,
-                    nome_pdf: '202511_Bolletta.pdf',
-                    cif: profile?.cif || 'VOLMAT90A01H501Z',
-                    codice_cliente: profile?.codice_cliente || '854125'
-                },
-                {
-                    id: 20250006,
-                    data_emissione: '2025-12-15',
-                    scadenza: '2026-01-15',
-                    importo: 95.80,
-                    consumo: 35,
-                    nome_pdf: '202512_Bolletta.pdf',
-                    cif: profile?.cif || 'VOLMAT90A01H501Z',
-                    codice_cliente: profile?.codice_cliente || '854125'
-                }
-            ];
-        }
+    // MOCK DATA INJECTION for testing - FORCED FOR DEMO
+    if (bills && bills.length === 0) {
+        console.log('[Dashboard] Injecting mock data for test user.');
 
-        // If not a customer profile, try admin profile
-        if (!profile && (role === 'admin' || role === 'super_admin')) {
-            const { data: adminData } = await supabase
-                .from('tenant_admins')
-                .select('full_name, email')
-                .eq('id', user.id)
-                .single()
+        // Supply 1: Home (ULM: H501Z)
+        const cif1 = 'VOLMAT90A01H501Z'
+        const ulm1 = 'H501Z' // Last 6 chars
 
-            if (adminData) {
-                profile = {
-                    full_name: adminData.full_name,
-                    email: adminData.email,
-                    is_admin: true
-                }
-            } else if (user.user_metadata?.full_name || user.user_metadata?.display_name) {
-                // Fallback to Auth metadata if not in tenant_admins
-                profile = {
-                    full_name: user.user_metadata.full_name || user.user_metadata.display_name,
-                    email: user.email,
-                    is_admin: true
-                }
-            } else if (role === 'super_admin') {
-                // Last resort for super admins
-                profile = {
-                    full_name: 'Super Administrator',
-                    email: user.email,
-                    is_admin: true
-                }
+        // Supply 2: Office (ULM: X999Y) 
+        const cif2 = 'VOLMAT90A01X999Y'
+        const ulm2 = 'X999Y'
+
+        bills.push(
+            // --- SUPPLY 1 (Home) ---
+            {
+                id: 2024001,
+                data_emissione: '2024-01-15',
+                scadenza: '2024-02-15',
+                importo: 145.50,
+                consumo: 120,
+                nome_pdf: '202401_Casa_Gen.pdf',
+                cif: cif1,
+                codice_cliente: '854125',
+                ulm: ulm1
+            },
+            {
+                id: 2024002,
+                data_emissione: '2024-03-15',
+                scadenza: '2024-04-15',
+                importo: 132.20,
+                consumo: 110,
+                nome_pdf: '202403_Casa_Mar.pdf',
+                cif: cif1,
+                codice_cliente: '854125',
+                ulm: ulm1
+            },
+            {
+                id: 2024003,
+                data_emissione: '2024-05-15',
+                scadenza: '2024-06-15',
+                importo: 98.40,
+                consumo: 85,
+                nome_pdf: '202405_Casa_Mag.pdf',
+                cif: cif1,
+                codice_cliente: '854125',
+                ulm: ulm1
+            },
+            {
+                id: 2024004,
+                data_emissione: '2024-07-15',
+                scadenza: '2024-08-15',
+                importo: 210.80,
+                consumo: 180, // High summer usage
+                nome_pdf: '202407_Casa_Lug.pdf',
+                cif: cif1,
+                codice_cliente: '854125',
+                ulm: ulm1
+            },
+            {
+                id: 2024005,
+                data_emissione: '2024-09-15',
+                scadenza: '2024-10-15',
+                importo: 155.30,
+                consumo: 130,
+                nome_pdf: '202409_Casa_Set.pdf',
+                cif: cif1,
+                codice_cliente: '854125',
+                ulm: ulm1
+            },
+            {
+                id: 2024006,
+                data_emissione: '2024-11-15',
+                scadenza: '2024-12-15',
+                importo: 142.10,
+                consumo: 118,
+                nome_pdf: '202411_Casa_Nov.pdf',
+                cif: cif1,
+                codice_cliente: '854125',
+                ulm: ulm1
+            },
+
+            // --- SUPPLY 2 (Office - Lower consumption) ---
+            {
+                id: 2024007,
+                data_emissione: '2024-02-10',
+                scadenza: '2024-03-10',
+                importo: 45.20,
+                consumo: 12,
+                nome_pdf: '202402_Uff_Feb.pdf',
+                cif: cif2,
+                codice_cliente: '854125',
+                ulm: ulm2
+            },
+            {
+                id: 2024008,
+                data_emissione: '2024-04-10',
+                scadenza: '2024-05-10',
+                importo: 48.90,
+                consumo: 15,
+                nome_pdf: '202404_Uff_Apr.pdf',
+                cif: cif2,
+                codice_cliente: '854125',
+                ulm: ulm2
+            },
+            {
+                id: 2024009,
+                data_emissione: '2024-06-10',
+                scadenza: '2024-07-10',
+                importo: 42.50,
+                consumo: 10,
+                nome_pdf: '202406_Uff_Giu.pdf',
+                cif: cif2,
+                codice_cliente: '854125',
+                ulm: ulm2
+            },
+            {
+                id: 2024010,
+                data_emissione: '2024-08-10',
+                scadenza: '2024-09-10',
+                importo: 38.00,
+                consumo: 5, // Closed in August
+                nome_pdf: '202408_Uff_Ago.pdf',
+                cif: cif2,
+                codice_cliente: '854125',
+                ulm: ulm2
+            },
+            {
+                id: 2024011,
+                data_emissione: '2024-10-10',
+                scadenza: '2024-11-10',
+                importo: 52.10,
+                consumo: 18,
+                nome_pdf: '202410_Uff_Ott.pdf',
+                cif: cif2,
+                codice_cliente: '854125',
+                ulm: ulm2
+            },
+            {
+                id: 2024012,
+                data_emissione: '2024-12-10',
+                scadenza: '2025-01-10',
+                importo: 55.40,
+                consumo: 20,
+                nome_pdf: '202412_Uff_Dic.pdf',
+                cif: cif2,
+                codice_cliente: '854125',
+                ulm: ulm2
             }
-        }
+        );
     }
 
     // Dynamic Data Helpers
@@ -136,7 +184,7 @@ export default async function DashboardPage() {
     let trendColor = 'text-slate-500 dark:text-slate-400'
     let percentageBadge = null
 
-    if (bills.length > 0) {
+    if (bills && bills.length > 0) {
         const sortedBills = [...bills].sort((a, b) => new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime())
         const lastBill = sortedBills[sortedBills.length - 1]
         lastConsumption = Number(lastBill.consumo || 0)
@@ -165,7 +213,7 @@ export default async function DashboardPage() {
         activeSessions: 0
     }
 
-    if (role === 'admin' || role === 'super_admin') {
+    if (role === 'admin') {
         const { data: logs } = await supabase
             .from('import_logs')
             .select('*')
@@ -182,17 +230,8 @@ export default async function DashboardPage() {
         }
     }
 
-    // 4. Fetch Tenant Layout from DB
-    const headersList = await headers()
-    const tenantSlug = headersList.get('x-tenant-slug') || 'default'
-
-    const { data: tenantData } = await supabase
-        .from('tenants')
-        .select('dashboard_layout')
-        .eq('slug', tenantSlug)
-        .single()
-
-    const rawLayout = tenantData?.dashboard_layout
+    // 4. Manual Layout (Single Tenant)
+    const rawLayout = null // No longer fetching from DB
 
     // Default Fallbacks
     const defaultAdminLayout: DashboardLayout = {
@@ -205,7 +244,7 @@ export default async function DashboardPage() {
     }
 
     // Determine Logic
-    const isPrivate = role === 'admin' || role === 'super_admin'
+    const isPrivate = role === 'admin'
     const targetKey = isPrivate ? 'admin' : 'user'
 
     let finalLayout: DashboardLayout = isPrivate ? defaultAdminLayout : defaultUserLayout
@@ -226,7 +265,7 @@ export default async function DashboardPage() {
         <DashboardRenderer
             layout={finalLayout}
             profile={profile}
-            bills={bills}
+            bills={bills || []}
             stats={{
                 lastConsumption,
                 percentageBadge,

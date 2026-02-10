@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
-import { getAdapterForTenant, getTenantStoragePath } from '@/lib/admin/adapters/factory'
+import { StandardCsvAdapter } from '@/lib/admin/adapters/standard-csv'
 
 // Use Service Role to bypass RLS for Admin Uploads
 const supabase = createClient(
@@ -11,6 +11,11 @@ const supabase = createClient(
 
 import { requireAdmin } from '@/lib/auth-checks'
 
+// Simple in-memory rate limiting map (Admin specific)
+const uploadRateLimit = new Map<string, { count: number, lastReset: number }>()
+const RATE_LIMIT_WINDOW = 10 * 60 * 1000 // 10 minutes
+const MAX_UPLOADS_PER_WINDOW = 5
+
 export async function POST(req: NextRequest) {
     try {
         const authCheck = await requireAdmin()
@@ -18,34 +23,30 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
         }
 
+        // 0. Basic Rate Limiting check (per Admin user)
+        const userId = authCheck.user?.id
+        if (userId) {
+            const now = Date.now()
+            const userLimit = uploadRateLimit.get(userId) || { count: 0, lastReset: now }
+
+            if (now - userLimit.lastReset > RATE_LIMIT_WINDOW) {
+                userLimit.count = 0
+                userLimit.lastReset = now
+            }
+
+            if (userLimit.count >= MAX_UPLOADS_PER_WINDOW) {
+                return NextResponse.json({
+                    error: 'Troppi tentativi di upload rilevati. Per sicurezza, attendi 10 minuti prima del prossimo invio.'
+                }, { status: 429 })
+            }
+
+            userLimit.count++
+            uploadRateLimit.set(userId, userLimit)
+        }
+
         const formData = await req.formData()
         const file = formData.get('csv') as File
         const importId = formData.get('importId') as string // Client generated ID
-        const tenantSlug = req.headers.get('x-tenant-slug') || 'acq'
-
-        console.log('[Upload] Service Role Key Present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
-        console.log('[Upload] Is Service Role Key default/placeholder?', process.env.SUPABASE_SERVICE_ROLE_KEY === 'your-service-role-key')
-
-        if (!file) {
-            return NextResponse.json({ error: 'No CSV file provided' }, { status: 400 })
-        }
-
-        // Parsing will happen via Adapter after loading profiles
-        const text = await file.text()
-
-        // Resolve Tenant Config EARLY
-        const { data: tenantData } = await supabase
-            .from('tenants')
-            .select('id, adapter, import_mapping')
-            .eq('slug', tenantSlug)
-            .single()
-
-        if (!tenantData) {
-            return NextResponse.json({ error: `Tenant not found: ${tenantSlug}` }, { status: 400 })
-        }
-        const tenantId = tenantData.id
-        const adapterName = tenantData.adapter
-        const mapping = tenantData.import_mapping
 
         // Progress Tracking Helpers
         let totalFiles = 0
@@ -65,7 +66,6 @@ export async function POST(req: NextRequest) {
                     processed_files: processed,
                     total_files: total,
                     archive_name: formData.get('archive') ? (formData.get('archive') as File).name : null,
-                    tenant_id: tenantId // Added tenant_id
                 })
                 if (logError) {
                     console.error(`[Upload API] Log update failed for ${importId}:`, logError)
@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
                 total_files: totalFiles,
                 processed_files: 0,
                 current_file: 'Analisi CSV...',
-                tenant_id: tenantId // Added tenant_id
             })
             if (logInitError) {
                 console.error('[Upload API] Failed to initialize import log:', logInitError)
@@ -103,7 +102,7 @@ export async function POST(req: NextRequest) {
             while (hasMore) {
                 const { data, error } = await supabase
                     .from('profiles')
-                    .select('id, cif, cfpi')
+                    .select('id, codice_cliente')
                     .range(page * pageSize, (page + 1) * pageSize - 1)
 
                 if (error) throw error
@@ -121,23 +120,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Database error fetching profiles' }, { status: 500 })
         }
 
-        const cifMap = new Map<string, string>()
-        const cfpiMap = new Map<string, string>()
+        const clientCodeMap = new Map<string, string>()
 
         allProfiles.forEach(p => {
-            if (p.cif) cifMap.set(p.cif.trim(), p.id)
-            if (p.cfpi) cfpiMap.set(p.cfpi.trim(), p.id)
+            if (p.codice_cliente) clientCodeMap.set(p.codice_cliente.trim(), p.id)
         })
 
         console.log(`[Upload] Loaded ${allProfiles.length} profiles from DB for deduplication.`)
 
-        // Tenant config resolved earlier
-
         // 2. PARSE via Adapter
-        const adapter = getAdapterForTenant(tenantSlug, adapterName, mapping)
+        const adapter = new StandardCsvAdapter()
         await updateProgress('Analisi del file in corso...', 0, 0)
 
-        const { bills: billsToInsert, errors: parseErrors } = await adapter.parse(text, cifMap, cfpiMap)
+        const text = await file.text()
+        const { bills: billsToInsert, errors: parseErrors } = await adapter.parse(text)
 
         // Update stats
         totalFiles = billsToInsert.length
@@ -150,10 +146,11 @@ export async function POST(req: NextRequest) {
         const matchedCfpiIds = new Set<string>()
 
         // Reconstruct stats for the response
+        // Link Users via Client Code
         billsToInsert.forEach(b => {
-            if (b.user_id) {
-                if (b.cif && cifMap.has(b.cif)) matchedCifIds.add(b.user_id)
-                else if (b.cfpi && cfpiMap.has(b.cfpi)) matchedCfpiIds.add(b.user_id)
+            if (b.codice_cliente && clientCodeMap.has(b.codice_cliente)) {
+                b.user_id = clientCodeMap.get(b.codice_cliente)!
+                matchedCifIds.add(b.user_id) // Reusing set name for stats simplification
             }
         })
 
@@ -168,8 +165,7 @@ export async function POST(req: NextRequest) {
             const chunkSize = 500
             for (let i = 0; i < billsToInsert.length; i += chunkSize) {
                 const chunk = billsToInsert.slice(i, i + chunkSize).map(({ original_row_index, ...rest }) => ({
-                    ...rest,
-                    tenant_id: tenantId
+                    ...rest
                 }))
                 const { error: dateError } = await supabase.from('bills').upsert(chunk)
                 if (dateError) {
@@ -397,9 +393,9 @@ export async function POST(req: NextRequest) {
                         }
                     })
 
-                    // B. Check Local Storage (public/invoices/TENANT)
+                    // B. Check Local Storage (public/invoices/acq)
                     const storageFilesSet = new Set<string>()
-                    const storageSubDir = getTenantStoragePath(tenantSlug)
+                    const storageSubDir = 'invoices/acq'
                     const localInvoicesDir = path.join(process.cwd(), 'public', storageSubDir)
 
                     if (!fs.existsSync(localInvoicesDir)) { fs.mkdirSync(localInvoicesDir, { recursive: true }) }
@@ -532,7 +528,7 @@ export async function POST(req: NextRequest) {
             processed: processedBills,
             newUsers: newProfiles,
             matchedByCif: matchedCifIds.size,
-            matchedByCfpi: matchedCfpiIds.size,
+            matchedByCfpi: 0,
             uniqueMatchedUsers,
             pdfsUploaded,
             pdfsSkipped,

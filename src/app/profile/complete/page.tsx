@@ -41,7 +41,7 @@ export default function CompleteProfilePage() {
             const { error } = await supabase
                 .from('profiles')
                 .update({
-                    user_name: formData.userName,
+                    username: formData.userName,
                     // phone: formData.phone // Uncomment if phone column exists and is needed
                 })
                 .eq('id', userId)

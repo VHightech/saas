@@ -36,25 +36,12 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
     const supabaseAdmin = createAdminClient()
 
     try {
-        // 0. Get Current Admin's Tenant ID
+        // 0. (Tenant Check Removed)
+        // In a single tenant system, any existing admin can invite another admin.
         const supabaseSession = await createServerClient()
         const { data: { user: inviter } } = await supabaseSession.auth.getUser()
 
         if (!inviter) return { success: false, error: 'Sessione scaduta' }
-
-        const { data: inviterProfile } = await supabaseSession
-            .from('tenant_admins')
-            .select('tenant_id')
-            .eq('id', inviter.id)
-            .single()
-
-        const tenantId = inviterProfile?.tenant_id
-
-        if (!tenantId) {
-            // Fallback or Error? If inviter is super_admin might not have tenant_id? 
-            // Or maybe they do. Let's assume they MUST have one for now.
-            return { success: false, error: 'Impossibile determinare il Tenant ID del chiamante.' }
-        }
 
         // 1. Invite User
         const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
@@ -77,23 +64,20 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
             return { success: false, error: 'Utente non creato' }
         }
 
-        // 2. Insert into tenant_admins
+        // 2. Insert/Update into profiles
         const { error: insertError } = await supabaseAdmin
-            .from('tenant_admins')
-            .insert({
+            .from('profiles')
+            .upsert({
                 id: data.user.id,
                 email: email,
-                full_name: fullName || 'Admin',
+                name: fullName || 'Admin',
                 role: 'admin',
-                tenant_id: tenantId,
-                created_at: new Date().toISOString()
+                is_shadow: false
             })
 
         if (insertError) {
-            console.error('Tenant Admin Insert Error:', insertError)
-            // Clean up auth user if db insert fails? Or just return error?
-            // For now return error but keep user (can be retried or fixed manually)
-            return { success: false, error: 'Utente auth creato ma aggiunta a tenant_admins fallita: ' + insertError.message }
+            console.error('Profile Admin Insert Error:', insertError)
+            return { success: false, error: 'Utente auth creato ma creazione profilo fallita: ' + insertError.message }
         }
 
         // 3. Set Admin Role in Auth Metadata (as backup/sync)
@@ -120,17 +104,20 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
 export async function getAdmins() {
     const supabaseAdmin = createAdminClient()
 
-    // Fetch users. For now we fetch first 50. 
-    // Ideally we would filter by metadata via database query if possible, 
-    // but listUsers doesn't support deep metadata filter easily.
-    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers({
-        perPage: 100
-    })
+    // Fetch from profiles where role is admin or super_admin
+    // This is the single source of truth for roles.
+    const { data: profiles, error } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .in('role', ['admin', 'super_admin'])
+        .order('created_at', { ascending: false })
 
-    if (error) return []
+    if (error) {
+        console.error('Error fetching admins from profiles:', error)
+        return []
+    }
 
-    // Filter in memory for role === 'admin'
-    return users.filter(u => u.app_metadata?.role === 'admin')
+    return profiles
 }
 
 export async function removeAdmin(userId: string) {
@@ -140,16 +127,11 @@ export async function removeAdmin(userId: string) {
     // Or delete user completely?
     // Let's just remove the role for safety, creating a "soft ban" from admin.
 
-    // Actually, usually we might want to delete access.
-    // Let's update metadata to remove role.
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(
-        userId,
-        {
-            app_metadata: {
-                role: null
-            }
-        }
-    )
+    // Remove admin role (downgrade to user)
+    // We update the profile role
+    const { error } = await supabaseAdmin.from('profiles')
+        .update({ role: 'user' })
+        .eq('id', userId)
 
     if (error) return { success: false, error: error.message }
 

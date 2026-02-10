@@ -10,6 +10,7 @@ export interface ParsedBill {
     importo: number
     consumo: number
     cif: string | null
+    ulm?: string | null
     original_row_index?: number
 }
 

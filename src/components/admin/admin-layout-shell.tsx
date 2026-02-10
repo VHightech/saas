@@ -15,7 +15,6 @@ import { AdminUploadProvider } from '@/components/providers/admin-upload-provide
 import { GlobalProgressBar } from '@/components/ui/global-progress-bar'
 import { useTheme } from "next-themes"
 import { logout } from '@/app/login/actions'
-import { useTenant } from '@/components/tenant-provider'
 
 export function AdminLayoutShell({
     children,
@@ -31,7 +30,7 @@ export function AdminLayoutShell({
     const [isCollapsed, setIsCollapsed] = useState(true)
     const { setTheme, theme } = useTheme()
     const [mounted, setMounted] = useState(false)
-    const { tenant } = useTenant()
+    // const { tenant } = useTenant() // Removed
 
     useEffect(() => {
         setMounted(true)
@@ -43,9 +42,6 @@ export function AdminLayoutShell({
         { name: 'Invita Admin', href: '/admin/invite', icon: ShieldCheck },
     ]
 
-    if (userRole === 'super_admin') {
-        navItems.push({ name: 'Super Admin Area', href: '/admin/super', icon: ShieldCheck })
-    }
 
     return (
         <AdminUploadProvider>
@@ -60,11 +56,7 @@ export function AdminLayoutShell({
                     {/* Header */}
                     <div className="h-20 flex items-center px-6 border-b border-slate-100 dark:border-[#333333] mb-6 overflow-hidden whitespace-nowrap">
                         <div className="w-8 h-8 flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm bg-white p-0.5">
-                            {tenant?.logo_url ? (
-                                <img src={tenant.logo_url} alt={tenant.name || "Logo"} className="w-full h-full object-contain" />
-                            ) : (
-                                <img src="/acq_logo.jpg" alt="Acquambiente" className="w-full h-full object-cover" />
-                            )}
+                            <img src="/acq_logo.jpg" alt="Acquambiente" className="w-full h-full object-cover" />
                         </div>
 
                         <div className={`ml-4 transition-all duration-300 ease-in-out overflow-hidden flex flex-col justify-center ${isCollapsed ? 'opacity-0 w-0 translate-x-4' : 'opacity-100 w-40 translate-x-0'}`}>
@@ -72,7 +64,7 @@ export function AdminLayoutShell({
                                 Portale Admin
                             </h1>
                             <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mt-1 leading-none truncate">
-                                {tenant?.name || "Acquambiente Marche"}
+                                Acquambiente Marche
                             </p>
                         </div>
                     </div>

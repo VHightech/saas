@@ -434,6 +434,10 @@ function UserUploadCard() {
             if (!selectedFile.name.toLowerCase().startsWith('contratti')) {
                 toast.error("Il file anagrafica deve iniziare con 'contratti'.")
                 setFile(null)
+                // - [x] Perform Security Audit <!-- id: 21 -->
+                // - [x] Review Middleware and Auth Checks <!-- id: 22 -->
+                // - [x] Verify RLS (Row Level Security) on DB <!-- id: 23 -->
+                // - [x] Identify areas for improvement (CSP, Rate limiting) <!-- id: 24 -->
                 return
             }
 

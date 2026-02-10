@@ -41,63 +41,40 @@ export function ConsumptionChart({ settings = {}, initialData = [] }: Consumptio
             // Sort bills by date ascending
             const sortedBills = [...bills].sort((a, b) => new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime());
 
-            // Generate last 6 months labels based on current date
-            const months: { name: string; value: number; monthIndex: number; year: number }[] = [];
-            // Generate last 6 months labels based on LATEST BILL DATE
-            // This prevents showing empty future months (e.g. Feb) if we only have data up to Dec
-            let anchorDate = new Date();
-            if (sortedBills.length > 0) {
-                const lastBillDate = new Date(sortedBills[sortedBills.length - 1].data_emissione);
-                // If last bill is in the past compared to today, use it as anchor?
-                // Or just use today? User complained about "gen and feb even if no data".
-                // So if today is Feb, but data ends in Dec, user likely wants to see Dec as the end.
-                // Let's use the max date from bills as the anchor, but ensure we don't go into the future if bills are weird.
-                // Actually, usually we want to see "up to now", but if "now" is empty and user hates it...
-                // SAFE BET: Use max(today, lastBill) -> no, use lastBillDate directly as anchor for "Consumption History"
-                anchorDate = lastBillDate;
-            }
+            // Map to sparse data (only months present)
+            const monthMap = new Map<string, { name: string, value: number, year: number, monthIndex: number }>();
 
-            // Create rolling 6 months window ending at anchorDate
-            for (let i = 5; i >= 0; i--) {
-                const d = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i, 1);
-                const monthName = d.toLocaleString('it-IT', { month: 'short' });
-                // Capitalize first letter
-                const formattedName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
-                months.push({
-                    name: formattedName,
-                    value: 0,
-                    monthIndex: d.getMonth(),
-                    year: d.getFullYear()
-                });
-            }
-
-            // Populate values
             sortedBills.forEach(bill => {
-                const billDate = new Date(bill.data_emissione);
-                const billMonth = billDate.getMonth();
-                const billYear = billDate.getFullYear();
-                const billConsumo = Number(bill.consumo || 0);
+                const d = new Date(bill.data_emissione);
+                const key = `${d.getFullYear()}-${d.getMonth()}`; // Unique Month Key
 
-                // Find matching bucket
-                const bucket = months.find(m => m.monthIndex === billMonth && m.year === billYear);
-                if (bucket) {
-                    bucket.value += billConsumo;
+                if (!monthMap.has(key)) {
+                    const monthName = d.toLocaleString('it-IT', { month: 'short' });
+                    const formattedName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                    monthMap.set(key, {
+                        name: formattedName,
+                        value: 0,
+                        year: d.getFullYear(),
+                        monthIndex: d.getMonth()
+                    });
                 }
+
+                const entry = monthMap.get(key)!;
+                entry.value += Number(bill.consumo || 0);
             });
 
-            const finalData = months.map(m => ({ name: m.name, value: m.value }));
+            // Convert to array and sort
+            const months = Array.from(monthMap.values()).sort((a, b) => {
+                if (a.year !== b.year) return a.year - b.year;
+                return a.monthIndex - b.monthIndex;
+            });
+
+            // Take last 6 AVAILABLE data points
+            const finalData = months.slice(-6).map(m => ({ name: m.name, value: m.value }));
             setData(finalData);
 
-            // Default to last month with value > 0, or last month match if all 0
-            let defaultIndex = finalData.length - 1;
-            for (let i = finalData.length - 1; i >= 0; i--) {
-                if (finalData[i].value > 0) {
-                    defaultIndex = i;
-                    break;
-                }
-            }
-            setActiveIndex(defaultIndex);
+            // Default to last item
+            setActiveIndex(finalData.length > 0 ? finalData.length - 1 : 0);
         } else {
             setData([])
         }

@@ -4,13 +4,11 @@ import { login } from '@/app/login/actions'
 import { ArrowRight, Sparkles, CheckCircle2, TrendingUp, ShieldCheck } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { ModeToggle } from '@/components/mode-toggle'
-import { useTenant } from '@/components/tenant-provider'
 import HCaptcha from '@hcaptcha/react-hcaptcha'
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
-    const { tenant } = useTenant()
     const [captchaToken, setCaptchaToken] = useState<string | null>(null)
     const captchaRef = useRef<HCaptcha>(null)
 
@@ -50,13 +48,9 @@ export default function LoginPage() {
                 <div className="mb-12">
                     <span className="font-black text-2xl tracking-tighter text-black dark:text-white flex items-center gap-3">
                         <div className="w-10 h-10 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black shadow-sm overflow-hidden p-1 bg-white">
-                            {tenant?.logo_url ? (
-                                <img src={tenant.logo_url} alt={tenant.name || "Logo"} className="w-full h-full object-contain" />
-                            ) : (
-                                <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
-                            )}
+                            <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
                         </div>
-                        {tenant?.name || "Portale Acquambiente"}
+                        Portale Acquambiente
                     </span>
                 </div>
 
@@ -134,7 +128,7 @@ export default function LoginPage() {
                 </form>
 
                 <div className="mt-auto pt-10 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
-                    <span>© 2026 {tenant?.name || "Portale Acquambiente"}</span>
+                    <span>© 2026 Portale Acquambiente</span>
                     <a href="#" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
             </div >

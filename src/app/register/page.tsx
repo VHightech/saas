@@ -4,11 +4,9 @@ import { register, resendConfirmationEmail } from '@/app/register/actions'
 import { useState, useRef } from 'react'
 import { ArrowRight, ArrowLeft, TrendingUp, ShieldCheck, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { ModeToggle } from '@/components/mode-toggle'
-import { useTenant } from '@/components/tenant-provider'
 import HCaptcha from '@hcaptcha/react-hcaptcha'
 
 export default function RegisterPage() {
-    const { tenant } = useTenant()
     const [success, setSuccess] = useState(false)
     const [step, setStep] = useState(1)
     const [error, setError] = useState<string | null>(null)
@@ -24,9 +22,7 @@ export default function RegisterPage() {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
-        cfpi: '',
         client_code: '',
-        cif: '',
         username: '',
         password: ''
     })
@@ -170,13 +166,9 @@ export default function RegisterPage() {
                 <div className="mb-12">
                     <span className="font-black text-2xl tracking-tighter text-black dark:text-white flex items-center gap-3">
                         <div className="w-10 h-10 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black shadow-sm overflow-hidden p-1 bg-white">
-                            {tenant?.logo_url ? (
-                                <img src={tenant.logo_url} alt={tenant.name || "Logo"} className="w-full h-full object-contain" />
-                            ) : (
-                                <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
-                            )}
+                            <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
                         </div>
-                        {tenant?.name || "Acquambiente"}
+                        Portale Acquambiente
                     </span>
                 </div>
 
@@ -216,6 +208,19 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Codice Cliente</label>
+                            <input
+                                name="client_code"
+                                type="text"
+                                required
+                                className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium font-mono"
+                                placeholder="Inserisci Codice Cliente (es. 123456)"
+                                value={formData.client_code}
+                                onChange={handleChange}
+                            />
+                        </div>
+
+                        <div>
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email</label>
                             <input
                                 name="email"
@@ -228,23 +233,11 @@ export default function RegisterPage() {
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Codice Fiscale / P.IVA</label>
-                            <input
-                                name="cfpi"
-                                type="text"
-                                required
-                                className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium uppercase font-mono"
-                                placeholder="RSSMRA..."
-                                value={formData.cfpi}
-                                onChange={handleChange}
-                            />
-                        </div>
 
                         <button
                             type="button"
                             onClick={() => {
-                                if (!formData.name || !formData.email || !formData.cfpi) {
+                                if (!formData.name || !formData.email || !formData.client_code) {
                                     setError("Per favore, compila tutti i campi obbligatori prima di proseguire.")
                                     return
                                 }
@@ -260,32 +253,6 @@ export default function RegisterPage() {
                     {/* STEP 2: Account Details */}
                     <div className={step === 2 ? 'block space-y-4' : 'hidden'}>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Codice Cliente</label>
-                                <input
-                                    name="client_code"
-                                    type="text"
-                                    required
-                                    className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium font-mono"
-                                    placeholder="000000"
-                                    value={formData.client_code}
-                                    onChange={handleChange}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">CIF</label>
-                                <input
-                                    name="cif"
-                                    type="text"
-                                    required
-                                    className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium font-mono"
-                                    placeholder="XYZ..."
-                                    value={formData.cif}
-                                    onChange={handleChange}
-                                />
-                            </div>
-                        </div>
 
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Username</label>
@@ -346,7 +313,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="mt-auto pt-10 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
-                    <span>© 2026 {tenant?.name || "Portale Acquambiente"}</span>
+                    <span>© 2026 Portale Acquambiente</span>
                     <a href="#" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
             </div>

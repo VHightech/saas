@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-export type UserRole = 'super_admin' | 'admin' | 'user'
+export type UserRole = 'admin' | 'user'
 
 export async function getCurrentUserRole(): Promise<UserRole> {
     const supabase = await createClient()
@@ -19,29 +19,18 @@ export async function getCurrentUserRole(): Promise<UserRole> {
         .eq('id', user.id)
         .maybeSingle()
 
-    if (profile?.role && (profile.role === 'admin' || profile.role === 'superadmin')) {
+    if (profile?.role && profile.role === 'admin') {
         return profile.role as UserRole
     }
 
-    // 2. Fallback: Check tenant_admins (Legacy/Staff table)
-    const { data: adminData } = await supabase
-        .from('tenant_admins')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
-
-    if (adminData?.role) {
-        return adminData.role as UserRole
-    }
-
-    // 3. Default to 'user'
+    // 2. Default to 'user'
     return 'user'
 }
 
-export async function requireSuperAdmin() {
+export async function requireAdmin() {
     const role = await getCurrentUserRole()
 
-    if (role !== 'super_admin') {
+    if (role !== 'admin') {
         redirect('/dashboard') // Redirect unauthorized users
     }
 }
