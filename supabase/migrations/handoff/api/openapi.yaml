@@ -1,0 +1,334 @@
+openapi: 3.1.0
+info:
+  title: Acqdash API
+  description: |
+    REST API contract for the Acqdash customer portal.
+    Backed by Supabase Postgres + Next.js Server Actions.
+    All endpoints require a valid Supabase session cookie unless noted.
+  version: 1.0.0
+  contact:
+    name: Acqdash team
+servers:
+  - url: https://acqdash.example.com/api
+    description: Production
+  - url: http://localhost:3000/api
+    description: Local dev
+
+tags:
+  - name: auth
+  - name: bills
+  - name: supplies
+  - name: consumption
+  - name: notifications
+  - name: alerts
+  - name: payments
+  - name: admin
+
+paths:
+  /me:
+    get:
+      tags: [auth]
+      summary: Current user profile + selected supply
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile: { $ref: '#/components/schemas/Profile' }
+                  supplies:
+                    type: array
+                    items: { $ref: '#/components/schemas/Supply' }
+
+  /bills:
+    get:
+      tags: [bills]
+      summary: List bills for the current user
+      parameters:
+        - in: query
+          name: supply_id
+          schema: { type: string }
+          description: Filter by supply (ULM)
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, paid, overdue] }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Bill' }
+
+  /bills/{id}:
+    get:
+      tags: [bills]
+      summary: Bill detail + presigned PDF URL from R2
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Bill'
+                  - type: object
+                    properties:
+                      pdf_url: { type: string, format: uri, description: 'Presigned R2 URL, short-lived' }
+
+  /bills/{id}/pay:
+    post:
+      tags: [payments]
+      summary: Start a PagoPA payment flow for a bill
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Redirect URL to PagoPA
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment_attempt_id: { type: string, format: uuid }
+                  redirect_url: { type: string, format: uri }
+                  notice_code: { type: string, description: 'PagoPA notice code 18 digits' }
+                  iuv: { type: string }
+
+  /consumption:
+    get:
+      tags: [consumption]
+      summary: Aggregate consumption buckets for charts
+      parameters:
+        - in: query
+          name: supply_id
+          schema: { type: string }
+        - in: query
+          name: months
+          schema: { type: integer, default: 12, minimum: 1, maximum: 36 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConsumptionBucket' }
+
+  /supplies:
+    get:
+      tags: [supplies]
+      summary: List user supplies
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Supply' }
+
+  /notifications:
+    get:
+      tags: [notifications]
+      summary: List notifications (newest first)
+      parameters:
+        - in: query
+          name: unread
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+    patch:
+      tags: [notifications]
+      summary: Mark all as read
+      responses:
+        '204': { description: No Content }
+
+  /notifications/{id}:
+    patch:
+      tags: [notifications]
+      summary: Mark a notification read
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: No Content }
+
+  /alerts:
+    get:
+      tags: [alerts]
+      summary: Open consumption alerts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConsumptionAlert' }
+
+  /admin/users:
+    get:
+      tags: [admin]
+      summary: List users (admin only)
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Profile' }
+                  total: { type: integer }
+
+  /admin/bills/upload:
+    post:
+      tags: [admin]
+      summary: Upload bill ZIP/PDF archive
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                dry_run: { type: boolean, default: false }
+      responses:
+        '202':
+          description: Accepted — async import started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  import_log_id: { type: string, format: uuid }
+
+components:
+  schemas:
+    Profile:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        surname: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        cif: { type: string, description: 'Codice fiscale' }
+        codice_cliente: { type: string }
+        username: { type: string }
+        address: { type: string }
+        city: { type: string }
+        role: { type: string, enum: [user, admin, super_admin] }
+
+    Supply:
+      type: object
+      required: [id, ulm, cif]
+      properties:
+        id: { type: string }
+        ulm: { type: string }
+        cif: { type: string }
+        label: { type: string }
+        address: { type: string }
+        city: { type: string }
+        type: { type: string, enum: [home, office, other] }
+        is_primary: { type: boolean }
+
+    Bill:
+      type: object
+      required: [id, data_emissione, scadenza, importo]
+      properties:
+        id: { type: integer, format: int64 }
+        data_emissione: { type: string, format: date }
+        scadenza: { type: string, format: date }
+        importo: { type: number }
+        consumo: { type: number }
+        cif: { type: string }
+        codice_cliente: { type: string }
+        nome_pdf: { type: string }
+        pdf_url: { type: string, format: uri }
+        ulm: { type: string }
+        tipo_servizio: { type: string }
+        status: { type: string, enum: [pending, paid, overdue] }
+
+    ConsumptionBucket:
+      type: object
+      required: [month, value]
+      properties:
+        month: { type: string, description: 'YYYY-MM' }
+        monthLabel: { type: string }
+        value: { type: number, description: 'm³' }
+        cost: { type: number, description: '€' }
+        previousYearValue: { type: number }
+        zoneAverageValue: { type: number }
+
+    Notification:
+      type: object
+      required: [id, kind, title, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [bill_new, bill_due, payment_ok, payment_failed, consumption_spike, system] }
+        title: { type: string }
+        body: { type: string }
+        href: { type: string }
+        read_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+
+    ConsumptionAlert:
+      type: object
+      required: [id, severity, title, detected_at]
+      properties:
+        id: { type: string, format: uuid }
+        supply_id: { type: string }
+        severity: { type: string, enum: [info, warning, critical] }
+        title: { type: string }
+        description: { type: string }
+        metric_value: { type: number }
+        metric_delta_pct: { type: number }
+        detected_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time }
+
+  securitySchemes:
+    SupabaseSession:
+      type: apiKey
+      in: cookie
+      name: sb-access-token
+
+security:
+  - SupabaseSession: []
