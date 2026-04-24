@@ -33,3 +33,5 @@ export interface UploadLog {
     total_files: number
     created_at: string
 }
+
+export * from './dashboard-extended'
