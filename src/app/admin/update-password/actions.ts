@@ -3,8 +3,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { requireAdmin } from '@/lib/auth-checks'
 
 export async function updatePassword(formData: FormData) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) {
+        return { error: authCheck.error }
+    }
+
     const password = formData.get('password') as string
     const confirmPassword = formData.get('confirmPassword') as string
 

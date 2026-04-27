@@ -43,3 +43,14 @@ next-env.d.ts
 # invoices
 public/invoices
 tmp
+
+# Sensitive / generated artefacts — never commit
+*.log
+*_dump.json
+*.dump.json
+all_profiles_dump.json
+profile_dump.json
+output.txt
+diagnosis.log
+cloudflare.log
+tunnel*.log

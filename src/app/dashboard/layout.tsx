@@ -37,8 +37,10 @@ export default function DashboardLayout({
             // Server Action Call
             const { profile, error } = await getUserDashboardData()
 
-            if (profile && !profile.username) {
-                // If username is missing (was reset), redirect to complete profile
+            const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'superadmin'
+
+            if (profile && !profile.username && !isAdmin) {
+                // If username is missing (was reset) and not an admin, redirect to complete profile
                 router.push('/profile/complete')
             }
 

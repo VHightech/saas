@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
                     return request.cookies.getAll()
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
                     response = NextResponse.next({
                         request: {
                             headers: request.headers,
@@ -35,26 +35,45 @@ export async function middleware(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    // Authenticated user check if needed (logic simplified)
-
-    // Tighten CSP for better security while maintaining tunnel/Supabase compatibility
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
     const supabaseDomain = supabaseUrl ? new URL(supabaseUrl).hostname : ''
+    const r2PublicUrl = process.env.R2_PUBLIC_BASE_URL || ''
+    const r2Hostname = r2PublicUrl ? new URL(r2PublicUrl).hostname : ''
 
-    response.headers.set(
-        'Content-Security-Policy',
-        `default-src 'self'; ` +
-        `script-src 'self' 'unsafe-inline' 'unsafe-eval' *.hcaptcha.com; ` +
-        `style-src 'self' 'unsafe-inline' *.hcaptcha.com; ` +
-        `img-src 'self' data: blob: ${supabaseDomain} *.hcaptcha.com *; ` +
-        `font-src 'self' data: fonts.gstatic.com; ` +
-        `connect-src 'self' ${supabaseDomain} *.supabase.co *.trycloudflare.com *.sentry.io *.hcaptcha.com localhost:* 127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; ` +
-        `frame-src 'self' *.hcaptcha.com; ` +
-        `object-src 'none';`
-    )
+    const isDev = process.env.NODE_ENV !== 'production'
+    // React Server Components currently require 'unsafe-inline' for style hydration.
+    // In dev we keep 'unsafe-eval' for React DevTools + Turbopack HMR.
+    const scriptSrcExtras = isDev ? `'unsafe-eval'` : ''
 
-    // Protected routes logic (optional, can be expanded)
+    const csp = [
+        `default-src 'self'`,
+        `script-src 'self' 'unsafe-inline' ${scriptSrcExtras} challenges.cloudflare.com`,
+        `style-src 'self' 'unsafe-inline'`,
+        `img-src 'self' data: blob: ${supabaseDomain} ${r2Hostname} challenges.cloudflare.com`,
+        `font-src 'self' data: fonts.gstatic.com`,
+        `connect-src 'self' ${supabaseDomain} *.supabase.co challenges.cloudflare.com${isDev ? ' *.trycloudflare.com localhost:* 127.0.0.1:* ws://localhost:* ws://127.0.0.1:*' : ''}`,
+        `frame-src 'self' challenges.cloudflare.com`,
+        `object-src 'none'`,
+        `base-uri 'self'`,
+        `form-action 'self'`,
+        `frame-ancestors 'none'`,
+    ].join('; ')
+
+    response.headers.set('Content-Security-Policy', csp)
+    response.headers.set('X-Content-Type-Options', 'nosniff')
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    if (!isDev) {
+        response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+    }
+
     if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+        const redirectUrl = request.nextUrl.clone()
+        redirectUrl.pathname = '/login'
+        return NextResponse.redirect(redirectUrl)
+    }
+
+    if (!user && request.nextUrl.pathname.startsWith('/admin')) {
         const redirectUrl = request.nextUrl.clone()
         redirectUrl.pathname = '/login'
         return NextResponse.redirect(redirectUrl)
@@ -65,14 +84,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except for the ones starting with:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - api/auth (auth routes)
-         * Feel free to modify this pattern to include more paths.
-         */
         '/((?!_next/static|_next/image|favicon.ico|api/auth|api/upload|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
 }

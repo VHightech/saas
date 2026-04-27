@@ -1,5 +1,5 @@
 export interface ParsedBill {
-    id: number // Mapped from CSV or Filename
+    idboll: number | null // Numero bolletta (from PDF filename)
     user_id: string | null // Resolved from CIF/CFPI lookup
     cfpi: string | null
     codice_cliente: string
@@ -10,7 +10,8 @@ export interface ParsedBill {
     importo: number
     consumo: number
     cif: string | null
-    ulm?: string | null
+    billing_type?: string | null   // 'S' (saldo) | 'A' (acconto) — from CSV
+    expected_method?: string | null // 'MP01', 'MP23', ... — from CSV
     original_row_index?: number
 }
 

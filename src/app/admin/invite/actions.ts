@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { requireAdmin } from '@/lib/auth-checks'
 
 // Helper to create Admin Client (bypass RLS)
 
@@ -28,6 +29,9 @@ function createStandardClient() {
 }
 
 export async function inviteAdmin(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) return { success: false, error: authCheck.error }
+
     const email = formData.get('email') as string
     const fullName = formData.get('fullName') as string
 
@@ -102,6 +106,9 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
 }
 
 export async function getAdmins() {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) return []
+
     const supabaseAdmin = createAdminClient()
 
     // Fetch from profiles where role is admin or super_admin
@@ -121,6 +128,10 @@ export async function getAdmins() {
 }
 
 export async function removeAdmin(userId: string) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) return { success: false, error: authCheck.error }
+    if (authCheck.user?.id === userId) return { success: false, error: 'Non puoi rimuovere te stesso.' }
+
     const supabaseAdmin = createAdminClient()
 
     // Remove admin role (downgrade) instead of delete? 

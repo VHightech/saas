@@ -80,17 +80,43 @@ export class StandardCsvAdapter implements ImportAdapter {
                 const rowImp = normalize(row[IDX.IMP])
                 const rowCons = normalize(row[IDX.CONS])
 
+                // Payment Method and Type (Index 8 and 9)
+                let paymentMethod = null
+                let paymentType = null
+                
+                if (row.length > 8) {
+                    const raw8 = normalize(row[8])
+                    if (raw8) {
+                        const up8 = raw8.toUpperCase()
+                        if (up8.startsWith('MP')) {
+                            // New format: Index 8 is payment method
+                            paymentMethod = up8
+                        } else if (up8.includes('SALDO')) {
+                            // Old format: Index 8 is payment type
+                            paymentType = 'S'
+                        } else if (up8.includes('ACCONTO')) {
+                            paymentType = 'A'
+                        }
+                    }
+                }
+                
+                if (row.length > 9 && paymentMethod) {
+                    // If Index 8 was a payment method, Index 9 could be the type
+                    const raw9 = normalize(row[9])
+                    if (raw9) {
+                        const up9 = raw9.toUpperCase()
+                        if (up9.includes('SALDO')) paymentType = 'S'
+                        else if (up9.includes('ACCONTO')) paymentType = 'A'
+                    }
+                }
+
                 // Code Client logic
                 let clientCode = ''
                 if (rowCif && rowCif.length >= 6) {
                     clientCode = rowCif.substring(0, 6)
                 }
 
-                // ULM logic
-                let ulm = null
-                if (rowCif && rowCif.length >= 6) {
-                    ulm = rowCif.slice(-6)
-                }
+                // ulm is a generated column in Postgres (right(cif, 6)); no need to set here.
 
                 // Extract ID from PDF Name
                 const idString = pdfName.replace(/\.[^/.]+$/, "")
@@ -114,7 +140,7 @@ export class StandardCsvAdapter implements ImportAdapter {
                 }
 
                 bills.push({
-                    id: isNaN(billId) ? 0 : billId,
+                    idboll: isNaN(billId) ? null : billId,
                     user_id: null,
                     cfpi: rowCfpi,
                     codice_cliente: clientCode,
@@ -125,9 +151,10 @@ export class StandardCsvAdapter implements ImportAdapter {
                     importo: parseNumber(rowImp),
                     consumo: parseNumber(rowCons),
                     cif: rowCif,
-                    ulm: ulm,
+                    billing_type: paymentType,
+                    expected_method: paymentMethod,
                     original_row_index: rowIndex
-                })
+                } as any) // Cast as any because we'll update types later
 
             } catch (err) {
                 errors.push(`Row ${rowIndex}: ${err}`)

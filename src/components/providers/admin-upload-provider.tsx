@@ -56,16 +56,24 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
     }
 
 
-    // We need useEffect only if not imported (but client component has access)
-    // Actually we can just keep it simpler in uploadFiles function scope if we want, but better to use an interval ref with valid state access.
-    // Re-implemented to use poller.
-
-    // UUID Generator for compatibility
-    const generateUUID = () => {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
+    const generateUuidV4 = (): string => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID()
+        }
+        if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+            const bytes = new Uint8Array(16)
+            crypto.getRandomValues(bytes)
+            bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
+            bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 10
+            const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+        }
+        // Last-resort non-crypto fallback (good enough for batch ids, not for security).
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = (Math.random() * 16) | 0
+            const v = c === 'x' ? r : (r & 0x3) | 0x8
+            return v.toString(16)
+        })
     }
 
     const uploadFiles = async (csvFile: File, archiveFile: File, force: boolean = false) => {
@@ -75,9 +83,9 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
         setStatus('Preparazione file...')
         setProgress(0)
 
-        // Generate ID
-        const importId = generateUUID()
-        console.log('[UploadProvider] Generated Import ID:', importId)
+        // Fresh UUID per upload — becomes the import_logs.id and the R2 object prefix.
+        const importId = generateUuidV4()
+        console.log('[UploadProvider] Batch ID:', importId)
 
         const formData = new FormData()
         formData.append('csv', csvFile)
@@ -89,8 +97,8 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
             const { data, error } = await supabase
                 .from('import_logs')
                 .select('*')
-                .eq('id', importId)
-                .single()
+                .eq('r2_path', importId)
+                .maybeSingle()
 
             if (data && !error) {
                 // Calculate %?

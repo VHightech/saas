@@ -2,9 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { revalidatePath } from 'next/cache'
 
-// Helper to create Admin Client (bypass RLS for lookups)
+const SAFE_IDENTIFIER = /^[a-zA-Z0-9._@+\-]+$/
+
 function createAdminClient() {
     return createSupabaseClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,46 +12,40 @@ function createAdminClient() {
         {
             auth: {
                 autoRefreshToken: false,
-                persistSession: false
-            }
+                persistSession: false,
+            },
         }
     )
 }
 
-// STEP 1: Lookup User
-export async function lookupUser(identifier: string) {
+async function resolveEmailFromIdentifier(identifier: string): Promise<string | null> {
+    const clean = identifier.trim()
+    if (!SAFE_IDENTIFIER.test(clean)) return null
+
+    if (clean.includes('@')) return clean
+
     const supabaseAdmin = createAdminClient()
 
-    // 1. Check if identifier is email
-    const isEmail = identifier.includes('@')
-
-    let email = null
-    let foundProfile = null
-
-    if (isEmail) {
-        email = identifier
-        // Verify if user exists in auth (optional, or just blindly send)
-        // For better UX in enterprise apps, we might check.
-        // But for "CIF" lookup we MUST check profiles.
-    } else {
-        // 2. Lookup by CIF, Client Code, or Username in Profiles
-        const { data: profile } = await supabaseAdmin
+    for (const column of ['cif', 'codice_cliente', 'username'] as const) {
+        const { data } = await supabaseAdmin
             .from('profiles')
-            .select('email, name, surname')
-            .or(`cif.eq.${identifier.trim()},codice_cliente.eq.${identifier.trim()},username.eq.${identifier.trim()}`)
-            .single()
-
-        if (profile && profile.email) {
-            email = profile.email
-            foundProfile = profile
-        }
+            .select('email')
+            .eq(column, clean)
+            .maybeSingle()
+        if (data?.email) return data.email.trim()
     }
+
+    return null
+}
+
+// STEP 1: Lookup User
+export async function lookupUser(identifier: string) {
+    const email = await resolveEmailFromIdentifier(identifier)
 
     if (!email) {
         return { success: false, error: 'Utenza non trovata.' }
     }
 
-    // Mask the email for privacy (e.g. m***@gmail.com)
     const [local, domain] = email.split('@')
     const maskedLocal = local.length > 2 ? `${local.substring(0, 2)}***` : `${local}***`
     const maskedEmail = `${maskedLocal}@${domain}`
@@ -59,48 +53,27 @@ export async function lookupUser(identifier: string) {
     return {
         success: true,
         maskedEmail,
-        // We do NOT return the full email. We return a "found" state.
-        // The client must send the 'identifier' again to trigger the OTP.
     }
 }
 
 // STEP 2: Send OTP
 export async function sendRecoveryOTP(identifier: string) {
-    const supabaseAdmin = createAdminClient()
-    const supabase = await createClient() // Standard client for auth context if needed? No, signInWithOtp is public usually.
-
-    // access auth admin to send OTP? standard client can do signInWithOtp.
-
-    // Resolve email again (securely on server)
-    let email = identifier
-    if (!identifier.includes('@')) {
-        const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('email')
-            .or(`cif.eq.${identifier.trim()},codice_cliente.eq.${identifier.trim()},username.eq.${identifier.trim()}`)
-            .single()
-
-        if (!profile?.email) return { success: false, error: 'Errore tecnico. Riprova.' }
-        email = profile.email.trim()
+    const email = await resolveEmailFromIdentifier(identifier)
+    if (!email) {
+        // Generic response to prevent enumeration.
+        return { success: true }
     }
 
-    // Ensure email is trimmed
-    email = email.trim()
+    const supabaseAdmin = createAdminClient()
 
-    // Trigger OTP
-    // We use the ADMIN client to maybe avoid rate limits? No, standard flow.
-    // Actually, `signInWithOtp` logic is client-side usually? No, we can do it server side.
-
-    // We want the code to be sent to email.
     const { error } = await supabaseAdmin.auth.signInWithOtp({
-        email: email,
+        email,
         options: {
-            shouldCreateUser: false, // Don't sign up new users
-        }
+            shouldCreateUser: false,
+        },
     })
 
     if (error) {
-        console.error('OTP Error:', error)
         if (error.status === 429) {
             return { success: false, error: 'Troppe richieste. Attendi 60 secondi prima di riprovare.' }
         }
@@ -115,40 +88,20 @@ export async function sendRecoveryOTP(identifier: string) {
 
 // STEP 3: Verify OTP & Login
 export async function verifyRecoveryOTP(identifier: string, token: string) {
-    const supabaseAdmin = createAdminClient()
-    const supabase = await createClient() // We need to set the session on the SERVER RESPONSE (cookies)
+    const email = await resolveEmailFromIdentifier(identifier)
+    if (!email) return { success: false, error: 'Utenza non trovata.' }
 
-    // Resolve email
-    let email = identifier
-    if (!identifier.includes('@')) {
-        const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('email')
-            .or(`cif.eq.${identifier.trim()},codice_cliente.eq.${identifier.trim()},username.eq.${identifier.trim()}`)
-            .single()
+    const supabase = await createClient()
 
-        if (!profile?.email) return { success: false, error: 'Utenza non trovata.' }
-        email = profile.email.trim()
-    }
-
-    // Ensure email is trimmed
-    email = email.trim()
-
-    // Verify OTP
-    // IMPORTANT: We must use the *Server Client* that has access to Cookies (`message-level`) to persist the session!
-    // The `supabase` client from `@/lib/supabase/server` is configured for that.
-
-    const { data, error } = await supabase.auth.verifyOtp({
+    const { error } = await supabase.auth.verifyOtp({
         email,
         token,
-        type: 'email'
+        type: 'email',
     })
 
     if (error) {
         return { success: false, error: 'Codice non valido o scaduto.' }
     }
-
-    // Logic: The user is now "logged in" with a session.
 
     return { success: true }
 }
@@ -157,25 +110,20 @@ export async function verifyRecoveryOTP(identifier: string, token: string) {
 export async function updatePassword(password: string) {
     const supabase = await createClient()
 
-    // Ensure session exists
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
         return { success: false, error: 'Sessione scaduta. Ricomincia la procedura.' }
     }
 
-    // Password Complexity Validation
-    // Requires: Lowercase, Uppercase, Digit, Special Character, Min 8 chars
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"|<>?,./`~]).{8,}$/
     if (!passwordRegex.test(password)) {
         return {
             success: false,
-            error: "La password deve contenere almeno 8 caratteri, una lettera maiuscola, una minuscola, un numero e un carattere speciale (es. ! @ # $ % & *)."
+            error: 'La password deve contenere almeno 8 caratteri, una lettera maiuscola, una minuscola, un numero e un carattere speciale (es. ! @ # $ % & *).',
         }
     }
 
-    const { error } = await supabase.auth.updateUser({
-        password: password
-    })
+    const { error } = await supabase.auth.updateUser({ password })
 
     if (error) {
         return { success: false, error: error.message }

@@ -3,8 +3,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth-checks'
 
 export async function deleteUser(userId: string) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) {
+        return { error: authCheck.error }
+    }
+
     const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -15,6 +21,10 @@ export async function deleteUser(userId: string) {
             }
         }
     )
+
+    if (authCheck.user?.id === userId) {
+        return { error: 'Non puoi eliminare il tuo stesso account.' }
+    }
 
     // 1. Delete from Auth (this usually cascades to public.profiles if configured, but let's be safe)
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
@@ -49,6 +59,11 @@ export async function updateUser(userId: string, data: {
     address?: string
     city?: string
 }) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) {
+        return { error: authCheck.error }
+    }
+
     const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,

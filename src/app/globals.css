@@ -5,16 +5,6 @@
   --color-primary: #5583bf;
   --color-secondary: #f6f6f6;
   --color-accent: #3a5721;
-
-  /* Acqdash handoff v3 — brand tokens */
-  --color-acq-deep-blue: var(--acq-deep-blue);
-  --color-acq-blue:      var(--acq-blue);
-  --color-acq-teal:      var(--acq-teal);
-  --color-acq-amber:     var(--acq-amber);
-  --color-acq-lime:      var(--acq-lime);
-  --color-acq-red:       var(--acq-red);
-  --font-display: var(--acq-font-display);
-  --font-mono:    var(--acq-font-mono);
 }
 
 :root {
@@ -28,39 +18,6 @@
   --tooltip-bg: rgba(255, 255, 255, 0.95);
   --tooltip-text: #1e293b;
   --chart-inactive-bar: #cbd5e1;
-
-  /* Acqdash handoff v3 — design tokens (light) */
-  --acq-deep-blue: #0b2545;
-  --acq-blue:      #5583bf;
-  --acq-teal:      #3a8a7a;
-  --acq-amber:     #d99646;
-  --acq-lime:      #a3e635;
-  --acq-red:       #d94646;
-  --acq-ink:       #0b2545;
-  --acq-ink-sub:   #5a7287;
-  --acq-ink-soft:  #e8edf2;
-  --acq-ink-hair:  #f0f3f6;
-  --acq-surface:   #ffffff;
-  --acq-bg:        #f5f7f9;
-  --acq-font-display: 'Newsreader', 'Fraunces', Georgia, serif;
-  --acq-font-sans:    'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --acq-font-mono:    'JetBrains Mono', ui-monospace, monospace;
-  --acq-display-weight: 500;
-  --acq-radius-sm:  8px;
-  --acq-radius-md:  12px;
-  --acq-radius-lg:  16px;
-  --acq-radius-xl:  20px;
-  --acq-radius-2xl: 24px;
-  --acq-shadow-sm: 0 1px 2px rgba(11, 37, 69, 0.08);
-  --acq-shadow-md: 0 4px 12px rgba(11, 37, 69, 0.12);
-  --acq-shadow-lg: 0 12px 30px rgba(11, 37, 69, 0.15);
-  --acq-shadow-xl: 0 20px 50px rgba(11, 37, 69, 0.18);
-  --acq-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
-  --acq-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --acq-ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --acq-dur-fast: 120ms;
-  --acq-dur-base: 200ms;
-  --acq-dur-slow: 320ms;
 }
 
 .dark {
@@ -83,18 +40,6 @@
   --tooltip-bg: rgba(30, 41, 59, 0.95);
   --tooltip-text: #f8fafc;
   --chart-inactive-bar: #475569;
-
-  /* Acqdash handoff v3 — design tokens (dark) */
-  --acq-ink:      #e8edf2;
-  --acq-ink-sub:  #8a9cad;
-  --acq-ink-soft: #1f3556;
-  --acq-ink-hair: #17294a;
-  --acq-surface:  #152a4a;
-  --acq-bg:       #0f2038;
-  --acq-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --acq-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --acq-shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.4);
-  --acq-shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 /* Glassmorphism Classes - Premium */

@@ -37,10 +37,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-02-15',
                 importo: 145.50,
                 consumo: 120,
-                nome_pdf: '202401_Casa_Gen.pdf',
+                nome_pdf: '20260010194',
                 cif: cif1,
                 codice_cliente: '854125',
-                ulm: ulm1
+                ulm: ulm1,
+                billing_type: 'S'
             },
             {
                 id: 2024002,
@@ -48,10 +49,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-04-15',
                 importo: 132.20,
                 consumo: 110,
-                nome_pdf: '202403_Casa_Mar.pdf',
+                nome_pdf: '20260010195',
                 cif: cif1,
                 codice_cliente: '854125',
-                ulm: ulm1
+                ulm: ulm1,
+                billing_type: 'A'
             },
             {
                 id: 2024003,
@@ -59,10 +61,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-06-15',
                 importo: 98.40,
                 consumo: 85,
-                nome_pdf: '202405_Casa_Mag.pdf',
+                nome_pdf: '20260010196',
                 cif: cif1,
                 codice_cliente: '854125',
-                ulm: ulm1
+                ulm: ulm1,
+                billing_type: 'S'
             },
             {
                 id: 2024004,
@@ -70,10 +73,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-08-15',
                 importo: 210.80,
                 consumo: 180, // High summer usage
-                nome_pdf: '202407_Casa_Lug.pdf',
+                nome_pdf: '20260010197',
                 cif: cif1,
                 codice_cliente: '854125',
-                ulm: ulm1
+                ulm: ulm1,
+                billing_type: 'A'
             },
             {
                 id: 2024005,
@@ -81,10 +85,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-10-15',
                 importo: 155.30,
                 consumo: 130,
-                nome_pdf: '202409_Casa_Set.pdf',
+                nome_pdf: '20260010198',
                 cif: cif1,
                 codice_cliente: '854125',
-                ulm: ulm1
+                ulm: ulm1,
+                billing_type: 'S'
             },
             {
                 id: 2024006,
@@ -92,10 +97,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-12-15',
                 importo: 142.10,
                 consumo: 118,
-                nome_pdf: '202411_Casa_Nov.pdf',
+                nome_pdf: '20260010199',
                 cif: cif1,
                 codice_cliente: '854125',
-                ulm: ulm1
+                ulm: ulm1,
+                billing_type: 'A'
             },
 
             // --- SUPPLY 2 (Office - Lower consumption) ---
@@ -105,10 +111,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-03-10',
                 importo: 45.20,
                 consumo: 12,
-                nome_pdf: '202402_Uff_Feb.pdf',
+                nome_pdf: '20260020150',
                 cif: cif2,
                 codice_cliente: '854125',
-                ulm: ulm2
+                ulm: ulm2,
+                billing_type: 'S'
             },
             {
                 id: 2024008,
@@ -116,10 +123,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-05-10',
                 importo: 48.90,
                 consumo: 15,
-                nome_pdf: '202404_Uff_Apr.pdf',
+                nome_pdf: '20260020151',
                 cif: cif2,
                 codice_cliente: '854125',
-                ulm: ulm2
+                ulm: ulm2,
+                billing_type: 'A'
             },
             {
                 id: 2024009,
@@ -127,10 +135,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-07-10',
                 importo: 42.50,
                 consumo: 10,
-                nome_pdf: '202406_Uff_Giu.pdf',
+                nome_pdf: '20260020152',
                 cif: cif2,
                 codice_cliente: '854125',
-                ulm: ulm2
+                ulm: ulm2,
+                billing_type: 'S'
             },
             {
                 id: 2024010,
@@ -138,10 +147,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-09-10',
                 importo: 38.00,
                 consumo: 5, // Closed in August
-                nome_pdf: '202408_Uff_Ago.pdf',
+                nome_pdf: '20260020153',
                 cif: cif2,
                 codice_cliente: '854125',
-                ulm: ulm2
+                ulm: ulm2,
+                billing_type: 'A'
             },
             {
                 id: 2024011,
@@ -149,10 +159,11 @@ export default async function DashboardPage() {
                 scadenza: '2024-11-10',
                 importo: 52.10,
                 consumo: 18,
-                nome_pdf: '202410_Uff_Ott.pdf',
+                nome_pdf: '20260020154',
                 cif: cif2,
                 codice_cliente: '854125',
-                ulm: ulm2
+                ulm: ulm2,
+                billing_type: 'S'
             },
             {
                 id: 2024012,
@@ -160,10 +171,11 @@ export default async function DashboardPage() {
                 scadenza: '2025-01-10',
                 importo: 55.40,
                 consumo: 20,
-                nome_pdf: '202412_Uff_Dic.pdf',
+                nome_pdf: '20260020155',
                 cif: cif2,
                 codice_cliente: '854125',
-                ulm: ulm2
+                ulm: ulm2,
+                billing_type: 'S'
             }
         );
     }

@@ -7,40 +7,47 @@ import { createClient } from '@/lib/supabase/server'
 export async function login(formData: FormData) {
     const supabase = await createClient()
 
-    const identifier = formData.get('identifier') as string
+    const identifierRaw = formData.get('identifier') as string
     const password = formData.get('password') as string
     const captchaToken = formData.get('captchaToken') as string
 
+    const identifier = (identifierRaw || '').trim()
+
+    if (!identifier || !password) {
+        return { error: 'Credenziali non valide.' }
+    }
+
+    // Basic sanity check to prevent PostgREST operator abuse: identifiers are emails,
+    // usernames, CIF or codice_cliente — all alphanumerical with limited punctuation.
+    const safeIdentifierPattern = /^[a-zA-Z0-9._@+\-]+$/
+    if (!safeIdentifierPattern.test(identifier)) {
+        return { error: 'Credenziali non valide.' }
+    }
+
     let emailToUse = identifier
-
-    console.log('--- Login Attempt ---')
-    console.log('Identifier provided:', identifier)
-
-    // If it's not an email (simple check), try to find the email by username or CIF
     const isEmail = identifier.includes('@')
 
     if (!isEmail) {
-        console.log('Identifier is not an email, looking up profile...')
-        // Try to look up profile by username or CIF
-        const { data: profile, error: profileError } = await supabase
+        // Two sequential parametrised lookups — no string templating into PostgREST filters.
+        const byUsername = await supabase
             .from('profiles')
             .select('email')
-            .or(`username.eq.${identifier},cif.eq.${identifier}`)
-            .single()
+            .eq('username', identifier)
+            .maybeSingle()
 
-        if (profileError) {
-            console.log('Profile lookup error:', profileError)
-        }
-
-        if (profile && profile.email) {
-            console.log('Profile found, mapping to email:', profile.email)
-            emailToUse = profile.email
+        if (byUsername.data?.email) {
+            emailToUse = byUsername.data.email
         } else {
-            console.log('No profile found for this identifier.')
+            const byCif = await supabase
+                .from('profiles')
+                .select('email')
+                .eq('cif', identifier)
+                .maybeSingle()
+            if (byCif.data?.email) {
+                emailToUse = byCif.data.email
+            }
         }
     }
-
-    console.log('Attempting sign in with email:', emailToUse)
 
     const { data, error } = await supabase.auth.signInWithPassword({
         email: emailToUse,
@@ -49,11 +56,9 @@ export async function login(formData: FormData) {
     })
 
     if (error) {
-        console.error('Supabase Sign In Error:', error)
         if (error.message.includes('Email not confirmed')) {
             return { error: 'Email non confermata. Controlla la tua casella di posta.' }
         }
-        // Generic error message for security
         return { error: 'Credenziali non valide.' }
     }
 
@@ -66,10 +71,8 @@ export async function login(formData: FormData) {
 
     const userRole = profile?.role || 'user'
 
-    console.log('User Role:', userRole)
-
-    if (userRole === 'admin') {
-        redirect('/admin/upload') // Default admin page
+    if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'superadmin') {
+        redirect('/admin/users') // Default safe admin page
     } else {
         redirect('/dashboard')
     }

@@ -4,13 +4,13 @@ import { login } from '@/app/login/actions'
 import { ArrowRight, Sparkles, CheckCircle2, TrendingUp, ShieldCheck } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { ModeToggle } from '@/components/mode-toggle'
-import HCaptcha from '@hcaptcha/react-hcaptcha'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-    const captchaRef = useRef<HCaptcha>(null)
+    const captchaRef = useRef<TurnstileInstance | null>(null)
 
     async function handleSubmit(formData: FormData) {
         setLoading(true)
@@ -28,7 +28,7 @@ export default function LoginPage() {
         if (result?.error) {
             setError(result.error)
             setLoading(false)
-            captchaRef.current?.resetCaptcha()
+            captchaRef.current?.reset()
             setCaptchaToken(null)
         }
     }
@@ -67,11 +67,11 @@ export default function LoginPage() {
                     )}
 
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email o Username</label>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email</label>
                         <input
                             name="identifier"
                             type="text"
-                            placeholder="Email o Username"
+                            placeholder="Inserisci la tua email"
                             required
                             className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 text-slate-900 dark:text-white font-medium"
                         />
@@ -99,13 +99,16 @@ export default function LoginPage() {
                     </div>
 
                     <div className="py-2 flex justify-center">
-                        <HCaptcha
-                            sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY!}
-                            onVerify={(token) => {
+                        <Turnstile
+                            ref={captchaRef}
+                            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                            options={{ theme: 'auto' }}
+                            onSuccess={(token) => {
                                 setCaptchaToken(token)
                                 setError(null)
                             }}
-                            ref={captchaRef}
+                            onExpire={() => setCaptchaToken(null)}
+                            onError={() => setCaptchaToken(null)}
                         />
                     </div>
 

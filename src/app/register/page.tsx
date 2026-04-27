@@ -2,9 +2,9 @@
 
 import { register, resendConfirmationEmail } from '@/app/register/actions'
 import { useState, useRef } from 'react'
-import { ArrowRight, ArrowLeft, TrendingUp, ShieldCheck, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, ArrowLeft, TrendingUp, ShieldCheck, Sparkles, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react'
 import { ModeToggle } from '@/components/mode-toggle'
-import HCaptcha from '@hcaptcha/react-hcaptcha'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 
 export default function RegisterPage() {
     const [success, setSuccess] = useState(false)
@@ -12,7 +12,7 @@ export default function RegisterPage() {
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-    const captchaRef = useRef<HCaptcha>(null)
+    const captchaRef = useRef<TurnstileInstance | null>(null)
 
     // Resend Email State
     const [resendLoading, setResendLoading] = useState(false)
@@ -20,12 +20,14 @@ export default function RegisterPage() {
 
     // Form State
     const [formData, setFormData] = useState({
-        name: '',
+        full_name: '',
+        fiscal_code: '',
         email: '',
         client_code: '',
-        username: '',
         password: ''
     })
+
+    const [fiscalType, setFiscalType] = useState<'fiscal_code' | 'piva'>('fiscal_code')
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
@@ -47,6 +49,14 @@ export default function RegisterPage() {
         e.preventDefault()
         setLoading(true)
         setError(null)
+        setNotFound(false) // Reset not found state
+
+
+        if (!formData.password) {
+            setError("Per favore, compila tutti i campi obbligatori.")
+            setLoading(false)
+            return
+        }
 
         if (!captchaToken) {
             setError("Per favore, completa il controllo di sicurezza (Captcha).")
@@ -63,16 +73,23 @@ export default function RegisterPage() {
 
         const result: any = await register(submissionData)
 
-        if (result?.error) {
+        if (result?.errorCode === 'CLIENT_NOT_FOUND') {
+            setNotFound(true)
+            setLoading(false)
+            setCaptchaToken(null)
+            captchaRef.current?.reset()
+        } else if (result?.error) {
             setError(result.error)
             setLoading(false)
-            captchaRef.current?.resetCaptcha() // Reset captcha on error
+            captchaRef.current?.reset() // Reset captcha on error
             setCaptchaToken(null)
         } else if (result?.success) {
             setSuccess(true)
             setLoading(false)
         }
     }
+
+    const [notFound, setNotFound] = useState(false)
 
     if (success) {
         return (
@@ -151,6 +168,55 @@ export default function RegisterPage() {
         )
     }
 
+    if (notFound) {
+        return (
+            <div className="min-h-screen flex bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
+                <div className="w-full lg:w-[480px] flex flex-col justify-center p-8 lg:p-16 border-r border-slate-100 dark:border-white/10 relative z-20 bg-white dark:bg-[#0a0a0a]">
+                    <div className="mb-6">
+                        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center text-red-600 dark:text-red-400 mb-6 mx-auto lg:mx-0">
+                            <AlertCircle size={32} />
+                        </div>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">Account Non Riconosciuto</h1>
+                        <p className="text-slate-500 dark:text-slate-400 font-medium text-lg leading-relaxed mb-6">
+                            Il Codice Cliente inserito non è presente nei nostri archivi. Assicurati di averlo digitato correttamente.
+                        </p>
+
+                        <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 mb-8">
+                            <p className="text-sm text-slate-600 dark:text-slate-300 mb-2 font-medium">Se il problema persiste, contattaci:</p>
+                            <a href="mailto:supporto@acquambiente.it" className="text-black dark:text-white font-bold text-lg hover:underline flex items-center gap-2">
+                                supporto@acquambiente.it
+                            </a>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => setNotFound(false)}
+                        className="w-full py-3.5 px-6 rounded-lg bg-black dark:bg-white text-white dark:text-black font-bold hover:bg-slate-800 dark:hover:bg-slate-200 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                    >
+                        <ArrowLeft size={18} /> Riprova
+                    </button>
+                </div>
+                {/* RIGHT: VISUAL SECTION (Preserve Existing) */}
+                <div className="hidden lg:flex flex-1 bg-slate-50 dark:bg-[#111] relative overflow-hidden items-center justify-center p-12">
+                    {/* Decorative Circle */}
+                    <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] rounded-full border border-slate-200/50 dark:border-white/5 opacity-50 dark:opacity-20" />
+                    <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full border border-slate-200/50 dark:border-white/5 opacity-50 dark:opacity-20" />
+
+                    {/* Content Container */}
+                    <div className="max-w-2xl w-full flex flex-col gap-12 relative z-10 opacity-50 grayscale transition-all duration-500 hover:opacity-100 hover:grayscale-0">
+                        {/* Simplified Visual for Error State */}
+                        <div className="text-center">
+                            <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-4">Serve aiuto?</h2>
+                            <p className="text-slate-500 dark:text-slate-400 text-xl max-w-md mx-auto">
+                                Il nostro team di supporto è a tua disposizione per risolvere qualsiasi problema di registrazione.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="min-h-screen flex bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
 
@@ -184,7 +250,7 @@ export default function RegisterPage() {
                     <div className={`h-1.5 w-12 rounded-full transition-colors ${step >= 2 ? 'bg-black dark:bg-white' : 'bg-slate-200 dark:bg-white/20'}`} />
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-5" noValidate>
 
                     {error && (
                         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm font-medium">
@@ -194,29 +260,119 @@ export default function RegisterPage() {
 
                     {/* STEP 1: Personal Info */}
                     <div className={step === 1 ? 'block space-y-4' : 'hidden'}>
-                        <div className="col-span-2">
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Nome Completo / Ragione Sociale</label>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Codice Cliente</label>
+                            <div className="flex gap-2 justify-between">
+                                {[0, 1, 2, 3, 4, 5].map((index) => (
+                                    <input
+                                        key={index}
+                                        id={`otp-${index}`}
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={1}
+                                        placeholder="0"
+                                        onFocus={(e) => e.target.select()}
+                                        className="w-12 h-14 text-center text-xl font-bold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono"
+                                        value={formData.client_code[index] || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/[^0-9]/g, '')
+                                            if (!val && e.target.value) return // If non-numeric was typed/pasted and removed
+
+                                            const newCode = formData.client_code.split('')
+                                            // Ensure array has 6 elements
+                                            while (newCode.length < 6) newCode.push('')
+
+                                            newCode[index] = val
+                                            const newCodeString = newCode.join('').slice(0, 6)
+                                            setFormData({ ...formData, client_code: newCodeString })
+
+                                            // Auto-focus next
+                                            if (val && index < 5) {
+                                                document.getElementById(`otp-${index + 1}`)?.focus()
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Backspace' && !formData.client_code[index] && index > 0) {
+                                                document.getElementById(`otp-${index - 1}`)?.focus()
+                                            }
+                                        }}
+                                        onPaste={(e) => {
+                                            e.preventDefault()
+                                            const pastedData = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6)
+                                            if (pastedData) {
+                                                setFormData({ ...formData, client_code: pastedData })
+                                                // Focus the box after the pasted length or the last one
+                                                const focusIndex = Math.min(pastedData.length, 5)
+                                                document.getElementById(`otp-${focusIndex}`)?.focus()
+                                            }
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                                Inserisci le 6 cifre del tuo Codice Cliente.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Nome e Cognome (o Ragione Sociale)</label>
                             <input
-                                name="name"
+                                name="full_name"
                                 type="text"
                                 required
                                 className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
-                                placeholder="Inserisci Nome o Ragione Sociale"
-                                value={formData.name}
+                                placeholder="Mario Rossi"
+                                value={formData.full_name}
                                 onChange={handleChange}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Codice Cliente</label>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="blocks text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                    {fiscalType === 'fiscal_code' ? 'Codice Fiscale' : 'Partita IVA'}
+                                </label>
+                                <div className="relative bg-slate-100 dark:bg-white/10 p-1 rounded-lg w-[200px] flex h-9">
+                                    {/* Animated Background */}
+                                    <div
+                                        className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-black rounded-md shadow-sm transition-all duration-300 ease-in-out ${fiscalType === 'fiscal_code' ? 'left-1' : 'left-[calc(50%+2px)]'
+                                            }`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFiscalType('fiscal_code')
+                                            setFormData({ ...formData, fiscal_code: '' })
+                                        }}
+                                        className={`flex-1 relative z-10 text-xs font-bold rounded-md transition-colors text-center ${fiscalType === 'fiscal_code' ? 'text-black dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                                    >
+                                        Codice Fiscale
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFiscalType('piva')
+                                            setFormData({ ...formData, fiscal_code: '' })
+                                        }}
+                                        className={`flex-1 relative z-10 text-xs font-bold rounded-md transition-colors text-center ${fiscalType === 'piva' ? 'text-black dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                                    >
+                                        Partita IVA
+                                    </button>
+                                </div>
+                            </div>
                             <input
-                                name="client_code"
+                                name="fiscal_code"
                                 type="text"
                                 required
-                                className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium font-mono"
-                                placeholder="Inserisci Codice Cliente (es. 123456)"
-                                value={formData.client_code}
-                                onChange={handleChange}
+                                maxLength={fiscalType === 'fiscal_code' ? 16 : 11}
+                                className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
+                                placeholder={fiscalType === 'fiscal_code' ? "Inserisci Codice Fiscale" : "Inserisci Partita IVA"}
+                                value={formData.fiscal_code}
+                                onChange={(e) => {
+                                    const val = e.target.value.toUpperCase()
+                                    if (fiscalType === 'piva' && !/^\d*$/.test(val)) return
+                                    setFormData({ ...formData, fiscal_code: val })
+                                }}
                             />
                         </div>
 
@@ -237,8 +393,27 @@ export default function RegisterPage() {
                         <button
                             type="button"
                             onClick={() => {
-                                if (!formData.name || !formData.email || !formData.client_code) {
+                                if (!formData.full_name || !formData.fiscal_code || !formData.email || !formData.client_code) {
                                     setError("Per favore, compila tutti i campi obbligatori prima di proseguire.")
+                                    return
+                                }
+
+                                if (fiscalType === 'fiscal_code' && formData.fiscal_code.length !== 16) {
+                                    setError("Il Codice Fiscale deve essere di 16 caratteri.")
+                                    return
+                                }
+
+                                if (fiscalType === 'piva' && formData.fiscal_code.length !== 11) {
+                                    setError("La Partita IVA deve essere di 11 cifre.")
+                                    return
+                                }
+                                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+                                if (!emailRegex.test(formData.email)) {
+                                    setError("Per favore, inserisci un indirizzo email valido.")
+                                    return
+                                }
+                                if (formData.client_code.length !== 6) {
+                                    setError("Il Codice Cliente deve essere composto da 6 cifre.")
                                     return
                                 }
                                 setStep(2)
@@ -254,18 +429,7 @@ export default function RegisterPage() {
                     <div className={step === 2 ? 'block space-y-4' : 'hidden'}>
 
 
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Username</label>
-                            <input
-                                name="username"
-                                type="text"
-                                required
-                                className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
-                                placeholder="mariorossi"
-                                value={formData.username}
-                                onChange={handleChange}
-                            />
-                        </div>
+
 
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Password</label>
@@ -281,13 +445,16 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="py-2 flex justify-center">
-                            <HCaptcha
-                                sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY!}
-                                onVerify={(token) => {
+                            <Turnstile
+                                ref={captchaRef}
+                                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                                options={{ theme: 'auto' }}
+                                onSuccess={(token) => {
                                     setCaptchaToken(token)
                                     setError(null)
                                 }}
-                                ref={captchaRef}
+                                onExpire={() => setCaptchaToken(null)}
+                                onError={() => setCaptchaToken(null)}
                             />
                         </div>
 
