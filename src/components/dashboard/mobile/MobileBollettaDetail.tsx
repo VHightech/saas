@@ -1,0 +1,340 @@
+'use client'
+
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, Download, CreditCard, Euro, MapPin, FileText, Clock, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { Bill } from '@/types/dashboard'
+import type { UserSupply } from './MobileShell'
+
+interface MobileBollettaDetailProps {
+    bill: Bill
+    supply?: UserSupply
+    onBack: () => void
+    onPay?: (bill: Bill) => void
+    onNext?: () => void
+    onPrev?: () => void
+    allBills?: Bill[]
+    onSelectBill?: (bill: Bill) => void
+    isPaying?: boolean
+}
+
+export function MobileBollettaDetail({ 
+    bill, 
+    supply, 
+    onBack, 
+    onPay,
+    onNext,
+    onPrev,
+    allBills = [],
+    onSelectBill,
+    isPaying
+}: MobileBollettaDetailProps) {
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const [isScrolling, setIsScrolling] = useState(false)
+
+    const currentIndex = useMemo(() => {
+        return allBills.findIndex(b => b.id === bill.id)
+    }, [allBills, bill.id])
+
+    const isMultiBill = allBills.length > 1
+
+    const billNumber = (b: Bill) => b.idboll || b.nome_pdf?.replace('.pdf', '') || b.id
+    const formatPrice = (p: any) => Number(p || 0).toFixed(2).replace('.', ',')
+
+    const formatDate = (dateStr?: string | null) => {
+        if (!dateStr) return '-'
+        const d = new Date(dateStr)
+        return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+    }
+
+    const monthYear = (dateStr?: string | null) => {
+        if (!dateStr) return '-'
+        const d = new Date(dateStr)
+        return d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+    }
+
+    // Stride between successive card snap points = card width (100vw - 60) + gap (12) = clientWidth - 48
+    const getStride = (el: HTMLDivElement) => Math.max(1, el.clientWidth - 48)
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        if (isScrolling) return
+        const stride = getStride(e.currentTarget)
+        const index = Math.round(e.currentTarget.scrollLeft / stride)
+
+        if (index !== currentIndex && index >= 0 && index < allBills.length) {
+            onSelectBill?.(allBills[index])
+        }
+    }
+
+    // Keep scroll position in sync with the externally-selected bill
+    useEffect(() => {
+        if (!scrollRef.current || currentIndex < 0) return
+        const stride = getStride(scrollRef.current)
+        const target = currentIndex * stride
+        if (Math.abs(scrollRef.current.scrollLeft - target) < 4) return
+        setIsScrolling(true)
+        scrollRef.current.scrollLeft = target
+        const t = setTimeout(() => setIsScrolling(false), 120)
+        return () => clearTimeout(t)
+    }, [currentIndex])
+
+    const handleDownload = () => {
+        const pdfUrl = bill.pdf_url?.startsWith('http') ? bill.pdf_url : `/api/bills/${bill.id}/pdf`
+        window.open(pdfUrl, '_blank')
+    }
+
+    return (
+        <div
+            className="fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F1115] flex flex-col animate-content-in"
+            style={{
+                paddingTop: 'env(safe-area-inset-top)',
+                paddingBottom: 'env(safe-area-inset-bottom)',
+            }}
+        >
+            {/* Premium Header */}
+            <div className="bg-[#F8FAFC] dark:bg-[#0F1115] px-5 pt-4 pb-4 shrink-0">
+                <div className="flex items-center justify-between">
+                    <button 
+                        onClick={onBack} 
+                        className="w-12 h-12 rounded-full bg-white dark:bg-white/5 flex items-center justify-center text-[#0A2540] dark:text-white active:scale-90 transition-transform"
+                    >
+                        <ChevronLeft size={24} />
+                    </button>
+                    <p className="text-xl font-black text-[#0A2540] dark:text-white tracking-tight">Dettaglio</p>
+                    <div className="w-12" /> {/* Spacer */}
+                </div>
+            </div>
+
+            <div
+                className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pb-6 space-y-6"
+                style={{ touchAction: 'pan-y' }}
+            >
+                {/* Horizontal Card Carousel */}
+                <div className="relative -mx-5 px-5">
+                    <div
+                        ref={scrollRef}
+                        onScroll={isMultiBill ? handleScroll : undefined}
+                        className={cn(
+                            "flex scrollbar-hide gap-3 px-5",
+                            isMultiBill
+                                ? "overflow-x-auto snap-x snap-mandatory"
+                                : "justify-center overflow-x-hidden snap-none"
+                        )}
+                        style={{
+                            scrollPadding: '20px',
+                            touchAction: isMultiBill ? 'pan-x pan-y' : 'pan-y',
+                        }}
+                    >
+                        {allBills.map((b, idx) => {
+                            const isPaid = b.status === 'paid'
+                            const type = String(b.billing_type || '').trim().toUpperCase()
+                            const isSaldo = type.startsWith('S')
+                            const tLabel = isSaldo ? 'Saldo' : 'Acconto'
+                            const isActive = idx === currentIndex
+                            
+                            return (
+                                <div
+                                    key={b.id}
+                                    className={cn(
+                                        "shrink-0 snap-center transition-[transform,opacity,filter] duration-500 ease-out",
+                                        allBills.length === 1 ? "w-full" : "w-[calc(100vw-60px)]",
+                                        !isActive && "opacity-40 scale-[0.92] grayscale-[0.2]"
+                                    )}
+                                >
+                                    <div
+                                        className="relative overflow-hidden rounded-[2.5rem] text-white p-8 min-h-[220px] bg-slate-900 dark:bg-white/5"
+                                    >
+                                        {/* Layered active gradient — fades in/out smoothly */}
+                                        <div
+                                            className={cn(
+                                                "absolute inset-0 transition-opacity duration-500 ease-out animate-gradient-shift",
+                                                isActive ? "opacity-100" : "opacity-0"
+                                            )}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)',
+                                            }}
+                                        />
+                                        <div className="relative z-10">
+                                            <div className="flex justify-between items-start mb-8">
+                                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/20 backdrop-blur-md border border-white/20">
+                                                    <div className={cn("w-2 h-2 rounded-full", isPaid ? "bg-emerald-400" : "bg-[#C6F36B] animate-pulse")} />
+                                                    <span className="text-[10px] font-black tracking-[0.2em] uppercase">
+                                                        {isPaid ? "Pagata" : "Da Pagare"}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1 mb-8">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-200/70">
+                                                    {tLabel} {monthYear(b.data_emissione)}
+                                                </p>
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-5xl font-black tracking-tighter">€{formatPrice(b.importo)}</span>
+                                                </div>
+                                            </div>
+
+                                            {!isPaid && b.expected_method === 'MP23' && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (!isPaying) onPay?.(b);
+                                                    }}
+                                                    disabled={isPaying}
+                                                    className="w-full bg-[#1E5BFF] text-white py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-base tracking-tight active:scale-[0.98] transition-all disabled:opacity-50"
+                                                >
+                                                    {isPaying ? (
+                                                        <Loader2 size={20} className="animate-spin" />
+                                                    ) : (
+                                                        <CreditCard size={20} strokeWidth={3} />
+                                                    )}
+                                                    {isPaying ? 'Elaborazione...' : 'Paga ora con PagoPA'}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Waves Background — only animated on active card to save battery */}
+                                        {isActive && (
+                                            <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]">
+                                                <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
+                                                <div className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl animate-wave-pulse" style={{ animationDelay: '2.5s' }} />
+                                                <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">
+                                                    <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-wave-slide reverse opacity-15" style={{ animationDuration: '25s' }}>
+                                                        <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                                            <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
+                                                        </svg>
+                                                        <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                                            <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-wave-slide opacity-25" style={{ animationDuration: '18s' }}>
+                                                        <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                                            <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
+                                                        </svg>
+                                                        <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                                            <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Unattached View Button */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDownload();
+                                        }}
+                                        className="w-full mt-4 py-4 rounded-2xl bg-white dark:bg-white/5 text-[#0A2540] dark:text-white font-bold text-sm tracking-tight active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                                    >
+                                        <FileText size={20} strokeWidth={2.5} className="text-[#1E5BFF] dark:text-[#93C5FD]" />
+                                        Visualizza Bolletta
+                                    </button>
+                                </div>
+                            )
+                        })}
+                    </div>
+
+                    {/* Pagination Dots - Moved Under Cards */}
+                    {allBills.length > 1 && (
+                        <div className="flex justify-center gap-1.5 mt-6 mb-2">
+                            {allBills.slice(0, 10).map((_, i) => (
+                                <div 
+                                    key={i} 
+                                    className={cn(
+                                        "h-1 rounded-full transition-all duration-300",
+                                        i === currentIndex ? "bg-[#0A2540] dark:bg-white w-6" : "bg-slate-300 dark:bg-white/10 w-1.5"
+                                    )} 
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Details Section - Synchronized with current bill */}
+                <div key={bill.id} className="px-5 space-y-4 animate-content-in">
+                    {(() => {
+                        const dueDateStr = bill.scadenza || bill.data_scadenza
+                        const issuedStr = bill.data_emissione
+
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const dueDate = dueDateStr ? new Date(dueDateStr) : null
+                        const issued = issuedStr ? new Date(issuedStr) : null
+
+                        let progress = 0
+                        if (issued && dueDate) {
+                            const totalMs = dueDate.getTime() - issued.getTime()
+                            const elapsedMs = today.getTime() - issued.getTime()
+                            progress = totalMs > 0 ? Math.max(0, Math.min(100, (elapsedMs / totalMs) * 100)) : 100
+                        }
+
+                        return (
+                            <div className="bg-white dark:bg-[#1A1D23] p-5 rounded-[2rem] space-y-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 bg-[#1E5BFF]/10 dark:bg-white/5 text-[#1E5BFF] dark:text-[#93C5FD]">
+                                            <Clock size={20} strokeWidth={2.5} />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Periodo</p>
+                                            <p className="text-[17px] font-bold text-[#0A2540] dark:text-white tracking-tight leading-tight">
+                                                {issued && dueDate
+                                                    ? `${Math.max(1, Math.ceil((dueDate.getTime() - issued.getTime()) / (1000 * 60 * 60 * 24)))} giorni`
+                                                    : '—'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Consumo</p>
+                                        <p className="text-[17px] font-bold text-[#1E5BFF] dark:text-[#93C5FD] tracking-tight leading-tight">
+                                            {bill.consumo || 0} <span className="text-[11px] font-medium text-slate-400">mc</span>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <div className="relative h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                        <div
+                                            className="absolute top-0 left-0 h-full rounded-full bg-[#1E5BFF] dark:bg-[#93C5FD] transition-all duration-500 ease-out"
+                                            style={{ width: `${progress}%` }}
+                                        />
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Emissione</p>
+                                            <p className="text-[12px] font-bold text-[#0A2540] dark:text-white mt-0.5">{formatDate(issuedStr)}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Scadenza</p>
+                                            <p className="text-[12px] font-bold text-[#0A2540] dark:text-white mt-0.5">{formatDate(dueDateStr)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })()}
+
+                    <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] px-4 py-1">
+                        <div className="py-3 flex justify-between items-center gap-3">
+                            <div className="flex items-center gap-2.5 text-slate-400">
+                                <FileText size={14} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">N° Bolletta</span>
+                            </div>
+                            <span className="text-[13px] font-mono font-bold text-[#0A2540] dark:text-white truncate">{billNumber(bill)}</span>
+                        </div>
+                        <div className="py-3 flex justify-between items-center gap-3">
+                            <div className="flex items-center gap-2.5 text-slate-400 shrink-0">
+                                <MapPin size={14} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Fornitura</span>
+                            </div>
+                            <span className="text-[13px] font-bold text-[#0A2540] dark:text-white text-right truncate">
+                                {supply?.address || bill.ulm}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}

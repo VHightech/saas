@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { User } from '@supabase/supabase-js'
 
 type ProfileRow = {
-    role: 'admin' | 'super_admin' | 'user' | null
+    role: 'admin' | 'super_admin' | 'superadmin' | 'user' | null
 }
 
 export type AdminCheckSuccess = {

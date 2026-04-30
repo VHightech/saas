@@ -8,9 +8,12 @@ import { initiatePagoPAPayment } from '@/actions/payment-actions'
 interface BillForPayment {
     id: number
     idboll?: number
-    amount: string
+    /** Pre-formatted display amount (e.g. "€ 12,34"). Falls back to importo if absent. */
+    amount?: string
+    importo?: number
     cif?: string
     expiry?: string
+    [key: string]: any
 }
 
 interface PagoPAPaymentModalProps {
@@ -36,7 +39,7 @@ export function PagoPAPaymentModal({ isOpen, bill, onClose, onSuccess }: PagoPAP
         setError(null)
 
         try {
-            const amount = parseAmountToNumber(bill.amount)
+            const amount = bill.amount ? parseAmountToNumber(bill.amount) : Number(bill.importo || 0)
             const result = await initiatePagoPAPayment(bill.id, amount)
 
             if ('error' in result && result.error) {

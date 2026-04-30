@@ -1,15 +1,19 @@
 'use client'
 
-import { use, useMemo, useState, useEffect } from 'react'
+import { use, useMemo, useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, ShieldAlert, TrendingUp, TrendingDown, CheckCircle, Smartphone, Mail, MapPin, Calendar, FileText, AlertCircle, Clock, Save, Edit2, Key, ChevronLeft, ChevronRight, ChevronDown, Zap, Ghost, Droplets, Eye, Trash2, Inbox, User, X, Home } from 'lucide-react'
+import {
+    ArrowLeft, Download, Eye, Edit2, Key, ChevronLeft, ChevronRight,
+    Search, FileText, X, Check, Calendar, ChevronDown, Copy, Droplets
+} from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { format, startOfDay, endOfDay } from 'date-fns'
-import { deleteUser, updateUser } from '../actions'
+import { format, startOfDay, endOfDay, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, isAfter, isBefore } from 'date-fns'
+import { it as itLocale } from 'date-fns/locale'
+import { updateUser } from '../actions'
 import { ExpensesTrendChart } from '@/components/dashboard/widgets/ExpensesTrendChart'
-import { SearchBar } from '@/components/ui/search-bar'
-import { DatePicker } from '@/components/ui/date-picker'
+import { AdminPageHero } from '@/components/admin/admin-page-hero'
+import { cn } from '@/lib/utils'
 
 interface Profile {
     id: string
@@ -30,6 +34,7 @@ interface UserSupply {
     address: string | null
     city: string | null
     codice_cliente: string
+    ulm?: string
 }
 
 interface Bill {
@@ -44,6 +49,364 @@ interface Bill {
     billing_type: string | null
     expected_method: string | null
     ulm: string | null
+    numero_bolletta: string | null
+}
+
+function formatEuro(n: number) {
+    return `${(n || 0).toFixed(2).replace('.', ',')} €`
+}
+
+function CodeBadge({ value, label, copyable, mono = true }: { value: string; label?: string; copyable?: boolean; mono?: boolean }) {
+    const [copied, setCopied] = useState(false)
+    const copy = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!copyable || !value) return
+        try { await navigator.clipboard.writeText(value) } catch {}
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
+    const Wrapper: any = copyable ? 'button' : 'span'
+    
+    return (
+        <div className="group relative inline-flex items-center">
+            <Wrapper
+                {...(copyable ? { onClick: copy, title: `Copia ${value}` } : {})}
+                className={cn(
+                    'relative inline-flex items-center h-7 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 px-3 rounded-full max-w-full transition-all duration-300',
+                    copyable && 'cursor-pointer hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98]',
+                    copyable && 'pr-8', // Reserve space for icon on right
+                    copied && 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10'
+                )}
+            >
+                <div className="flex items-center gap-2 min-w-0">
+                    {label && (
+                        <span className={cn(
+                            "text-[8px] font-bold uppercase tracking-wider transition-colors duration-300 shrink-0",
+                            copied ? "text-emerald-500/70" : "text-slate-400 dark:text-slate-500"
+                        )}>
+                            {label}
+                        </span>
+                    )}
+                    <span className={cn(
+                        "text-[11px] font-bold truncate transition-colors duration-300 tabular-nums",
+                        mono && "font-mono",
+                        copied ? "text-emerald-700 dark:text-emerald-400" : "text-slate-700 dark:text-slate-200"
+                    )}>
+                        {copied ? 'Copiato!' : value}
+                    </span>
+                </div>
+
+                {/* Internal Icon - revealed on right */}
+                {copyable && (
+                    <div className={cn(
+                        "absolute right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 origin-center",
+                        copied 
+                            ? "opacity-100 scale-100 bg-emerald-600 text-white" 
+                            : "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100 bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A]"
+                    )}>
+                        {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={9} strokeWidth={2.5} />}
+                    </div>
+                )}
+            </Wrapper>
+        </div>
+    )
+}
+
+function RailCard({ label, action, children }: { label: string; action?: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
+            <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400">{label}</p>
+                {action}
+            </div>
+            {children}
+        </div>
+    )
+}
+
+function Metric({ value, label, valueClass }: { value: string; label: string; valueClass?: string }) {
+    return (
+        <div className="flex flex-col">
+            <p className={cn('text-[16px] font-bold tracking-tight text-slate-900 dark:text-white leading-none', valueClass)}>
+                {value}
+            </p>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 mt-1.5">{label}</p>
+        </div>
+    )
+}
+
+function MiniSpendChart({ bills }: { bills: Bill[] }) {
+    const data = useMemo(() => {
+        const sorted = [...bills]
+            .filter(b => b.data_emissione)
+            .sort((a, b) => new Date(a.data_emissione!).getTime() - new Date(b.data_emissione!).getTime())
+            .slice(-6)
+        
+        const monthLabel = (d: Date) => d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '')
+        
+        const maxImporto = Math.max(...sorted.map(b => Number(b.importo) || 0), 1)
+        const maxConsumo = Math.max(...sorted.map(b => Number(b.consumo) || 0), 1)
+        
+        const margin = 12
+        const w = 300 - margin * 2
+        
+        const points = sorted.map((b, i) => {
+            const valI = Number(b.importo) || 0
+            const valC = Number(b.consumo) || 0
+            
+            // Normalized Y (0-100)
+            const yI = valI > 0 ? 100 - ((valI / maxImporto) * 65 + 15) : 85
+            const yC = valC > 0 ? 100 - ((valC / maxConsumo) * 65 + 15) : 85
+            
+            const x = sorted.length > 1 ? margin + i * (w / (sorted.length - 1)) : margin + w / 2
+            
+            return { x, yI, yC, valI, valC, label: monthLabel(new Date(b.data_emissione!)), key: b.id }
+        })
+        
+        return { points, sorted }
+    }, [bills])
+
+    const [active, setActive] = useState<number | null>(null)
+    useEffect(() => {
+        setActive(data.points.length > 0 ? data.points.length - 1 : null)
+    }, [data.points.length])
+
+    const containerRef = useRef<HTMLDivElement>(null)
+    const [size, setSize] = useState({ width: 0, height: 0 })
+    useLayoutEffect(() => {
+        const el = containerRef.current
+        if (!el) return
+        const update = () => setSize({ width: el.clientWidth, height: el.clientHeight })
+        update()
+        const ro = new ResizeObserver(update)
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [])
+
+    const pathI = data.points.length >= 2
+        ? data.points.reduce((acc, p, i, arr) => {
+            if (i === 0) return `M ${p.x},${p.yI}`
+            const prev = arr[i - 1]
+            const dx = p.x - prev.x
+            return `${acc} C ${prev.x + dx / 2},${prev.yI} ${p.x - dx / 2},${p.yI} ${p.x},${p.yI}`
+        }, '')
+        : ''
+
+    const pathC = data.points.length >= 2
+        ? data.points.reduce((acc, p, i, arr) => {
+            if (i === 0) return `M ${p.x},${p.yC}`
+            const prev = arr[i - 1]
+            const dx = p.x - prev.x
+            return `${acc} C ${prev.x + dx / 2},${prev.yC} ${p.x - dx / 2},${p.yC} ${p.x},${p.yC}`
+        }, '')
+        : ''
+
+    const areaI = data.points.length >= 2 ? `${pathI} L ${data.points[data.points.length - 1].x},100 L ${data.points[0].x},100 Z` : ''
+    const areaC = data.points.length >= 2 ? `${pathC} L ${data.points[data.points.length - 1].x},100 L ${data.points[0].x},100 Z` : ''
+
+    const isEmpty = data.points.length === 0
+    const activePoint = active !== null ? data.points[active] : null
+    
+    const curI = activePoint ? activePoint.valI : (data.points[data.points.length - 1]?.valI ?? 0)
+    const curC = activePoint ? activePoint.valC : (data.points[data.points.length - 1]?.valC ?? 0)
+
+    const handleScrub = (clientX: number, rect: DOMRect) => {
+        if (data.points.length === 0) return
+        const x = Math.max(0, Math.min(rect.width, clientX - rect.left))
+        let closest = 0, closestDist = Infinity
+        data.points.forEach((p, i) => {
+            const px = (p.x / 300) * rect.width
+            const dist = Math.abs(px - x)
+            if (dist < closestDist) { closestDist = dist; closest = i }
+        })
+        if (closest !== active) setActive(closest)
+    }
+
+    return (
+        <div>
+            <div className="mb-4">
+                <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-2">Andamento spesa & consumo</p>
+                <div className="flex items-baseline justify-between gap-2">
+                    <h3 className="text-[22px] font-bold tracking-tight text-slate-900 dark:text-white leading-none tabular-nums">
+                        € {curI.toFixed(2).replace('.', ',')}
+                    </h3>
+                    <span className="text-[13px] font-bold text-indigo-500 dark:text-indigo-400 tabular-nums">
+                        {curC} mc
+                    </span>
+                </div>
+            </div>
+
+            <div ref={containerRef} className="relative h-32 mb-6 touch-none select-none">
+                <svg viewBox="0 0 300 100" className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="gradI" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#84cc16" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#84cc16" stopOpacity="0" />
+                        </linearGradient>
+                        <linearGradient id="gradC" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.15" />
+                            <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                        </linearGradient>
+                    </defs>
+                    
+                    {!isEmpty && (
+                        <>
+                            {/* Consumption Area (Background) */}
+                            {areaC && <path d={areaC} fill="url(#gradC)" />}
+                            {pathC && <path d={pathC} fill="none" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.4" />}
+                            
+                            {/* Importo Area (Foreground) */}
+                            {areaI && <path d={areaI} fill="url(#gradI)" />}
+                            {pathI && <path d={pathI} fill="none" stroke="#84cc16" strokeWidth="2.5" className="drop-shadow-[0_2px_4px_rgba(132,204,22,0.4)]" />}
+                        </>
+                    )}
+                </svg>
+
+                {!isEmpty && (
+                    <div
+                        className="absolute inset-0 z-40 cursor-crosshair"
+                        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handleScrub(e.clientX, e.currentTarget.getBoundingClientRect()) }}
+                        onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) handleScrub(e.clientX, e.currentTarget.getBoundingClientRect()) }}
+                    />
+                )}
+
+                {activePoint && size.width > 0 && (
+                    <>
+                        <div
+                            className="absolute top-0 bottom-0 w-px pointer-events-none z-10 transition-transform duration-300 ease-out"
+                            style={{
+                                transform: `translateX(${(activePoint.x / 300) * size.width}px)`,
+                                backgroundImage: 'repeating-linear-gradient(to bottom, rgba(132,204,22,0.4) 0 4px, transparent 4px 8px)',
+                            }}
+                        />
+                        
+                        {/* Dots */}
+                        <div
+                            className="absolute top-0 left-0 pointer-events-none z-20 transition-transform duration-300 ease-out"
+                            style={{ transform: `translate3d(${(activePoint.x / 300) * size.width}px, ${(activePoint.yI / 100) * size.height}px, 0)` }}
+                        >
+                            <div className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-[2.5px] border-[#84cc16] shadow-[0_2px_8px_rgba(132,204,22,0.55)]" />
+                        </div>
+
+                        <div
+                            className="absolute top-0 left-0 pointer-events-none z-20 transition-transform duration-300 ease-out"
+                            style={{ transform: `translate3d(${(activePoint.x / 300) * size.width}px, ${(activePoint.yC / 100) * size.height}px, 0)` }}
+                        >
+                            <div className="absolute -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white border-[2px] border-indigo-500 shadow-sm" />
+                        </div>
+
+                        {/* Labels at bottom */}
+                        <div className="absolute -bottom-5 left-0 right-0 h-4">
+                            {data.points.map((p, i) => (
+                                <span
+                                    key={p.key}
+                                    className={cn(
+                                        "absolute text-[8px] font-bold uppercase tracking-tighter w-12 text-center transition-colors",
+                                        active === i ? "text-slate-900 dark:text-white" : "text-slate-400"
+                                    )}
+                                    style={{ left: `${(p.x / 300) * 100}%`, transform: 'translateX(-50%)' }}
+                                >
+                                    {p.label}
+                                </span>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    )
+}
+
+function RangeCalendar({
+    from, to, onChange,
+}: {
+    from: Date | null
+    to: Date | null
+    onChange: (from: Date | null, to: Date | null) => void
+}) {
+    const [month, setMonth] = useState(from || to || new Date())
+    const [hover, setHover] = useState<Date | null>(null)
+
+    const monthStart = startOfMonth(month)
+    const monthEnd = endOfMonth(month)
+    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
+    const days = eachDayOfInterval({ start: gridStart, end: gridEnd })
+
+    const handleClick = (d: Date) => {
+        // No range yet, or both set → start fresh
+        if (!from || (from && to)) { onChange(d, null); return }
+        // Have from, picking second
+        if (isBefore(d, from)) onChange(d, from)
+        else if (isSameDay(d, from)) onChange(d, d)
+        else onChange(from, d)
+    }
+
+    const inRange = (d: Date) => {
+        if (from && to) return !isBefore(d, from) && !isAfter(d, to)
+        if (from && hover && !to) {
+            const a = isBefore(hover, from) ? hover : from
+            const b = isBefore(hover, from) ? from : hover
+            return !isBefore(d, a) && !isAfter(d, b)
+        }
+        return false
+    }
+
+    return (
+        <div className="select-none">
+            <div className="flex items-center justify-between mb-2 px-1">
+                <button
+                    onClick={() => setMonth(subMonths(month, 1))}
+                    className="h-6 w-6 rounded-md hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-center text-slate-500"
+                >
+                    <ChevronLeft size={14} />
+                </button>
+                <span className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 capitalize">
+                    {format(month, 'MMMM yyyy', { locale: itLocale })}
+                </span>
+                <button
+                    onClick={() => setMonth(addMonths(month, 1))}
+                    className="h-6 w-6 rounded-md hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-center text-slate-500"
+                >
+                    <ChevronRight size={14} />
+                </button>
+            </div>
+            <div className="grid grid-cols-7 gap-y-1 mb-1">
+                {['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((d, i) => (
+                    <div key={i} className="text-[9px] font-bold uppercase tracking-wider text-slate-400 text-center">{d}</div>
+                ))}
+            </div>
+            <div className="grid grid-cols-7 gap-y-0.5">
+                {days.map((d) => {
+                    const out = !isSameMonth(d, month)
+                    const isFrom = from && isSameDay(d, from)
+                    const isTo = to && isSameDay(d, to)
+                    const endpoint = isFrom || isTo
+                    const range = inRange(d) && !endpoint
+                    return (
+                        <button
+                            key={d.toISOString()}
+                            onClick={() => handleClick(d)}
+                            onMouseEnter={() => setHover(d)}
+                            onMouseLeave={() => setHover(null)}
+                            className={cn(
+                                'h-7 text-[11px] font-medium flex items-center justify-center transition-colors',
+                                out && 'text-slate-300 dark:text-slate-600',
+                                !out && !endpoint && !range && 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 rounded-md',
+                                isToday(d) && !endpoint && 'ring-1 ring-inset ring-slate-300 dark:ring-white/20 rounded-md',
+                                range && 'bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200',
+                                isFrom && 'bg-[#1A1F2A] text-white rounded-l-md',
+                                isTo && 'bg-[#1A1F2A] text-white rounded-r-md',
+                                isFrom && (!to || isSameDay(from!, to)) && 'rounded-md',
+                            )}
+                        >
+                            {format(d, 'd')}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
 }
 
 export default function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,85 +415,54 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     const [invoiceSearch, setInvoiceSearch] = useState('')
     const [fromDate, setFromDate] = useState<Date | null>(null)
     const [toDate, setToDate] = useState<Date | null>(null)
+    const [periodOpen, setPeriodOpen] = useState(false)
+    const periodRef = useRef<HTMLDivElement>(null)
+    const [selectedUlm, setSelectedUlm] = useState<string>('all')
+    const [supplyOpen, setSupplyOpen] = useState(false)
+    const supplyRef = useRef<HTMLDivElement>(null)
     const [currentPage, setCurrentPage] = useState(1)
-    const [itemsPerPage, setItemsPerPage] = useState(10)
-    const [isSupplyDropdownOpen, setIsSupplyDropdownOpen] = useState(false)
+    const [itemsPerPage, setItemsPerPage] = useState(25)
     const [loading, setLoading] = useState(true)
 
-    // Data State
     const [profile, setProfile] = useState<Profile | null>(null)
     const [userSupplies, setUserSupplies] = useState<UserSupply[]>([])
-    const [selectedSupplyId, setSelectedSupplyId] = useState<string | null>(null)
     const [bills, setBills] = useState<Bill[]>([])
 
     const supabase = createClient()
 
+    useEffect(() => { fetchData() }, [id])
+
     useEffect(() => {
-        fetchData()
-    }, [id])
+        function handler(e: MouseEvent) {
+            if (periodRef.current && !periodRef.current.contains(e.target as Node)) setPeriodOpen(false)
+            if (supplyRef.current && !supplyRef.current.contains(e.target as Node)) setSupplyOpen(false)
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
 
     async function fetchData() {
         setLoading(true)
-
-        // 1. Fetch Profile
         const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', id)
-            .single()
-
-        if (profileError) {
-            console.error('Error fetching profile:', profileError)
-            setLoading(false)
-            return
-        }
-
+            .from('profiles').select('*').eq('id', id).single()
+        if (profileError) { console.error(profileError); setLoading(false); return }
         setProfile(profileData)
 
-        // 2. Fetch User Supplies
-        const { data: suppliesData, error: suppliesError } = await supabase
-            .from('user_supplies')
-            .select('*')
-            .eq('user_id', id)
-            .order('created_at', { ascending: true })
+        const { data: suppliesData } = await supabase
+            .from('user_supplies').select('*').eq('user_id', id).order('created_at', { ascending: true })
+        if (suppliesData) setUserSupplies(suppliesData)
 
-        if (suppliesError) {
-            console.error('Error fetching user_supplies')
-        }
-
-        if (suppliesData) {
-            setUserSupplies(suppliesData)
-        }
-
-        // 3. Fetch Bills
-        const { data: billsData, error: billsError } = await supabase
-            .from('bills')
-            .select('*')
-            .eq('user_id', id)
-            .order('data_emissione', { ascending: false })
-
-        if (billsError) {
-            console.error('Error fetching bills:', billsError)
-        } else {
-            setBills(billsData || [])
-        }
-
+        const { data: billsData } = await supabase
+            .from('bills').select('*').eq('user_id', id).order('data_emissione', { ascending: false })
+        setBills(billsData || [])
         setLoading(false)
     }
 
-    // Edit Mode State (Visual only for now)
     const [isEditing, setIsEditing] = useState(false)
     const [userData, setUserData] = useState({
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        fiscalCode: '',
-        cif: ''
+        name: '', email: '', phone: '', address: '', city: '', fiscalCode: '', cif: ''
     })
 
-    // Sync state for edit mode form
     useEffect(() => {
         if (profile) {
             setUserData({
@@ -145,39 +477,20 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         }
     }, [profile])
 
-
     const handleSave = async () => {
-        // Validation
-        if (!userData.name.trim()) {
-            toast.error("Il campo Anagrafica è obbligatorio.")
-            return
-        }
-
-        if (userData.email) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-            if (!emailRegex.test(userData.email)) {
-                toast.error("L'indirizzo email inserito non è valido.")
-                return
-            }
-        }
-
+        if (!userData.name.trim()) { toast.error("Il campo Anagrafica è obbligatorio."); return }
         toast.promise(
             updateUser(id, {
-                name: userData.name,
-                email: userData.email,
-                phone: userData.phone,
-                address: userData.address,
-                city: userData.city,
-                cfpi: userData.fiscalCode,
-                cif: userData.cif
+                name: userData.name, email: userData.email, phone: userData.phone,
+                address: userData.address, city: userData.city,
+                cfpi: userData.fiscalCode, cif: userData.cif
             }),
             {
                 loading: 'Salvataggio in corso...',
                 success: (res) => {
                     if (res.error) throw new Error(res.error)
-                    setIsEditing(false)
-                    fetchData()
-                    return 'Modifiche salvate con successo'
+                    setIsEditing(false); fetchData()
+                    return 'Modifiche salvate'
                 },
                 error: (err) => `Errore: ${err.message}`
             }
@@ -186,11 +499,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
     const handleResetPwd = () => {
         const email = isEditing ? userData.email : profile?.email
-        if (!email) {
-            toast.error("Nessuna email presente per inviare il reset.")
-            return
-        }
-
+        if (!email) { toast.error("Nessuna email presente."); return }
         toast("Confermi invio reset password?", {
             description: `Email a: ${email}`,
             action: {
@@ -206,706 +515,507 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         })
     }
 
-    const handleDelete = () => {
-        toast("Eliminare definitivamente l'utente?", {
-            description: "Questa azione è irreversibile.",
-            action: {
-                label: 'Elimina',
-                onClick: async () => {
-                    const res = await deleteUser(id)
-                    if (res.error) toast.error(res.error)
-                    else {
-                        toast.success("Utente eliminato")
-                        router.push('/admin/users')
-                    }
-                }
-            }
-        })
-    }
-
-    const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setItemsPerPage(Number(e.target.value))
-        setCurrentPage(1)
-    }
-
-    // ANALYTICS CALCULATION
     const analytics = useMemo(() => {
-        if (!profile || !bills) return null
-
+        if (!profile) return null
         const totalInvoices = bills.length
-
-        // Logic: specific status column doesn't exist.
-        // We assume unpaid unless we add a payments table later.
-        // Overdue logic: scadenza < today
-        const today = new Date()
-
-        const overdueInvoices = bills.filter(i => {
-            if (!i.scadenza) return false
-            return new Date(i.scadenza) < today
-        }).length
-
-        // For now, assume nothing is explicitly "paid" in the DB, so Paid = Total - Unpaid is tricky.
-        // Let's just say Paid = 0 for this migration view until we import payments.
-        const paidInvoices = 0
-
-        const unpaidAmount = bills.reduce((sum, i) => sum + (Number(i.importo) || 0), 0)
-
-        // Score Calculation (Mock Logic adapted)
-        let score = 'A'
-        let scoreColor = 'text-emerald-700 bg-emerald-100 border-emerald-200'
-
-        if (overdueInvoices > 0) {
-            score = 'C'
-            scoreColor = 'text-amber-700 bg-amber-100 border-amber-200'
-        }
-        if (overdueInvoices > 5) {
-            score = 'D'
-            scoreColor = 'text-red-700 bg-red-100 border-red-200'
-        }
-
-        const hasAnomaly = overdueInvoices > 2
-
-        // Deterministic Trend (Random visual for now)
-        const trend = 'up'
-        const trendValue = 12
-        return { totalInvoices, paidInvoices, overdueInvoices, unpaidAmount, score, scoreColor, hasAnomaly, trend, trendValue }
+        const totalAmount = bills.reduce((s, i) => s + (Number(i.importo) || 0), 0)
+        const totalConsumo = bills.reduce((s, i) => s + (Number(i.consumo) || 0), 0)
+        return { totalInvoices, totalAmount, totalConsumo }
     }, [profile, bills])
 
+    const uniqueUlms = useMemo(() => {
+        const set = new Set<string>()
+        // 1. From bills
+        bills.forEach(b => { if (b.ulm) set.add(b.ulm) })
+        // 2. From supplies table (including those without bills yet)
+        userSupplies.forEach(s => {
+            if (s.ulm) set.add(s.ulm)
+            else if (s.cif && s.cif.length >= 6) set.add(s.cif.slice(-6))
+        })
+        return Array.from(set).sort()
+    }, [bills, userSupplies])
 
-    // FILTER & PAGINATION FOR BILLS
     const filteredInvoices = useMemo(() => {
-        if (!bills) return []
         let filtered = bills
-
-        // 1. Filter by Selected Supply
-        if (selectedSupplyId) {
-            const supply = userSupplies.find(s => s.id === selectedSupplyId)
-            if (supply && supply.cif) {
-                // Filter where bill.ulm is either exactly supply.cif OR supply.cif contains bill.ulm (often ULM is just the last 6 digits of CIF)
-                const safeSupplyCif = supply.cif.trim().toLowerCase()
-                filtered = filtered.filter(b => {
-                    if (!b.ulm) return false
-                    const safeBillUlm = b.ulm.trim().toLowerCase()
-                    return safeSupplyCif === safeBillUlm || safeSupplyCif.includes(safeBillUlm) || safeBillUlm.includes(safeSupplyCif)
-                })
-            }
+        if (selectedUlm !== 'all') {
+            filtered = filtered.filter(inv => inv.ulm === selectedUlm)
         }
-
         if (fromDate) {
             const start = startOfDay(fromDate).getTime()
-            filtered = filtered.filter(inv => {
-                if (!inv.data_emissione) return false
-                return new Date(inv.data_emissione).getTime() >= start
-            })
+            filtered = filtered.filter(inv => inv.data_emissione && new Date(inv.data_emissione).getTime() >= start)
         }
-
         if (toDate) {
             const end = endOfDay(toDate).getTime()
-            filtered = filtered.filter(inv => {
-                if (!inv.data_emissione) return false
-                return new Date(inv.data_emissione).getTime() <= end
-            })
+            filtered = filtered.filter(inv => inv.data_emissione && new Date(inv.data_emissione).getTime() <= end)
         }
-
+        const q = invoiceSearch.toLowerCase()
+        if (!q) return filtered
         return filtered.filter(inv =>
-            (inv.nome_pdf && inv.nome_pdf.toLowerCase().includes(invoiceSearch.toLowerCase())) ||
-            (inv.importo && inv.importo.toString().includes(invoiceSearch))
+            (inv.nome_pdf && inv.nome_pdf.toLowerCase().includes(q)) ||
+            (inv.importo && inv.importo.toString().includes(q)) ||
+            (inv.numero_bolletta && inv.numero_bolletta.toLowerCase().includes(q))
         )
-    }, [bills, invoiceSearch, fromDate, toDate, selectedSupplyId, userSupplies])
+    }, [bills, invoiceSearch, fromDate, toDate, selectedUlm])
 
-    const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage)
+    const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / itemsPerPage))
     const currentInvoices = filteredInvoices.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
+        (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage
     )
 
-    if (loading) return <div className="p-10 text-center font-bold text-slate-400">Caricamento profilo...</div>
-    if (!profile) return <div className="p-10 text-center text-red-500 font-bold">Utente non trovato</div>
+    if (loading) return <div className="p-10 text-center text-[12px] text-slate-400 font-medium">Caricamento profilo…</div>
+    if (!profile) return <div className="p-10 text-center text-[12px] text-rose-500 font-semibold">Utente non trovato</div>
     if (!analytics) return null
 
-    const isShadow = profile.is_shadow === true
+    const ulmValue = (profile.cif || userSupplies[0]?.cif || '').slice(-6)
+    const fullAddress = [profile.address, profile.city].filter(Boolean).join(', ')
 
     return (
-        <div className="flex flex-col h-full overflow-hidden gap-6">
-
-            {/* --- HEADER --- */}
-            <div className="relative z-50 bg-white/70 dark:bg-[#1e1e1e] backdrop-blur-2xl rounded-2xl p-6 border border-slate-200 dark:border-[#333333] flex-shrink-0 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm">
-                <div className="flex flex-col md:flex-row gap-6 justify-between items-start">
-
-                    {/* Left: Name & Back */}
-                    <div className="flex gap-4 min-w-[300px]">
-                        <button
-                            onClick={() => router.back()}
-                            className="h-10 w-10 flex-shrink-0 rounded-xl transition-all shadow-sm cursor-pointer btn-glass btn-glass-neutral relative group/back"
-                        >
-                            <ArrowLeft size={18} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-600 dark:text-slate-300 group-hover:scale-110 transition-transform" />
-                        </button>
-                        <div>
-                            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">
-                                Anagrafica Cliente
-                            </p>
-                            <div className="flex items-center gap-2 w-full">
-                                {isEditing ? (
-                                    <div className="flex gap-2 w-full">
-                                        <input
-                                            className="bg-white/50 dark:bg-black/20 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 font-bold text-lg w-full outline-none focus:border-sky-500"
-                                            value={userData.name}
-                                            onChange={e => setUserData({ ...userData, name: e.target.value })}
-                                            placeholder="Nome / Ragione Sociale"
-                                        />
-                                    </div>
-                                ) : (
-                                    <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                                        {profile.name || "Utente non registrato"}
-                                    </h1>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                {profile.codice_cliente && (
-                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                        <span className="font-mono bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded text-sm font-bold shadow-sm backdrop-blur-md flex items-center shrink-0">
-                                            <span className="opacity-50 text-[10px] mr-1.5 uppercase tracking-wider">Cod-Cliente:</span>
-                                            {profile.codice_cliente}
-                                        </span>
-                                        {/* ULM DISPLAY */}
-                                        {userSupplies && userSupplies.length > 0 && (
-                                            <span className="font-mono bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded text-sm font-bold shadow-sm backdrop-blur-md flex items-center gap-1 animate-in fade-in slide-in-from-left-2 overflow-hidden shrink min-w-0 max-w-[300px]">
-                                                <span className="opacity-50 text-[10px] uppercase tracking-wider mr-1 shrink-0">ULM:</span>
-                                                <span className="truncate">
-                                                    {selectedSupplyId
-                                                        ? userSupplies.find(s => s.id === selectedSupplyId)?.cif?.slice(-6) || 'N/A'
-                                                        : userSupplies.length <= 3
-                                                            ? userSupplies.map(s => s.cif?.slice(-6)).filter(Boolean).join(' - ')
-                                                            : `${userSupplies.slice(0, 3).map(s => s.cif?.slice(-6)).filter(Boolean).join(' - ')} +${userSupplies.length - 3}`
-                                                    }
-                                                </span>
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                                {profile.cif && (
-                                    <span className="font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded text-sm font-bold shadow-sm backdrop-blur-md flex items-center gap-1">
-                                        <span className="opacity-50 text-[10px]">CIF:</span> {profile.cif}
-                                    </span>
-                                )}
-                            </div>
+        <>
 
 
+            <AdminPageHero
+                title={profile.name || 'Utente non registrato'}
+                backAction={
+                    <button
+                        onClick={() => router.back()}
+                        className="group h-9 px-3.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
+                        title="Torna indietro"
+                    >
+                        <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform group-hover:-translate-x-0.5">
+                            <ArrowLeft size={11} strokeWidth={3} />
                         </div>
-                    </div>
-
-
-                    {/* Center: Contact Grid */}
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 w-full">
-                        {/* Email */}
-                        <div className="bg-slate-50/80 dark:bg-[#2a2a2a] p-3 rounded-xl border border-slate-200/60 dark:border-[#333333] hover:border-sky-300 dark:hover:border-sky-700 transition-colors group">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Mail size={14} className="text-sky-500 group-hover:scale-110 transition-transform" />
-                                <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-400">Email</span>
-                            </div>
-                            {isEditing ? (
-                                <input
-                                    className="bg-white/50 dark:bg-black/20 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 w-full text-sm font-bold text-slate-700 dark:text-slate-100 outline-none focus:border-sky-500"
-                                    value={userData.email}
-                                    onChange={e => setUserData({ ...userData, email: e.target.value })}
-                                />
-                            ) : (
-                                <p className="text-sm font-bold text-slate-700 dark:text-slate-100 truncate" title={profile.email || '-'}>
-                                    {profile.email || '-'}
-                                </p>
-                            )}
-                        </div>
-                        {/* Phone */}
-                        <div className="bg-slate-50/80 dark:bg-[#2a2a2a] p-3 rounded-xl border border-slate-200/60 dark:border-[#333333] hover:border-sky-300 dark:hover:border-sky-700 transition-colors group">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Smartphone size={14} className="text-sky-500 group-hover:scale-110 transition-transform" />
-                                <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-400">Telefono</span>
-                            </div>
-                            {isEditing ? (
-                                <input
-                                    className="bg-white/50 dark:bg-black/20 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 w-full text-sm font-bold text-slate-700 dark:text-slate-100 outline-none focus:border-sky-500"
-                                    value={userData.phone}
-                                    onChange={e => setUserData({ ...userData, phone: e.target.value })}
-                                    placeholder="-"
-                                />
-                            ) : (
-                                <p className="text-sm font-bold text-slate-700 dark:text-slate-100">{profile.phone || '-'}</p>
-                            )}
-                        </div>
-
-
-                        {/* Fiscal Code */}
-                        <div className="bg-slate-50/80 dark:bg-[#2a2a2a] p-3 rounded-xl border border-slate-200/60 dark:border-[#333333] hover:border-sky-300 dark:hover:border-sky-700 transition-colors group">
-                            <div className="flex items-center gap-2 mb-1">
-                                <FileText size={14} className="text-sky-500 group-hover:scale-110 transition-transform" />
-                                <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-400">Codice Fiscale / P.IVA</span>
-                            </div>
-                            {isEditing ? (
-                                <input
-                                    className="bg-white/50 dark:bg-black/20 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 w-full text-sm font-bold text-slate-700 dark:text-slate-100 outline-none focus:border-sky-500"
-                                    value={userData.fiscalCode}
-                                    onChange={e => setUserData({ ...userData, fiscalCode: e.target.value })}
-                                />
-                            ) : (
-                                <p className="text-sm font-bold text-slate-700 dark:text-slate-100">{userData.fiscalCode || '-'}</p>
-                            )}
-                        </div>
-                        {/* Address */}
-                        <div className={`bg-slate-50/80 dark:bg-[#2a2a2a] p-3 rounded-xl border transition-colors group ${userSupplies && userSupplies.length > 1 && !isEditing
-                            ? 'border-sky-200 dark:border-sky-900/30 bg-sky-50/30 dark:bg-sky-900/10'
-                            : 'border-slate-200/60 dark:border-[#333333] hover:border-sky-300 dark:hover:border-sky-700'
-                            }`}>
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                    <MapPin size={14} className="text-sky-500 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-400">Indirizzo Fornitura</span>
-                                </div>
-                                {userSupplies && userSupplies.length > 1 && !isEditing && (
-                                    <span className="text-[9px] bg-sky-100 text-sky-700 px-1.5 rounded-full font-bold">
-                                        {userSupplies.length} Utenze
-                                    </span>
-                                )}
-                            </div>
-
-                            {isEditing ? (
-                                <div className="flex flex-col gap-2">
-                                    <input
-                                        className="bg-white/50 dark:bg-black/20 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 w-full text-sm font-bold text-slate-700 dark:text-slate-100 outline-none focus:border-sky-500"
-                                        value={userData.address}
-                                        onChange={e => setUserData({ ...userData, address: e.target.value })}
-                                        placeholder="Via/Piazza"
-                                    />
-                                    <input
-                                        className="bg-white/50 dark:bg-black/20 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 w-full text-sm font-bold text-slate-700 dark:text-slate-100 outline-none focus:border-sky-500"
-                                        value={userData.city}
-                                        onChange={e => setUserData({ ...userData, city: e.target.value })}
-                                        placeholder="Città"
-                                    />
-                                </div>
-                            ) : (
-                                <div className="relative">
-                                    {userSupplies && userSupplies.length > 1 ? (
-                                        // MULTIPLE SUPPLIES SELECTOR (CUSTOM DROPDOWN)
-                                        <div className="relative">
-                                            {/* TRIGGER */}
-                                            <button
-                                                onClick={() => setIsSupplyDropdownOpen(!isSupplyDropdownOpen)}
-                                                onBlur={() => setTimeout(() => setIsSupplyDropdownOpen(false), 200)} // Delay to allow click on option
-                                                className="w-full text-left flex items-center justify-between bg-transparent text-sm font-bold text-slate-700 dark:text-slate-100 outline-none cursor-pointer py-1 group/trigger"
-                                            >
-                                                <div className="truncate pr-2">
-                                                    {!selectedSupplyId ? (
-                                                        <span className="text-slate-500 font-normal">Tutte le Utenze (Riepilogo)</span>
-                                                    ) : (
-                                                        <span className="truncate">
-                                                            {userSupplies.find(s => s.id === selectedSupplyId)?.address}
-                                                            <span className="opacity-50 mx-1">-</span>
-                                                            {userSupplies.find(s => s.id === selectedSupplyId)?.city}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <ChevronDown size={14} className={`text-sky-500 transition-transform duration-200 ${isSupplyDropdownOpen ? 'rotate-180' : ''}`} />
-                                            </button>
-
-                                            {/* DROPDOWN MENU */}
-                                            {isSupplyDropdownOpen && (
-                                                <div className="absolute top-full left-0 w-[calc(100%+24px)] -ml-3 mt-2 bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#444444] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-
-                                                    {/* Option: ALL */}
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedSupplyId(null)
-                                                            setIsSupplyDropdownOpen(false)
-                                                        }}
-                                                        className={`w-full text-left px-4 py-3 text-xs border-b border-slate-100 dark:border-[#333333] hover:bg-slate-50 dark:hover:bg-white/5 transition-colors flex items-center gap-3 ${selectedSupplyId === null ? 'bg-sky-50/50 dark:bg-sky-900/10' : ''}`}
-                                                    >
-                                                        <div className={`p-1.5 rounded-lg ${selectedSupplyId === null ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-400 dark:bg-white/10'}`}>
-                                                            <Zap size={14} />
-                                                        </div>
-                                                        <div>
-                                                            <div className={`font-bold ${selectedSupplyId === null ? 'text-sky-700 dark:text-sky-400' : 'text-slate-700 dark:text-slate-200'}`}>Tutte le Utenze</div>
-                                                            <div className="text-[10px] text-slate-400">Riepilogo globale</div>
-                                                        </div>
-                                                        {selectedSupplyId === null && <CheckCircle size={14} className="ml-auto text-sky-500" />}
-                                                    </button>
-
-                                                    {/* Option: List */}
-                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                        {userSupplies.map(supply => {
-                                                            const ulm = supply.cif && supply.cif.length > 6 ? supply.cif.slice(-6) : supply.cif
-                                                            const isSelected = selectedSupplyId === supply.id
-                                                            return (
-                                                                <button
-                                                                    key={supply.id}
-                                                                    onClick={() => {
-                                                                        setSelectedSupplyId(supply.id)
-                                                                        setIsSupplyDropdownOpen(false)
-                                                                    }}
-                                                                    className={`w-full text-left px-4 py-3 text-xs border-b last:border-0 border-slate-100 dark:border-[#333333] hover:bg-slate-50 dark:hover:bg-white/5 transition-colors flex items-center gap-3 ${isSelected ? 'bg-sky-50/50 dark:bg-sky-900/10' : ''}`}
-                                                                >
-                                                                    <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-400 dark:bg-white/10'}`}>
-                                                                        <Home size={14} />
-                                                                    </div>
-                                                                    <div className="min-w-0">
-                                                                        <div className={`font-bold truncate max-w-[180px] ${isSelected ? 'text-sky-700 dark:text-sky-400' : 'text-slate-700 dark:text-slate-200'}`}>
-                                                                            {supply.address}
-                                                                        </div>
-                                                                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                                                            {supply.city} • {ulm}
-                                                                        </div>
-                                                                    </div>
-                                                                    {isSelected && <CheckCircle size={14} className="ml-auto text-sky-500 flex-shrink-0" />}
-                                                                </button>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Subtext for selected supply */}
-                                            {selectedSupplyId && (() => {
-                                                const s = userSupplies.find(x => x.id === selectedSupplyId)
-                                                if (s) return <p className="text-[10px] text-slate-400 mt-0.5">{s.city} • {s.cif?.slice(-6)}</p>
-                                            })()}
-                                            {!selectedSupplyId && <p className="text-[10px] text-slate-400 mt-0.5">Visualizza tutto</p>}
-                                        </div>
-                                    ) : (
-                                        // SINGLE SUPPLY DISPLAY
-                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-100 truncate">
-                                            {userSupplies && userSupplies.length === 1
-                                                ? [userSupplies[0].address, userSupplies[0].city].filter(Boolean).join(', ') || '-'
-                                                : [userData.address, userData.city].filter(Boolean).join(', ') || '-'
-                                            }
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Right: Actions */}
-                    <div className="flex flex-col gap-2 min-w-[140px]">
+                        <span className="text-[12px] font-semibold tracking-tight">Indietro</span>
+                    </button>
+                }
+                topActions={
+                    <div className="flex items-center gap-2.5">
                         {isEditing ? (
-                            <button
-                                onClick={handleSave}
-                                className="w-full py-2 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer btn-glass btn-glass-emerald"
-                            >
-                                <Save size={16} /> Salva
-                            </button>
+                            <div className="flex items-center rounded-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+                                <button
+                                    onClick={handleSave}
+                                    className="flex items-center gap-2.5 pl-3 pr-4 h-full hover:bg-slate-50 dark:hover:bg-white/10 transition-colors active:opacity-80"
+                                >
+                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                        <Check size={11} strokeWidth={3} />
+                                    </div>
+                                    <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 tracking-tight">Salva</span>
+                                </button>
+                                <div className="w-px h-4 bg-slate-200 dark:bg-white/10" />
+                                <button
+                                    onClick={() => setIsEditing(false)}
+                                    className="group/x w-10 h-full flex items-center justify-center transition-all active:opacity-80"
+                                    title="Annulla"
+                                >
+                                    <X size={15} strokeWidth={2.5} className="text-slate-400 dark:text-slate-500 group-hover/x:text-red-500 group-hover/x:rotate-90 transition-all duration-300" />
+                                </button>
+                            </div>
                         ) : (
                             <button
                                 onClick={() => setIsEditing(true)}
-                                className="w-full py-2 rounded-xl font-bold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 text-sm cursor-pointer btn-glass btn-glass-amber"
+                                className="group h-9 px-3.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                             >
-                                <Edit2 size={16} /> Modifica
+                                <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
+                                    <Edit2 size={11} strokeWidth={3} />
+                                </div>
+                                <span className="text-[12px] font-semibold tracking-tight">Modifica</span>
                             </button>
                         )}
+
                         <button
                             onClick={handleResetPwd}
-                            className="w-full py-2 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-sm shadow-sm cursor-pointer bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800"
+                            className="group h-9 px-3.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                         >
-                            <Key size={16} /> Reset Pwd
+                            <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform group-hover:rotate-12">
+                                <Key size={11} strokeWidth={3} />
+                            </div>
+                            <span className="text-[12px] font-semibold tracking-tight">Reset Pwd</span>
                         </button>
+                    </div>
+                }
+                actions={
+                    <div className="grid grid-cols-[1fr_320px] w-full items-end">
+                        <div className="flex items-center justify-end gap-10 pr-8">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Totale</span>
+                                <span className="text-[19px] font-bold text-slate-900 dark:text-white leading-none tabular-nums">
+                                    {formatEuro(analytics.totalAmount)}
+                                </span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Bollette</span>
+                                <span className="text-[19px] font-bold text-slate-900 dark:text-white leading-none tabular-nums">
+                                    {analytics.totalInvoices}
+                                </span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Consumo Totale</span>
+                                <span className="text-[19px] font-bold text-slate-900 dark:text-white leading-none tabular-nums">
+                                    {analytics.totalConsumo} mc
+                                </span>
+                            </div>
+                        </div>
+                        <div className="w-[320px]" />
+                    </div>
+                }
+            />
 
+            <div className="h-full flex flex-col gap-3 min-h-0">
+                {/* Body grid: main column + right rail */}
+                <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-0">
+
+                    {/* MAIN COLUMN */}
+                    <div className="flex flex-col min-h-0 bg-white dark:bg-[#0F1115]">
+
+                        {/* Edit form (inline, only when isEditing) */}
                         {isEditing && (
-                            <button
-                                onClick={handleDelete}
-                                className="w-full py-2 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-sm shadow-sm cursor-pointer btn-glass btn-glass-red animate-in fade-in slide-in-from-top-2"
-                            >
-                                <Trash2 size={16} /> Elimina Utenza
-                            </button>
+                            <div className="px-6 py-3 bg-slate-50/60 dark:bg-white/[0.02] border-t border-slate-200/70 dark:border-white/5 grid grid-cols-2 md:grid-cols-3 gap-3">
+                                {[
+                                    { key: 'name', label: 'Nome' },
+                                    { key: 'email', label: 'Email' },
+                                    { key: 'phone', label: 'Telefono' },
+                                    { key: 'fiscalCode', label: 'CF / P.IVA' },
+                                    { key: 'address', label: 'Indirizzo' },
+                                    { key: 'city', label: 'Città' },
+                                ].map(f => (
+                                    <div key={f.key} className="flex flex-col gap-1">
+                                        <label className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{f.label}</label>
+                                        <input
+                                            value={(userData as any)[f.key] || ''}
+                                            onChange={(e) => setUserData(d => ({ ...d, [f.key]: e.target.value }))}
+                                            className="h-8 px-2 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[12px] text-slate-700 dark:text-slate-200 outline-none focus:border-slate-300 dark:focus:border-white/20"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         )}
-                    </div>
-                </div>
-            </div>
 
-            {/* --- BODY --- */}
-            {/* Supply Selector REMOVED - Integrated into Header */}
-
-            {bills.length === 0 ? (
-                <div className="flex-1 min-h-0 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="w-24 h-24 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
-                        <Inbox size={48} className="text-slate-300 dark:text-slate-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Nessuna fattura trovata</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Non ci sono documenti contabili collegati a questa utenza.</p>
-                </div>
-            ) : (
-                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 p-1">
-
-                    {/* LEFT COL: Analytics */}
-                    <div className="lg:col-span-1 space-y-4 overflow-y-auto custom-scrollbar pr-2">
-
-
-
-                        {/* Reliability - DISABLED (No Data) */}
-                        {/*
-                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-white/60 shadow-sm flex items-center justify-between relative overflow-hidden">
-                        <div className="relative z-10">
-                            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-1">Rating Pagamenti</p>
-                            <h3 className="text-xl font-bold text-slate-700">Affidabilità</h3>
-                        </div>
-                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-bold border-4 ${analytics.scoreColor} relative z-10 shadow-inner`}>
-                            {analytics.score}
-                        </div>
-                    </div>
-                    */}
-
-                        {/* Summary */}
-
-                        <div className="h-[250px] w-full mb-4">
-                            <ExpensesTrendChart bills={bills.filter(b => Number(b.importo) > 0)} className="!p-4 !rounded-2xl !bg-white/30 dark:!bg-[#1e1e1e] !border-white/50 dark:!border-[#333333]" />
-                        </div>
-
-                        <div className="bg-white/30 dark:bg-[#1e1e1e] backdrop-blur-2xl rounded-2xl p-6 border border-white/50 dark:border-[#333333]">
-                            <h3 className="font-bold text-slate-800 dark:text-white mb-5 text-xs uppercase tracking-widest flex items-center gap-2">
-                                <FileText size={14} className="text-sky-500 dark:text-white" />
-                                Riepilogo Contabile
-                            </h3>
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center text-xs p-3 bg-slate-100 dark:bg-[#2a2a2a] rounded-lg border border-slate-200 dark:border-transparent">
-                                    <span className="text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">Fatture</span>
-                                    <span className="font-bold text-slate-800 dark:text-white text-sm">{analytics.totalInvoices}</span>
-                                </div>
-                                {/* Disabled Overdue Summary 
-                            <div className="flex justify-between items-center text-xs p-3 bg-red-50/50 rounded-lg">
-                                <span className="text-red-700 font-bold">Scadute</span>
-                                <span className="font-bold text-red-600">{analytics.overdueInvoices}</span>
-                            </div>
-                            */}
-                                <div className="pt-4 mt-2 border-t border-slate-100 dark:border-[#333333] flex justify-between items-center">
-                                    <span className="text-slate-900 dark:text-white font-bold text-sm uppercase">Totale</span>
-                                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xl tracking-tight">€ {analytics.unpaidAmount.toFixed(2)}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* RIGHT COL: Invoice Table */}
-                    <div className="lg:col-span-3 h-full min-h-0 flex flex-col gap-4">
-
-                        <div className="flex-1 min-h-0 flex flex-col bg-white/70 dark:bg-[#1e1e1e] backdrop-blur-2xl rounded-2xl border border-slate-200 dark:border-[#333333] overflow-hidden shadow-sm">
-
-                            {/* Header */}
-                            <div className="p-5 border-b border-slate-100 dark:border-[#333333] flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-slate-100 dark:bg-white/5 text-sky-500 dark:text-sky-400 rounded-lg border border-slate-200 dark:border-white/10">
-                                        <FileText size={18} />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight">Archivio Fatture</h2>
-                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide">Storico importato</p>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
-                                    <div className="flex items-center gap-2 w-full md:w-auto">
-                                        <div className="w-full md:w-40">
-                                            <DatePicker
-                                                value={fromDate}
-                                                onChange={(date) => {
-                                                    setFromDate(date)
-                                                    setCurrentPage(1)
-                                                }}
-                                                placeholder="Dal..."
-                                            />
+                        {/* Filter row above table */}
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap px-6 py-2 bg-white dark:bg-[#0F1115] border-t border-slate-200/70 dark:border-white/5">
+                            <div ref={periodRef} className="relative">
+                                <button
+                                    onClick={() => setPeriodOpen(v => !v)}
+                                    className={cn(
+                                        "h-8 px-3 rounded-full text-[12px] font-medium flex items-center gap-2 transition-all",
+                                        (fromDate || toDate)
+                                            ? "bg-[#1A1F2A] text-white border border-transparent"
+                                            : "bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-white/40"
+                                    )}
+                                >
+                                    <Calendar size={13} className={(fromDate || toDate) ? 'text-white/70' : 'text-slate-400'} />
+                                    <span>
+                                        {fromDate || toDate
+                                            ? `${fromDate ? format(fromDate, 'dd/MM/yy') : '—'} → ${toDate ? format(toDate, 'dd/MM/yy') : '—'}`
+                                            : 'Periodo'}
+                                    </span>
+                                    {(fromDate || toDate) ? (
+                                        <span
+                                            role="button"
+                                            onClick={(e) => { e.stopPropagation(); setFromDate(null); setToDate(null); setCurrentPage(1) }}
+                                            className="ml-1 -mr-1 h-4 w-4 rounded-full hover:bg-white/15 flex items-center justify-center"
+                                            title="Cancella periodo"
+                                        >
+                                            <X size={11} />
+                                        </span>
+                                    ) : (
+                                        <ChevronDown size={13} className="text-slate-400" />
+                                    )}
+                                </button>
+                                {periodOpen && (
+                                    <div className="absolute top-full left-0 mt-1 w-[300px] bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg shadow-xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                        <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-white/5">
+                                            <div className="flex items-center gap-1.5 text-[11px]">
+                                                <span className="text-slate-400 font-semibold uppercase tracking-wider text-[9px]">Dal</span>
+                                                <span className="text-slate-700 dark:text-slate-200 font-mono font-semibold">
+                                                    {fromDate ? format(fromDate, 'dd/MM/yy') : '—'}
+                                                </span>
+                                            </div>
+                                            <ChevronRight size={12} className="text-slate-300" />
+                                            <div className="flex items-center gap-1.5 text-[11px]">
+                                                <span className="text-slate-400 font-semibold uppercase tracking-wider text-[9px]">Al</span>
+                                                <span className="text-slate-700 dark:text-slate-200 font-mono font-semibold">
+                                                    {toDate ? format(toDate, 'dd/MM/yy') : '—'}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="w-full md:w-40">
-                                            <DatePicker
-                                                value={toDate}
-                                                onChange={(date) => {
-                                                    setToDate(date)
-                                                    setCurrentPage(1)
-                                                }}
-                                                placeholder="Al..."
-                                            />
-                                        </div>
-                                        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${fromDate || toDate ? 'max-w-[100px] opacity-100 ml-2' : 'max-w-0 opacity-0 ml-0'}`}>
+                                        <RangeCalendar
+                                            from={fromDate}
+                                            to={toDate}
+                                            onChange={(f, t) => { setFromDate(f); setToDate(t); setCurrentPage(1) }}
+                                        />
+                                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-white/5">
                                             <button
-                                                onClick={() => {
-                                                    setFromDate(null)
-                                                    setToDate(null)
-                                                    setCurrentPage(1)
-                                                }}
-                                                className="px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 btn-glass btn-glass-red transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                                                onClick={() => { setFromDate(null); setToDate(null); setCurrentPage(1) }}
+                                                className="text-[11px] font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
                                             >
-                                                <X size={12} strokeWidth={3} /> Reset
+                                                Pulisci
+                                            </button>
+                                            <button
+                                                onClick={() => setPeriodOpen(false)}
+                                                className="h-7 px-3 rounded-md bg-[#1A1F2A] text-white text-[11px] font-medium hover:bg-[#0A2540] transition-colors"
+                                            >
+                                                Fatto
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="w-full md:w-64">
-                                        <SearchBar
-                                            placeholder="Cerca..."
-                                            value={invoiceSearch}
-                                            onChange={(val) => { setInvoiceSearch(val); setCurrentPage(1); }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Table */}
-                            <div className="flex-1 overflow-auto custom-scrollbar relative">
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="sticky top-0 z-10">
-                                        <tr className="border-b border-slate-200 dark:border-[#333333] text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/95 dark:bg-[#1e1e1e] backdrop-blur-sm">
-                                            <th className="p-3 pl-6">Bolletta n°</th>
-                                            <th className="p-3">Emissione</th>
-                                            <th className="p-3">Scadenza</th>
-                                            <th className="p-3">Consumo</th>
-                                            <th className="p-3 text-right">Importo</th>
-                                            <th className="p-3 pr-6 text-right">Azioni</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="text-sm divide-y divide-slate-100 dark:divide-[#333333]">
-                                        {currentInvoices.map(inv => {
-                                            const isOverdue = inv.scadenza && new Date(inv.scadenza) < new Date()
-
-                                            return (
-                                                <tr key={inv.id} className="hover:bg-sky-50 dark:hover:bg-sky-900/10 transition-all group border-l-4 border-l-transparent hover:border-l-sky-500 hover:shadow-md">
-                                                    <td className="p-3 pl-6 font-black text-slate-700 dark:text-slate-300 group-hover:text-sky-700 dark:group-hover:text-sky-400 transition-colors">
-                                                        {inv.nome_pdf?.replace('.pdf', '') || 'N/A'}
-                                                    </td>
-                                                    <td className="p-3 text-slate-500 font-medium">
-                                                        <div className="btn-glass btn-glass-sky inline-flex items-center gap-1.5 !p-1 !px-2 rounded-lg text-[10px] font-bold w-fit">
-                                                            <Calendar size={11} className="opacity-70" />
-                                                            {inv.data_emissione ? format(new Date(inv.data_emissione), 'dd/MM/yyyy') : '-'}
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3">
-                                                        {isOverdue ? (
-                                                            <span
-                                                                title="Documento Scaduto"
-                                                                className="btn-glass btn-glass-red inline-flex items-center gap-1.5 !p-1 !px-2 rounded-lg text-[10px] font-black uppercase tracking-wide cursor-help w-fit"
-                                                            >
-                                                                <AlertCircle size={10} strokeWidth={3} /> {inv.scadenza ? format(new Date(inv.scadenza), 'dd/MM/yyyy') : 'Scaduta'}
-                                                            </span>
-                                                        ) : inv.scadenza ? (
-                                                            <span
-                                                                title="In Scadenza"
-                                                                className="btn-glass btn-glass-amber inline-flex items-center gap-1.5 !p-1 !px-2 rounded-lg text-[10px] font-black uppercase tracking-wide cursor-help w-fit"
-                                                            >
-                                                                <Clock size={10} strokeWidth={3} /> {format(new Date(inv.scadenza), 'dd/MM/yyyy')}
-                                                            </span>
-                                                        ) : null}
-                                                    </td>
-
-                                                    <td className="p-3">
-                                                        <div className="flex items-center gap-1.5 font-black text-slate-700 dark:text-slate-300 text-xs bg-slate-100/50 dark:bg-white/5 px-2.5 py-1.5 rounded-lg border border-slate-200/50 dark:border-white/5 whitespace-nowrap w-fit">
-                                                            {inv.tipo_servizio?.toLowerCase().includes('acqua') ? (
-                                                                <Droplets size={14} className="text-sky-500 fill-sky-500" />
-                                                            ) : (
-                                                                <Zap size={14} className="text-amber-500 fill-amber-500" />
-                                                            )}
-                                                            {inv.consumo || 0} <span className="text-slate-400 text-[10px] font-bold uppercase">{inv.tipo_servizio?.toLowerCase().includes('acqua') ? 'mc' : 'kWh'}</span>
-                                                        </div>
-                                                    </td>
-
-                                                    <td className="p-3 text-right font-bold text-slate-700 dark:text-slate-200">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            {(() => {
-                                                                if (!inv.billing_type) return null;
-                                                                const type = inv.billing_type.trim().toUpperCase();
-                                                                const isSaldo = type.startsWith('S');
-                                                                const isAcconto = type.startsWith('A');
-
-                                                                if (!isSaldo && !isAcconto) {
-                                                                    // Fallback for debugging: show raw chars or '?'
-                                                                    return (
-                                                                        <span className="text-[10px] uppercase bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 px-1 rounded" title={inv.billing_type}>
-                                                                            RAW: "{inv.billing_type}"
-                                                                        </span>
-                                                                    );
-                                                                }
-
-                                                                return (
-                                                                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black uppercase ${isSaldo
-                                                                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                                                        : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
-                                                                        }`}>
-                                                                        {isSaldo ? 'S' : 'A'}
-                                                                    </span>
-                                                                );
-                                                            })()}
-                                                            <span>€ {Number(inv.importo || 0).toFixed(2)}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3 pr-6 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button
-                                                                onClick={() => inv.pdf_url ? window.open(`/api/bills/${inv.id}/pdf`, '_blank') : alert('PDF non disponibile')}
-                                                                className={`p-2 rounded-xl transition-all shadow-sm btn-glass ${inv.pdf_url ? 'btn-glass-sky cursor-pointer' : 'btn-glass-neutral opacity-50 cursor-not-allowed'}`}
-                                                                title={inv.pdf_url ? "Vedi PDF" : "PDF non presente"}
-                                                            >
-                                                                <Eye size={16} strokeWidth={2.5} />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => inv.pdf_url ? window.open(`/api/bills/${inv.id}/pdf`, '_blank') : alert('PDF non disponibile')}
-                                                                className={`p-2 rounded-xl transition-all shadow-sm btn-glass ${inv.pdf_url ? 'btn-glass-emerald cursor-pointer' : 'btn-glass-neutral opacity-50 cursor-not-allowed'}`}
-                                                                title={inv.pdf_url ? "Scarica PDF" : "PDF non presente"}
-                                                            >
-                                                                <Download size={16} strokeWidth={2.5} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination */}
-                            <div className="p-4 border-t border-slate-100 dark:border-[#333333] bg-white/60 dark:bg-[#1e1e1e] flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                                <div className="flex items-center gap-4 pl-4">
-                                    <span>
-                                        Mostra
-                                        <select
-                                            value={itemsPerPage}
-                                            onChange={handlePageSizeChange}
-                                            className="mx-2 bg-white dark:bg-[#2a2a2a] border border-slate-200 dark:border-[#444444] rounded-lg px-2 py-1 outline-none focus:border-sky-500 focus:ring-2 ring-sky-500/10 cursor-pointer text-slate-700 dark:text-slate-200 font-bold"
-                                        >
-                                            <option value={8}>8</option>
-                                            <option value={10}>10</option>
-                                            <option value={20}>20</option>
-                                            <option value={50}>50</option>
-                                            <option value={100}>100</option>
-                                            <option value={1000}>Tutti</option>
-                                        </select>
-                                        fatture
-                                    </span>
-
-                                    {totalPages > 1 && (
-                                        <span className="text-slate-400">|</span>
-                                    )}
-                                    {totalPages > 1 && (
-                                        <span>
-                                            Visualizzazione <span className="font-bold text-slate-900 dark:text-white">{currentPage}</span> di {totalPages}
-                                        </span>
-                                    )}
-                                </div>
-
-                                {totalPages > 1 && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            disabled={currentPage === 1}
-                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                            className="p-2 rounded-xl bg-white dark:bg-[#2a2a2a] border border-slate-200 dark:border-[#444444] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#333333] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all hover:scale-105 active:scale-95"
-                                        >
-                                            <ChevronLeft size={16} />
-                                        </button>
-                                        <button
-                                            disabled={currentPage === totalPages}
-                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                            className="p-2 rounded-xl bg-white dark:bg-[#2a2a2a] border border-slate-200 dark:border-[#444444] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#333333] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all hover:scale-105 active:scale-95"
-                                        >
-                                            <ChevronRight size={16} />
-                                        </button>
-                                    </div>
                                 )}
+                            </div>
+
+                            {/* Supply / Fornitura filter */}
+                            {uniqueUlms.length > 0 && (
+                                <div ref={supplyRef} className="relative">
+                                    <button
+                                        onClick={() => setSupplyOpen(v => !v)}
+                                        className={cn(
+                                            "h-8 px-3 rounded-full text-[12px] font-medium flex items-center gap-2 transition-all",
+                                            selectedUlm !== 'all'
+                                                ? "bg-[#1A1F2A] text-white border border-transparent"
+                                                : "bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-white/40"
+                                        )}
+                                    >
+                                        <FileText size={13} className={selectedUlm !== 'all' ? 'text-white/70' : 'text-slate-400'} />
+                                        <span className="flex items-center gap-1">
+                                            {selectedUlm !== 'all' ? (
+                                                <>
+                                                    <span className="opacity-70">ULM</span>
+                                                    <span
+                                                        role="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            navigator.clipboard.writeText(selectedUlm)
+                                                            toast.success("ULM Copiato!")
+                                                        }}
+                                                        className="hover:underline underline-offset-4 hover:text-lime-400 cursor-pointer transition-colors"
+                                                        title="Clicca per copiare"
+                                                    >
+                                                        {selectedUlm}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                'Fornitura'
+                                            )}
+                                        </span>
+                                        {selectedUlm !== 'all' ? (
+                                            <span
+                                                role="button"
+                                                onClick={(e) => { e.stopPropagation(); setSelectedUlm('all'); setCurrentPage(1) }}
+                                                className="ml-1 -mr-1 h-5 w-5 rounded-full hover:bg-white/15 flex items-center justify-center transition-colors shrink-0"
+                                                title="Mostra tutte"
+                                            >
+                                                <X size={11} />
+                                            </span>
+                                        ) : (
+                                            <ChevronDown size={13} className="ml-1 text-slate-400 shrink-0" />
+                                        )}
+                                    </button>
+                                    {supplyOpen && (
+                                        <div className="absolute top-full left-0 mt-1 w-[240px] bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                            <button
+                                                onClick={() => { setSelectedUlm('all'); setSupplyOpen(false); setCurrentPage(1) }}
+                                                className={cn(
+                                                    "w-full text-left px-4 py-2.5 text-[12px] font-medium flex items-center justify-between transition-colors",
+                                                    selectedUlm === 'all'
+                                                        ? "bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white"
+                                                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                                                )}
+                                            >
+                                                Tutte le forniture
+                                                {selectedUlm === 'all' && <div className="w-1.5 h-1.5 rounded-full bg-[#1A1F2A] dark:bg-white" />}
+                                            </button>
+                                            {uniqueUlms.map(ulm => {
+                                                const supply = userSupplies.find(s => s.ulm === ulm || (s.cif && s.cif.endsWith(ulm)))
+                                                return (
+                                                    <button
+                                                        key={ulm}
+                                                        onClick={() => { setSelectedUlm(ulm); setSupplyOpen(false); setCurrentPage(1) }}
+                                                        className={cn(
+                                                            "w-full text-left px-4 py-2.5 text-[12px] font-medium flex items-center justify-between transition-colors",
+                                                            selectedUlm === ulm
+                                                                ? "bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white"
+                                                                : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                                                        )}
+                                                    >
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="font-mono text-[11px] truncate">{ulm}</span>
+                                                            {supply?.address && (
+                                                                <span className="text-[10px] text-slate-400 truncate">{supply.address}</span>
+                                                            )}
+                                                        </div>
+                                                        {selectedUlm === ulm && <div className="w-1.5 h-1.5 rounded-full bg-[#1A1F2A] dark:bg-white shrink-0" />}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="ml-auto relative w-64">
+                                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Cerca bolletta…"
+                                    value={invoiceSearch}
+                                    onChange={(e) => setInvoiceSearch(e.target.value)}
+                                    className="w-full h-8 pl-8 pr-3 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[12px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:border-slate-300 dark:focus:border-white/20 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Table — grid based, list-page style */}
+                        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
+                            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_72px] gap-3 px-6 py-2 bg-white dark:bg-[#0F1115] text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 border-t border-slate-200/70 dark:border-white/5">
+                                <div>N° Bolletta</div>
+                                <div>Emissione</div>
+                                <div>Scadenza</div>
+                                <div className="text-right">Consumo</div>
+                                <div className="text-right">Importo</div>
+                                <div className="text-right">Azioni</div>
+                            </div>
+                            <div className="divide-y divide-slate-100 dark:divide-white/5">
+                                {currentInvoices.length === 0 ? (
+                                    <div className="px-6 py-16 text-center text-[12px] text-slate-400">Nessuna bolletta trovata</div>
+                                ) : currentInvoices.map((inv) => (
+                                    <div
+                                        key={inv.id}
+                                        className="group grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_72px] gap-3 items-center px-6 py-3 hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition-colors"
+                                    >
+                                        <div className="text-[14px] font-medium text-slate-800 dark:text-white truncate font-mono">
+                                            {inv.numero_bolletta || inv.nome_pdf?.replace('.pdf', '') || `#${inv.id}`}
+                                        </div>
+                                        <div className="text-[13px] text-slate-500 dark:text-slate-400">
+                                            {inv.data_emissione ? format(new Date(inv.data_emissione), 'dd/MM/yyyy') : '—'}
+                                        </div>
+                                        <div className="text-[13px] text-slate-500 dark:text-slate-400">
+                                            {inv.scadenza ? format(new Date(inv.scadenza), 'dd/MM/yyyy') : '—'}
+                                        </div>
+                                        <div className="text-[13px] font-semibold text-slate-700 dark:text-slate-200 text-right tabular-nums flex items-center justify-end gap-1.5">
+                                            <Droplets size={14} className="text-sky-400 fill-sky-400/30" strokeWidth={2.5} />
+                                            <span>{inv.consumo ?? 0}</span>
+                                            <span className="text-slate-400 font-normal text-[11px]">mc</span>
+                                        </div>
+                                        <div className="text-[14px] font-semibold text-slate-900 dark:text-white text-right tabular-nums">
+                                            {formatEuro(Number(inv.importo) || 0)}
+                                        </div>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <button
+                                                onClick={() => window.open(`/api/bills/${inv.id}/pdf`, '_blank')}
+                                                className="h-7 w-7 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                title="Visualizza"
+                                            >
+                                                <Eye size={13} />
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    const link = document.createElement('a')
+                                                    link.href = `/api/bills/${inv.id}/pdf`
+                                                    link.download = inv.nome_pdf || `bolletta_${inv.id}.pdf`
+                                                    link.click()
+                                                }}
+                                                className="h-7 w-7 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                title="Scarica"
+                                            >
+                                                <Download size={13} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Pagination */}
+                        <div className="flex items-center justify-between py-3 px-6 text-[12px] text-slate-500 dark:text-slate-400 shrink-0 border-t border-slate-200/70 dark:border-white/5">
+                            <div className="flex items-center gap-2 pl-3">
+                                <span className="font-medium text-slate-400 uppercase tracking-wider text-[10px]">Righe</span>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1) }}
+                                    className="bg-transparent border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 outline-none text-slate-700 dark:text-slate-200 text-[12px] font-semibold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                                <span className="text-slate-300 dark:text-slate-700 mx-1">·</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-200">{filteredInvoices.length} totali</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span>Pagina {currentPage} di {totalPages}</span>
+                                <button
+                                    disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    className="w-7 h-7 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                >
+                                    <ChevronLeft size={14} />
+                                </button>
+                                <button
+                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    className="w-7 h-7 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                >
+                                    <ChevronRight size={14} />
+                                </button>
                             </div>
                         </div>
                     </div>
+
+                    {/* RIGHT RAIL */}
+                    <aside className="hidden xl:flex flex-col gap-3 min-h-0 overflow-auto custom-scrollbar pt-2 pr-6 pl-6">
+                        {/* Account Details Card */}
+                        <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
+                            <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 mb-3">
+                                Informazioni Account
+                            </p>
+                            <div className="flex flex-col gap-2.5">
+                                {profile.codice_cliente && (
+                                    <CodeBadge value={profile.codice_cliente} label="CODICE CLIENTE" copyable />
+                                )}
+                                {profile.cfpi && (
+                                    <CodeBadge value={profile.cfpi} label={/^\d{11}$/.test(profile.cfpi) ? 'P.IVA' : 'CF'} copyable />
+                                )}
+                                {profile.email && (
+                                    <CodeBadge value={profile.email} label="EMAIL" copyable mono={false} />
+                                )}
+                                {profile.phone && (
+                                    <CodeBadge value={profile.phone} label="TEL" copyable />
+                                )}
+                                {profile.address && (
+                                    <CodeBadge value={profile.address} label="IND" copyable mono={false} />
+                                )}
+                                {profile.city && (
+                                    <CodeBadge value={profile.city} label="CIT" copyable mono={false} />
+                                )}
+                            </div>
+                        </div>
+
+                        {userSupplies.length > 0 && (
+                            <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
+                                <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 mb-3">
+                                    Forniture <span className="text-slate-300 dark:text-slate-600">· {userSupplies.length}</span>
+                                </p>
+                                <div className="divide-y divide-slate-100 dark:divide-white/5 -mx-1">
+                                    {userSupplies.map(s => (
+                                        <div key={s.id} className="flex flex-col gap-1 px-1 py-2.5 first:pt-0 last:pb-0">
+                                            <CodeBadge value={s.cif} label="CIF" copyable />
+                                            {(s.address || s.city) && (
+                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate pl-0.5">
+                                                    {[s.address, s.city].filter(Boolean).join(', ')}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+
+
+                        <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
+                            <MiniSpendChart bills={bills} />
+                        </div>
+                    </aside>
                 </div>
-            )}
-        </div >
+            </div>
+        </>
     )
 }

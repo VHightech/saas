@@ -5,7 +5,12 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
 
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -33,7 +38,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           {children}
-          <Toaster richColors />
+          <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>
     </html>

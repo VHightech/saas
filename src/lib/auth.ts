@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-export type UserRole = 'admin' | 'user'
+export type UserRole = 'admin' | 'super_admin' | 'superadmin' | 'user'
 
 export async function getCurrentUserRole(): Promise<UserRole> {
     const supabase = await createClient()
@@ -19,8 +19,9 @@ export async function getCurrentUserRole(): Promise<UserRole> {
         .eq('id', user.id)
         .maybeSingle()
 
-    if (profile?.role && profile.role === 'admin') {
-        return profile.role as UserRole
+    const role = profile?.role
+    if (role === 'admin' || role === 'super_admin' || role === 'superadmin') {
+        return role as UserRole
     }
 
     // 2. Default to 'user'
@@ -30,7 +31,7 @@ export async function getCurrentUserRole(): Promise<UserRole> {
 export async function requireAdmin() {
     const role = await getCurrentUserRole()
 
-    if (role !== 'admin') {
-        redirect('/dashboard') // Redirect unauthorized users
+    if (role !== 'admin' && role !== 'super_admin' && role !== 'superadmin') {
+        redirect('/profile') // Redirect unauthorized users
     }
 }

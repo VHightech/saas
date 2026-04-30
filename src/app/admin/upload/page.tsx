@@ -114,15 +114,23 @@ export default function AdminDashboardPage() {
     return (
         <div className="h-full flex flex-col space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out max-w-[1600px] mx-auto w-full p-4 md:p-8 relative">
 
-            {/* HERDER */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-100/50 dark:border-slate-700/50">
+            {/* HEADER */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/40 dark:bg-black/20 backdrop-blur-3xl p-8 rounded-[2.5rem] border border-white/20 dark:border-white/10 flex-shrink-0 shadow-xl shadow-slate-200/20 dark:shadow-none animate-in fade-in slide-in-from-top-4 duration-1000">
                 <div>
-                    <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-500 dark:text-indigo-400 mb-2">Workspace Amministratore</h2>
-                    <h1 className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Centro Importazione</h1>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium mt-2 text-lg max-w-2xl leading-relaxed">
-                        Sincronizza il database caricando i flussi dati XML e l'archivio 7z delle fatture.
-                        Il sistema gestirà automaticamente l'estrazione e l'associazione.
-                    </p>
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                        <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
+                            Centro Importazione
+                        </h1>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-bold ml-5">Sincronizzazione database flussi XML e archivi fatture</p>
+                </div>
+
+                <div className="hidden lg:flex items-center gap-4">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20">
+                        <Database size={16} className="text-indigo-600 dark:text-indigo-400" />
+                        <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">Storage R2 Attivo</span>
+                    </div>
                 </div>
             </div>
 
@@ -132,30 +140,35 @@ export default function AdminDashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
                 {/* LEFT CARD: CSV */}
-                <div className={`relative group overflow-hidden rounded-3xl transition-all duration-300 border ${csvFile ? 'border-sky-500 ring-4 ring-sky-500/10 bg-white dark:bg-[#1e1e1e]' : 'border-slate-200 dark:border-[#333333] bg-white/70 dark:bg-[#1e1e1e]/50 backdrop-blur-xl hover:border-sky-400 dark:hover:border-sky-700 hover:shadow-xl hover:shadow-sky-500/5'}`}>
-                    <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
+                <div className={`relative group overflow-hidden rounded-[2.5rem] transition-all duration-500 border-2 ${csvFile ? 'border-sky-500/50 bg-white/60 dark:bg-sky-500/10' : 'border-white/20 dark:border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-3xl hover:border-sky-400/50 hover:shadow-2xl hover:shadow-sky-500/10'}`}>
+                    <div className="absolute inset-0 bg-gradient-to-br from-sky-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                    
                     <div className="p-10 flex flex-col h-full relative z-10">
-                        <div className="flex items-start justify-between mb-8">
-                            <div className={`p-4 rounded-2xl transition-all duration-300 ${csvFile ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30 rotate-3' : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-400 group-hover:bg-sky-100 group-hover:text-sky-600 dark:group-hover:bg-sky-900/30 dark:group-hover:text-sky-400 group-hover:-rotate-3'}`}>
+                        <div className="flex items-start justify-between mb-10">
+                            <div className={`p-5 rounded-3xl transition-all duration-500 ${csvFile ? 'bg-sky-500 text-white shadow-2xl shadow-sky-500/40 scale-110 rotate-6' : 'bg-white/50 dark:bg-white/5 text-slate-400 group-hover:bg-sky-500 group-hover:text-white group-hover:shadow-xl group-hover:shadow-sky-500/30'}`}>
                                 <Database size={32} strokeWidth={1.5} />
                             </div>
                             {csvFile && (
-                                <span className="btn-glass btn-glass-sky !p-1 !px-3 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
-                                    Pronto
-                                </span>
+                                <div className="flex flex-col items-end gap-2">
+                                    <span className="px-4 py-1.5 rounded-full bg-sky-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-500/20">
+                                        File Caricato
+                                    </span>
+                                    <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 tabular-nums">
+                                        {(csvFile.size / 1024).toFixed(1)} KB
+                                    </span>
+                                </div>
                             )}
                         </div>
 
-                        <div className="flex-1">
-                            <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-2 tracking-tight">Flusso Dati</h3>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed mb-6">
-                                Carica il file <code className="bg-slate-200/50 dark:bg-[#2a2a2a] px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-200 font-bold">.csv</code> estratto dal gestionale.
-                                <br />Include clienti, importi e scadenze.
+                        <div className="flex-1 mb-8">
+                            <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-3 tracking-tight">Flusso Dati</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-bold leading-relaxed">
+                                Trascina qui il file <code className="bg-sky-100 dark:bg-sky-500/20 px-2 py-0.5 rounded-lg text-sky-700 dark:text-sky-300 font-black">.csv</code> esportato.
+                                <br /><span className="opacity-60">Contiene clienti, fatturazioni e scadenze.</span>
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2 relative">
+                        <div className="flex items-center gap-3 relative">
                             <input
                                 type="file"
                                 accept=".csv"
@@ -165,30 +178,27 @@ export default function AdminDashboardPage() {
                             />
                             <label
                                 htmlFor="csv-upload"
-                                className={`w-full py-4 rounded-xl border-2 border-dashed flex items-center justify-center gap-3 cursor-pointer transition-all font-bold text-sm ${csvFile ? 'border-sky-200 bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:border-sky-800 dark:text-sky-400' : 'border-slate-200 dark:border-[#333333] text-slate-400 dark:text-slate-500 hover:border-sky-400 hover:bg-slate-200/50 hover:text-sky-600 dark:hover:text-sky-400 hover:shadow-sm'}`}
+                                className={`flex-1 py-5 rounded-2xl border-2 border-dashed flex items-center justify-center gap-3 cursor-pointer transition-all duration-500 font-black text-sm ${csvFile ? 'border-sky-500/30 bg-sky-500/5 text-sky-700 dark:text-sky-400' : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-sky-500 hover:text-sky-600 dark:hover:text-sky-400'}`}
                             >
                                 {csvFile ? (
                                     <>
-                                        <FileText size={18} />
-                                        {csvFile.name}
+                                        <FileText size={20} className="animate-bounce" />
+                                        <span className="truncate max-w-[180px]">{csvFile.name}</span>
                                     </>
                                 ) : (
                                     <>
-                                        <UploadCloud size={18} />
+                                        <UploadCloud size={20} />
                                         Seleziona CSV
                                     </>
                                 )}
                             </label>
                             {csvFile && (
                                 <button
-                                    onClick={(e) => {
-                                        e.preventDefault()
-                                        setCsvFile(null)
-                                    }}
-                                    className="p-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 transition-colors shadow-sm flex-shrink-0"
+                                    onClick={(e) => { e.preventDefault(); setCsvFile(null); }}
+                                    className="p-5 rounded-2xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all duration-300 shadow-lg shadow-red-500/5 group/btn"
                                     title="Rimuovi file"
                                 >
-                                    <X size={18} />
+                                    <X size={20} className="group-hover/btn:rotate-90 transition-transform" />
                                 </button>
                             )}
                         </div>
@@ -196,30 +206,35 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* RIGHT CARD: ARCHIVE */}
-                <div className={`relative group overflow-hidden rounded-3xl transition-all duration-300 border ${archiveFile ? 'border-indigo-500 ring-4 ring-indigo-500/10 bg-white dark:bg-[#1e1e1e]' : 'border-slate-200 dark:border-[#333333] bg-white/70 dark:bg-[#1e1e1e]/50 backdrop-blur-xl hover:border-indigo-400 dark:hover:border-indigo-700 hover:shadow-xl hover:shadow-indigo-500/5'}`}>
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
+                <div className={`relative group overflow-hidden rounded-[2.5rem] transition-all duration-500 border-2 ${archiveFile ? 'border-indigo-500/50 bg-white/60 dark:bg-indigo-500/10' : 'border-white/20 dark:border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-3xl hover:border-indigo-400/50 hover:shadow-2xl hover:shadow-indigo-500/10'}`}>
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                    
                     <div className="p-10 flex flex-col h-full relative z-10">
-                        <div className="flex items-start justify-between mb-8">
-                            <div className={`p-4 rounded-2xl transition-all duration-300 ${archiveFile ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 rotate-3' : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 dark:group-hover:bg-indigo-900/30 dark:group-hover:text-indigo-400 group-hover:-rotate-3'}`}>
+                        <div className="flex items-start justify-between mb-10">
+                            <div className={`p-5 rounded-3xl transition-all duration-500 ${archiveFile ? 'bg-indigo-500 text-white shadow-2xl shadow-indigo-500/40 scale-110 rotate-6' : 'bg-white/50 dark:bg-white/5 text-slate-400 group-hover:bg-indigo-500 group-hover:text-white group-hover:shadow-xl group-hover:shadow-indigo-500/30'}`}>
                                 <FileArchive size={32} strokeWidth={1.5} />
                             </div>
                             {archiveFile && (
-                                <span className="btn-glass btn-glass-sky !p-1 !px-3 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
-                                    Pronto
-                                </span>
+                                <div className="flex flex-col items-end gap-2">
+                                    <span className="px-4 py-1.5 rounded-full bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20">
+                                        Archivio Caricato
+                                    </span>
+                                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
+                                        {(archiveFile.size / (1024 * 1024)).toFixed(1)} MB
+                                    </span>
+                                </div>
                             )}
                         </div>
 
-                        <div className="flex-1">
-                            <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-2 tracking-tight">Archivio Fatture</h3>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed mb-6">
-                                Trascina qui il file <code className="bg-slate-200/50 dark:bg-[#2a2a2a] px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-200 font-bold">.7z</code> contenente i PDF.
-                                <br />Verrà estratto automaticamente.
+                        <div className="flex-1 mb-8">
+                            <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-3 tracking-tight">Archivio Fatture</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-bold leading-relaxed">
+                                Seleziona l'archivio <code className="bg-indigo-100 dark:bg-indigo-500/20 px-2 py-0.5 rounded-lg text-indigo-700 dark:text-indigo-300 font-black">.7z</code> con i PDF.
+                                <br /><span className="opacity-60">Il sistema estrarrà e collegherà i documenti.</span>
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2 relative">
+                        <div className="flex items-center gap-3 relative">
                             <input
                                 type="file"
                                 accept=".7z"
@@ -229,30 +244,27 @@ export default function AdminDashboardPage() {
                             />
                             <label
                                 htmlFor="archive-upload"
-                                className={`w-full py-4 rounded-xl border-2 border-dashed flex items-center justify-center gap-3 cursor-pointer transition-all font-bold text-sm ${archiveFile ? 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-400' : 'border-slate-200 dark:border-[#333333] text-slate-400 dark:text-slate-500 hover:border-indigo-400 hover:bg-slate-200/50 hover:text-indigo-600 dark:hover:text-indigo-400 hover:shadow-sm'}`}
+                                className={`flex-1 py-5 rounded-2xl border-2 border-dashed flex items-center justify-center gap-3 cursor-pointer transition-all duration-500 font-black text-sm ${archiveFile ? 'border-indigo-500/30 bg-indigo-500/5 text-indigo-700 dark:text-indigo-400' : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                             >
                                 {archiveFile ? (
                                     <>
-                                        <FileArchive size={18} />
-                                        {archiveFile.name}
+                                        <FileArchive size={20} className="animate-bounce" />
+                                        <span className="truncate max-w-[180px]">{archiveFile.name}</span>
                                     </>
                                 ) : (
                                     <>
-                                        <UploadCloud size={18} />
+                                        <UploadCloud size={20} />
                                         Seleziona Archivio .7z
                                     </>
                                 )}
                             </label>
                             {archiveFile && (
                                 <button
-                                    onClick={(e) => {
-                                        e.preventDefault()
-                                        setArchiveFile(null)
-                                    }}
-                                    className="p-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 transition-colors shadow-sm flex-shrink-0"
+                                    onClick={(e) => { e.preventDefault(); setArchiveFile(null); }}
+                                    className="p-5 rounded-2xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all duration-300 shadow-lg shadow-red-500/5 group/btn"
                                     title="Rimuovi file"
                                 >
-                                    <X size={18} />
+                                    <X size={20} className="group-hover/btn:rotate-90 transition-transform" />
                                 </button>
                             )}
                         </div>
@@ -265,14 +277,14 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* ACTION SECTION */}
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-center md:justify-end pt-12">
                 {(csvFile && archiveFile) && !isUploading && (
                     <button
                         onClick={handleAnalyze}
                         disabled={analyzing}
-                        className={`group relative px-8 py-4 rounded-xl font-bold text-lg overflow-hidden transition-all ${analyzing ? 'bg-slate-100 text-slate-400 cursor-wait shadow-inner dark:bg-slate-800 dark:text-slate-500' : 'btn-glass btn-glass-emerald'}`}
+                        className={`group relative px-12 py-5 rounded-[2rem] font-black text-xl overflow-hidden transition-all duration-500 shadow-2xl ${analyzing ? 'bg-slate-100 text-slate-400 cursor-wait dark:bg-slate-800' : 'btn-glass btn-glass-emerald scale-105 hover:scale-110 active:scale-95 shadow-emerald-500/20'}`}
                     >
-                        <span className="relative z-10 flex items-center gap-3">
+                        <span className="relative z-10 flex items-center gap-4">
                             {analyzing ? (
                                 <>
                                     <Loader2 size={24} className="animate-spin text-emerald-600 dark:text-emerald-500" />
@@ -280,135 +292,151 @@ export default function AdminDashboardPage() {
                                 </>
                             ) : (
                                 <>
-                                    Analizza Flusso
-                                    <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                                    Avvia Analisi Flusso
+                                    <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform duration-500" />
                                 </>
                             )}
                         </span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                     </button>
                 )}
-
-
             </div>
 
             {/* PREVIEW MODAL */}
             {showPreviewModal && previewStats && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-[#1e1e1e] rounded-[2rem] shadow-2xl w-full max-w-2xl p-8 animate-in zoom-in-95 duration-300 border border-slate-100 dark:border-[#333333]">
-                        <div className="flex justify-between items-start mb-8">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+                    <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-500" onClick={() => setShowPreviewModal(false)} />
+                    
+                    <div className="relative bg-white/70 dark:bg-black/40 backdrop-blur-3xl rounded-[3rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-8 duration-700 border border-white/40 dark:border-white/10">
+                        {/* Modal Header */}
+                        <div className="p-10 pb-0 flex justify-between items-start">
                             <div>
-                                <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-1">Riepilogo Importazione</h2>
-                                <p className="text-slate-500 dark:text-slate-400 font-medium text-base">Controlla i dati analizzati prima di confermare.</p>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+                                        <Database size={24} />
+                                    </div>
+                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Riepilogo Dati</h2>
+                                </div>
+                                <p className="text-slate-500 dark:text-slate-400 font-bold ml-1">Verifica i risultati dell'analisi prima di procedere.</p>
                             </div>
-                            <button onClick={() => setShowPreviewModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-all hover:rotate-90">
+                            <button onClick={() => setShowPreviewModal(false)} className="p-3 bg-white/50 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 rounded-2xl transition-all hover:rotate-90 border border-white/20 dark:border-white/10">
                                 <X size={24} className="text-slate-400" />
                             </button>
                         </div>
 
-                        <div className="space-y-6 mb-8">
+                        <div className="p-10 space-y-8">
                             {previewStats.duplicateArchive && (
-                                <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30 flex gap-4">
-                                    <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-500" />
+                                <div className="p-6 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex gap-5 animate-pulse">
+                                    <div className="p-3 bg-amber-500 text-white rounded-2xl h-fit shadow-lg shadow-amber-500/20">
+                                        <AlertCircle size={24} />
+                                    </div>
                                     <div>
-                                        <h3 className="font-bold text-amber-800 dark:text-amber-400">Archivio già caricato</h3>
-                                        <div className="text-sm text-amber-700 dark:text-amber-500 mt-1">
-                                            Questo archivio Zip (<strong>{archiveFile?.name}</strong>) risulta già elaborato in precedenza ({previewStats.existingArchiveTotal} files).
-                                            <br />
-                                            Procedendo, <strong>verranno sovrascritti</strong> i file con lo stesso nome.
-                                        </div>
+                                        <h3 className="font-black text-amber-800 dark:text-amber-400 text-lg">Archivio già presente</h3>
+                                        <p className="text-sm text-amber-700 dark:text-amber-500/80 font-bold mt-1 leading-relaxed">
+                                            Il file <span className="underline decoration-2">{archiveFile?.name}</span> è già stato elaborato. 
+                                            Procedendo ora, i file esistenti verranno <span className="text-amber-600 dark:text-amber-300">sovrascritti</span>.
+                                        </p>
                                     </div>
                                 </div>
                             )}
 
                             {/* TOP STATS ROW */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-slate-50 dark:bg-white/5 p-5 rounded-2xl border border-slate-100 dark:border-white/5 flex flex-col justify-center items-center text-center gap-1">
-                                    <span className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-wider">Fatture nel CSV</span>
-                                    <span className="text-3xl font-black text-slate-900 dark:text-white">{previewStats.processed}</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="bg-white/50 dark:bg-white/5 p-8 rounded-[2rem] border border-white/40 dark:border-white/5 flex flex-col items-center text-center gap-2 group transition-all hover:bg-white/80 dark:hover:bg-white/10">
+                                    <span className="font-black text-slate-400 dark:text-slate-500 text-[11px] uppercase tracking-[0.2em]">Record nel CSV</span>
+                                    <span className="text-5xl font-black text-slate-900 dark:text-white tabular-nums group-hover:scale-110 transition-transform duration-500">
+                                        {previewStats.processed}
+                                    </span>
+                                    <div className="px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 text-[10px] font-bold text-slate-500">Pronti all'elaborazione</div>
                                 </div>
 
-                                <div className="btn-glass btn-glass-emerald !p-5 rounded-2xl border-none shadow-none flex flex-col justify-center items-center text-center gap-1">
-                                    <div className="text-[10px] uppercase font-black opacity-60">Utenti Identificati</div>
-                                    <div className="text-3xl font-black">
+                                <div className="bg-emerald-500/10 dark:bg-emerald-500/20 p-8 rounded-[2rem] border border-emerald-500/20 flex flex-col items-center text-center gap-2 group transition-all">
+                                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-[11px] uppercase tracking-[0.2em]">Clienti Rilevati</span>
+                                    <span className="text-5xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums group-hover:scale-110 transition-transform duration-500">
                                         {previewStats.uniqueMatchedUsers || ((previewStats.matchedByCif || 0) + (previewStats.matchedByCfpi || 0))}
-                                    </div>
-                                    <div className="text-[9px] font-bold opacity-50">
-                                        {previewStats.matchedByCif} CIF • {previewStats.matchedByCfpi} CFPI
+                                    </span>
+                                    <div className="flex gap-2">
+                                        <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">
+                                            {previewStats.matchedByCif} CIF
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">
+                                            {previewStats.matchedByCfpi} CFPI
+                                        </span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* ARCHIVE SECTION */}
-                            <div className="p-6 rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 shadow-sm">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-2 bg-indigo-50 text-indigo-500 rounded-lg">
-                                            <FileArchive size={16} />
+                            <div className="p-8 rounded-[2.5rem] border border-white/40 dark:border-white/10 bg-white/40 dark:bg-white/5 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-150 transition-transform duration-1000">
+                                    <FileArchive size={120} />
+                                </div>
+
+                                <div className="flex justify-between items-center mb-8 relative z-10">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-indigo-500 text-white rounded-2xl shadow-lg shadow-indigo-500/20">
+                                            <FileArchive size={20} />
                                         </div>
                                         <div>
-                                            <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Analisi Archivio</div>
-                                            <div className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[200px] truncate" title={archiveFile?.name}>
+                                            <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Analisi Contenuto</div>
+                                            <div className="font-black text-sm text-slate-800 dark:text-slate-200 truncate max-w-[250px]">
                                                 {archiveFile?.name}
                                             </div>
                                         </div>
                                     </div>
 
                                     {previewStats.previewPdfCount !== undefined && (
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300`}>
-                                            {previewStats.previewPdfCount} PDF Totali
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                                                {previewStats.previewPdfCount}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Documenti PDF</span>
+                                        </div>
                                     )}
                                 </div>
 
                                 {previewStats.previewPdfCount !== undefined && (
-                                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-100 dark:border-white/5">
-
-                                        {/* COL 1: TO IMPORT */}
-                                        <div className="text-center p-3 rounded-xl bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-800/30">
-                                            <span className="block text-sky-600 dark:text-sky-400 font-bold uppercase text-[9px] mb-1">Documenti da Elaborare</span>
-                                            <span className="block text-3xl font-black text-sky-600 dark:text-sky-400">
+                                    <div className="grid grid-cols-3 gap-6 pt-6 border-t border-white/20 dark:border-white/5 relative z-10">
+                                        <div className="text-center group/item">
+                                            <span className="block text-[10px] font-black text-sky-500 dark:text-sky-400 uppercase tracking-widest mb-2">Da Importare</span>
+                                            <span className="text-3xl font-black text-sky-600 dark:text-sky-400 tabular-nums group-hover/item:scale-110 transition-transform">
                                                 {(previewStats.previewPdfMatches || 0) - (previewStats.previewAlreadyLinked || 0)}
                                             </span>
-
                                         </div>
 
-                                        {/* COL 2: IGNORED */}
-                                        <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
-                                            <span className="block text-slate-400 dark:text-slate-500 font-bold uppercase text-[9px] mb-1">Ignorati (Già Presenti)</span>
-                                            <span className="block text-3xl font-black text-slate-600 dark:text-slate-400">
+                                        <div className="text-center group/item border-x border-white/20 dark:border-white/5">
+                                            <span className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Già Presenti</span>
+                                            <span className="text-3xl font-black text-slate-600 dark:text-slate-400 tabular-nums group-hover/item:scale-110 transition-transform">
                                                 {previewStats.previewAlreadyLinked || 0}
                                             </span>
-
                                         </div>
 
-                                        {/* COL 3: UNMATCHED */}
-                                        <div className={`text-center p-3 rounded-xl border ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-800/30' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/5'}`}>
-                                            <span className={`block font-bold uppercase text-[9px] mb-1 ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
-                                                Non Riconosciuti
+                                        <div className="text-center group/item">
+                                            <span className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                                                Non Trovati
                                             </span>
-                                            <span className={`block text-3xl font-black ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                                            <span className={`text-3xl font-black tabular-nums group-hover/item:scale-110 transition-transform ${(previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)) > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
                                                 {previewStats.previewPdfCount - (previewStats.previewPdfMatches || 0)}
                                             </span>
-
                                         </div>
-
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="flex gap-4">
+                        {/* Modal Footer Actions */}
+                        <div className="p-10 pt-0 flex flex-col sm:flex-row gap-4">
                             <button
                                 onClick={() => setShowPreviewModal(false)}
-                                className="px-8 py-4 font-bold rounded-xl btn-glass btn-glass-neutral"
+                                className="flex-1 px-8 py-5 font-black rounded-2xl btn-glass btn-glass-neutral text-base"
                             >
                                 Annulla
                             </button>
                             <button
                                 onClick={handleConfirmUpload}
-                                className={`flex-1 py-4 font-bold rounded-xl shadow-xl ${previewStats.duplicateArchive ? 'btn-glass btn-glass-amber' : 'btn-glass btn-glass-emerald'}`}
+                                className={`flex-[2] py-5 font-black rounded-2xl shadow-2xl transition-all duration-500 text-base scale-100 hover:scale-[1.02] active:scale-95 ${previewStats.duplicateArchive ? 'btn-glass btn-glass-amber shadow-amber-500/20' : 'btn-glass btn-glass-emerald shadow-emerald-500/20'}`}
                             >
-                                {previewStats.duplicateArchive ? 'Conferma e Sovrascrivi' : 'Conferma e Avvia Importazione'}
+                                {previewStats.duplicateArchive ? 'Sovrascrivi e Continua' : 'Conferma e Avvia Importazione'}
                             </button>
                         </div>
                     </div>
@@ -470,26 +498,24 @@ function UserUploadCard() {
     }
 
     return (
-        <div className="col-span-1 lg:col-span-2 mt-8">
-            <div className={`relative group overflow-hidden rounded-3xl transition-all duration-300 border ${file ? 'border-violet-500 ring-4 ring-violet-500/10 bg-white dark:bg-[#1e1e1e]' : 'border-slate-200 dark:border-[#333333] bg-white/70 dark:bg-[#1e1e1e]/50 backdrop-blur-xl hover:border-violet-400 dark:hover:border-violet-700 hover:shadow-xl hover:shadow-violet-500/5'}`}>
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="p-8 flex flex-col md:flex-row items-center gap-8 relative z-10">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded-xl">
-                                <Users size={24} />
+        <div className="col-span-1 lg:col-span-2 mt-12">
+            <div className={`relative group overflow-hidden rounded-[2.5rem] transition-all duration-500 border-2 ${file ? 'border-violet-500/50 bg-white/60 dark:bg-violet-500/10' : 'border-white/20 dark:border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-3xl hover:border-violet-400/50 hover:shadow-2xl hover:shadow-violet-500/10'}`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                <div className="p-10 flex flex-col md:flex-row items-center gap-10 relative z-10">
+                    <div className="flex-1 text-center md:text-left">
+                        <div className="flex flex-col md:flex-row items-center gap-5 mb-2">
+                            <div className="p-4 bg-violet-500 text-white rounded-2xl shadow-xl shadow-violet-500/20 rotate-3 group-hover:rotate-6 transition-transform duration-500">
+                                <Users size={28} />
                             </div>
                             <div>
-                                <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Anagrafica Utenti</h3>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Carica massivamente i profili utenti (CSV).</p>
+                                <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Anagrafica Utenti</h3>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm font-bold opacity-80 mt-1">Sincronizzazione massiva profili clienti</p>
                             </div>
                         </div>
-
-
                     </div>
 
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="flex items-center gap-2 flex-1 md:flex-none min-w-0">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
                             <input
                                 type="file"
                                 accept=".csv"
@@ -499,28 +525,25 @@ function UserUploadCard() {
                             />
                             <label
                                 htmlFor="users-upload"
-                                className={`flex-1 cursor-pointer px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis
-                                    ${file ? 'bg-violet-50/30 dark:bg-violet-500/10 border-2 border-dashed border-violet-400 dark:border-violet-500/40 text-violet-700 dark:text-violet-300' : 'btn-glass btn-glass-neutral'}`}
+                                className={`flex-1 sm:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all duration-500 flex items-center justify-center gap-3 whitespace-nowrap min-w-[200px]
+                                    ${file ? 'bg-violet-500/10 border-2 border-dashed border-violet-500/30 text-violet-700 dark:text-violet-300' : 'btn-glass btn-glass-neutral'}`}
                             >
                                 {file ? (
-                                    <span className="truncate max-w-[200px]">{file.name}</span>
+                                    <span className="truncate max-w-[150px]">{file.name}</span>
                                 ) : (
                                     <>
-                                        <UploadCloud size={16} />
-                                        Scegli CSV
+                                        <UploadCloud size={18} />
+                                        Scegli CSV Clienti
                                     </>
                                 )}
                             </label>
                             {file && (
                                 <button
-                                    onClick={(e) => {
-                                        e.preventDefault()
-                                        setFile(null)
-                                    }}
-                                    className="p-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 transition-colors shadow-sm"
+                                    onClick={(e) => { e.preventDefault(); setFile(null); }}
+                                    className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all duration-300 shadow-lg shadow-red-500/5 group/btn"
                                     title="Rimuovi file"
                                 >
-                                    <X size={18} />
+                                    <X size={20} className="group-hover/btn:rotate-90 transition-transform" />
                                 </button>
                             )}
                         </div>
@@ -528,16 +551,16 @@ function UserUploadCard() {
                         {file && !uploading && (
                             <button
                                 onClick={handleUpload}
-                                className="px-6 py-3 rounded-xl font-bold text-sm transition-colors shadow-lg btn-glass btn-glass-violet"
+                                className="w-full sm:w-auto px-10 py-4 rounded-2xl font-black text-sm shadow-2xl btn-glass btn-glass-violet scale-105 hover:scale-110 active:scale-95 shadow-violet-500/20"
                             >
-                                Carica
+                                Esegui Importazione
                             </button>
                         )}
 
                         {uploading && (
-                            <div className="px-6 py-3 rounded-xl bg-slate-100 text-slate-400 font-bold text-sm flex items-center gap-2">
-                                <Loader2 size={16} className="animate-spin" />
-                                ...
+                            <div className="px-10 py-4 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-400 font-black text-sm flex items-center gap-3 animate-pulse">
+                                <Loader2 size={18} className="animate-spin" />
+                                Elaborazione...
                             </div>
                         )}
                     </div>

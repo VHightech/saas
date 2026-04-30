@@ -49,7 +49,7 @@ export default function CompleteProfilePage() {
             if (error) throw error
 
             // Redirect to dashboard on success
-            router.push('/dashboard')
+            router.push('/profile')
         } catch (error) {
             console.error('Error updating profile:', error)
             alert('Errore durante l\'aggiornamento del profilo. Riprova.')

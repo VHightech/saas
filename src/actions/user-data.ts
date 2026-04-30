@@ -45,11 +45,23 @@ export async function getUserDashboardData() {
 
     if (billsError) {
         console.error('Error fetching bills:', billsError)
-        return { profile, bills: [] as any[], error: 'Failed to fetch bills' }
+        return { profile, bills: [] as any[], supplies: [] as any[], error: 'Failed to fetch bills' }
+    }
+
+    // 3. Fetch User Supplies (per-fornitura address/city)
+    const { data: supplies, error: suppliesError } = await supabase
+        .from('user_supplies')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+
+    if (suppliesError) {
+        console.error('Error fetching user_supplies:', suppliesError)
     }
 
     return {
         profile,
-        bills: (bills || []) as any[]
+        bills: (bills || []) as any[],
+        supplies: (supplies || []) as any[],
     }
 }

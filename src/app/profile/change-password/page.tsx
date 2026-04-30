@@ -38,7 +38,7 @@ export default function ChangePasswordPage() {
 
             setMessage('Password aggiornata con successo! Reindirizzamento...')
             setTimeout(() => {
-                router.push('/dashboard')
+                router.push('/profile')
             }, 2000)
         } catch (error: any) {
             console.error('Error updating password:', error)
