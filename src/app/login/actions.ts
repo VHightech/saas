@@ -74,7 +74,7 @@ export async function login(formData: FormData) {
     if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'superadmin') {
         redirect('/admin/users') // Default safe admin page
     } else {
-        redirect('/dashboard')
+        redirect('/profile')
     }
 }
 export async function logout() {

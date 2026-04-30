@@ -62,7 +62,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         .eq('id', user.id)
         .maybeSingle()
 
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'superadmin'
     const isOwner = bill.user_id !== null && bill.user_id === user.id
 
     if (!isAdmin && !isOwner) {

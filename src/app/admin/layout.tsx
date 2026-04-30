@@ -20,9 +20,9 @@ export default async function AdminLayout({
     // 2. Check Role (Using new Auth Logic)
     const role = await getCurrentUserRole()
 
-    // Allow only 'admin' to access the admin area
-    if (role !== 'admin') {
-        redirect('/dashboard')
+    // Allow only administrative roles to access the admin area
+    if (role !== 'admin' && role !== 'super_admin' && role !== 'superadmin') {
+        redirect('/profile')
     }
 
     // 4. Get User Info

@@ -108,3 +108,54 @@ export async function updateUser(userId: string, data: {
     revalidatePath('/admin/users')
     return { success: true }
 }
+
+export async function resetUserPassword(userId: string) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) {
+        return { error: authCheck.error }
+    }
+
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        }
+    )
+
+    // 1. Get user email
+    const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
+    if (userError || !user.user?.email) {
+        return { error: 'Impossibile trovare l\'email dell\'utente o utente non registrato.' }
+    }
+
+    // 2. Trigger reset email
+    const { error } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email: user.user.email,
+        options: {
+            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard/profile`
+        }
+    })
+
+    if (error) {
+        console.error('Reset password failed:', error.message)
+        return { error: 'Errore durante l\'invio dell\'email di reset.' }
+    }
+
+    // Note: generateLink gives us the link, but if we want Supabase to SEND the email automatically,
+    // we should use resetPasswordForEmail. However, resetPasswordForEmail is a client-side / public API.
+    // To do it "as admin" and ensure the email is sent by Supabase:
+    const { error: sendError } = await supabaseAdmin.auth.resetPasswordForEmail(user.user.email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard/profile`
+    })
+
+    if (sendError) {
+        return { error: 'Errore nell\'invio dell\'email: ' + sendError.message }
+    }
+
+    return { success: true }
+}
