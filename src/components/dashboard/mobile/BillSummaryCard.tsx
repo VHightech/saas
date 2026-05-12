@@ -34,7 +34,7 @@ export function BillSummaryCard({
                     <h3 className="text-3xl font-bold tracking-tighter">{formatEuro(total)}</h3>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Euro size={20} className="text-[#C6F36B]" />
+                    <Euro size={20} className="text-[#93C5FD]" />
                 </div>
             </div>
 

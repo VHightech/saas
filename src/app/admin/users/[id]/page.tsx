@@ -4,14 +4,13 @@ import { use, useMemo, useState, useEffect, useRef, useLayoutEffect } from 'reac
 import { useRouter } from 'next/navigation'
 import {
     ArrowLeft, Download, Eye, Edit2, Key, ChevronLeft, ChevronRight,
-    Search, FileText, X, Check, Calendar, ChevronDown, Copy, Droplets
+    Search, FileText, X, Check, Calendar, ChevronDown, Copy, Droplets, Trash2
 } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { format, startOfDay, endOfDay, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, isAfter, isBefore } from 'date-fns'
 import { it as itLocale } from 'date-fns/locale'
-import { updateUser } from '../actions'
-import { ExpensesTrendChart } from '@/components/dashboard/widgets/ExpensesTrendChart'
+import { updateUser, deleteUser, deleteSupply } from '../actions'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +24,8 @@ interface Profile {
     address: string | null
     city: string | null
     codice_cliente: string | null
+    stadio?: string | null
+    stato_contratto?: string | null
     is_shadow?: boolean
 }
 
@@ -35,6 +36,8 @@ interface UserSupply {
     city: string | null
     codice_cliente: string
     ulm?: string
+    stadio?: string | null
+    stato_contratto?: string | null
 }
 
 interface Bill {
@@ -49,11 +52,23 @@ interface Bill {
     billing_type: string | null
     expected_method: string | null
     ulm: string | null
+    cif: string | null
     numero_bolletta: string | null
 }
 
-function formatEuro(n: number) {
-    return `${(n || 0).toFixed(2).replace('.', ',')} €`
+function formatEuro(n: number | null | undefined) {
+    if (n === null || n === undefined) return '0,00 €'
+    return `${(Number(n) || 0).toFixed(2).replace('.', ',')} €`
+}
+
+function getContractStatus(status: string) {
+    switch (status) {
+        case '03': return { label: 'Attivo', color: 'emerald' }
+        case '04': return { label: 'In Lavorazione', color: 'amber' }
+        case '05': return { label: 'Chiuso', color: 'slate' }
+        case '08': return { label: 'Annullato', color: 'rose' }
+        default: return { label: status || '—', color: 'slate' }
+    }
 }
 
 function CodeBadge({ value, label, copyable, mono = true }: { value: string; label?: string; copyable?: boolean; mono?: boolean }) {
@@ -68,13 +83,12 @@ function CodeBadge({ value, label, copyable, mono = true }: { value: string; lab
     const Wrapper: any = copyable ? 'button' : 'span'
     
     return (
-        <div className="group relative inline-flex items-center">
+        <div className="group/badge relative inline-flex items-center gap-1.5">
             <Wrapper
                 {...(copyable ? { onClick: copy, title: `Copia ${value}` } : {})}
                 className={cn(
                     'relative inline-flex items-center h-7 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 px-3 rounded-full max-w-full transition-all duration-300',
                     copyable && 'cursor-pointer hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98]',
-                    copyable && 'pr-8', // Reserve space for icon on right
                     copied && 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10'
                 )}
             >
@@ -88,49 +102,32 @@ function CodeBadge({ value, label, copyable, mono = true }: { value: string; lab
                         </span>
                     )}
                     <span className={cn(
-                        "text-[11px] font-bold truncate transition-colors duration-300 tabular-nums",
+                        "text-[11px] font-bold truncate transition-all duration-300 tabular-nums",
                         mono && "font-mono",
+                        copyable && "group-hover/badge:text-emerald-600 dark:group-hover/badge:text-emerald-400 group-hover/badge:underline group-hover/badge:decoration-emerald-500 underline-offset-2",
                         copied ? "text-emerald-700 dark:text-emerald-400" : "text-slate-700 dark:text-slate-200"
                     )}>
                         {copied ? 'Copiato!' : value}
                     </span>
                 </div>
-
-                {/* Internal Icon - revealed on right */}
-                {copyable && (
-                    <div className={cn(
-                        "absolute right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 origin-center",
-                        copied 
-                            ? "opacity-100 scale-100 bg-emerald-600 text-white" 
-                            : "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100 bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A]"
-                    )}>
-                        {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={9} strokeWidth={2.5} />}
-                    </div>
-                )}
             </Wrapper>
-        </div>
-    )
-}
 
-function RailCard({ label, action, children }: { label: string; action?: React.ReactNode; children: React.ReactNode }) {
-    return (
-        <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
-            <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400">{label}</p>
-                {action}
-            </div>
-            {children}
-        </div>
-    )
-}
-
-function Metric({ value, label, valueClass }: { value: string; label: string; valueClass?: string }) {
-    return (
-        <div className="flex flex-col">
-            <p className={cn('text-[16px] font-bold tracking-tight text-slate-900 dark:text-white leading-none', valueClass)}>
-                {value}
-            </p>
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 mt-1.5">{label}</p>
+            {/* External Icon - revealed on hover */}
+            {copyable && (
+                <div 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        copy(e as any);
+                    }}
+                    className={cn(
+                        "w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer origin-left",
+                        copied
+                            ? "opacity-100 scale-100 translate-x-0 bg-emerald-600 text-white"
+                            : "opacity-0 -translate-x-2 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:translate-x-0 group-hover/badge:pointer-events-auto bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] hover:bg-slate-800 dark:hover:bg-white/90"
+                    )}>
+                    {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={10} strokeWidth={2.5} />}
+                </div>
+            )}
         </div>
     )
 }
@@ -225,14 +222,22 @@ function MiniSpendChart({ bills }: { bills: Bill[] }) {
     return (
         <div>
             <div className="mb-4">
-                <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-2">Andamento spesa & consumo</p>
-                <div className="flex items-baseline justify-between gap-2">
-                    <h3 className="text-[22px] font-bold tracking-tight text-slate-900 dark:text-white leading-none tabular-nums">
-                        € {curI.toFixed(2).replace('.', ',')}
-                    </h3>
-                    <span className="text-[13px] font-bold text-indigo-500 dark:text-indigo-400 tabular-nums">
-                        {curC} mc
-                    </span>
+                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 mb-3">Andamento spesa & consumo</p>
+                <div className="flex items-baseline justify-between gap-2 min-h-[22px]">
+                    {isEmpty ? (
+                        <span className="text-[12px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-white/5 px-3 py-1 rounded-lg border border-slate-100 dark:border-white/5">
+                            nessun dato disponibile
+                        </span>
+                    ) : (
+                        <>
+                            <h3 className="text-[22px] font-bold tracking-tight text-slate-900 dark:text-white leading-none tabular-nums">
+                                € {curI.toFixed(2).replace('.', ',')}
+                            </h3>
+                            <span className="text-[13px] font-bold text-indigo-500 dark:text-indigo-400 tabular-nums">
+                                {curC} mc
+                            </span>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -249,15 +254,42 @@ function MiniSpendChart({ bills }: { bills: Bill[] }) {
                         </linearGradient>
                     </defs>
                     
-                    {!isEmpty && (
+                    {isEmpty ? (
                         <>
-                            {/* Consumption Area (Background) */}
-                            {areaC && <path d={areaC} fill="url(#gradC)" />}
-                            {pathC && <path d={pathC} fill="none" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.4" />}
-                            
-                            {/* Importo Area (Foreground) */}
-                            {areaI && <path d={areaI} fill="url(#gradI)" />}
-                            {pathI && <path d={pathI} fill="none" stroke="#84cc16" strokeWidth="2.5" className="drop-shadow-[0_2px_4px_rgba(132,204,22,0.4)]" />}
+                            {/* Fake Double Lines for Empty State */}
+                            <path
+                                d="M 12,85 C 50,75 100,90 150,70 C 200,50 250,80 288,60"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="text-slate-100 dark:text-white/5"
+                            />
+                            <path
+                                d="M 12,75 C 50,85 100,60 150,80 C 200,100 250,60 288,75"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeDasharray="4 4"
+                                className="text-slate-100 dark:text-white/5 opacity-60"
+                            />
+                        </>
+                    ) : (
+                        <>
+                            {/* Area shadows */}
+                            <path d={areaI} fill="url(#gradI)" className="transition-all duration-700 ease-out" />
+                            <path d={areaC} fill="url(#gradC)" className="transition-all duration-700 ease-out" />
+
+                            {/* Lines */}
+                            <path d={pathI} fill="none" stroke="#84cc16" strokeWidth="2.5" strokeLinecap="round" className="transition-all duration-700 ease-out" />
+                            <path d={pathC} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeDasharray="4 4" className="opacity-60 transition-all duration-700 ease-out" />
+
+                            {/* Interaction points */}
+                            {data.points.map((p, i) => (
+                                <g key={p.key} className={cn("transition-opacity duration-300", active !== null && active !== i ? 'opacity-20' : 'opacity-100')}>
+                                    <circle cx={p.x} cy={p.yI} r="3.5" fill="#84cc16" stroke="#fff" strokeWidth="2" />
+                                    <circle cx={p.x} cy={p.yC} r="2" fill="#6366f1" />
+                                </g>
+                            ))}
                         </>
                     )}
                 </svg>
@@ -427,6 +459,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     const [profile, setProfile] = useState<Profile | null>(null)
     const [userSupplies, setUserSupplies] = useState<UserSupply[]>([])
     const [bills, setBills] = useState<Bill[]>([])
+    const [supplySearch, setSupplySearch] = useState('')
+    const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
 
     const supabase = createClient()
 
@@ -455,6 +489,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         const { data: billsData } = await supabase
             .from('bills').select('*').eq('user_id', id).order('data_emissione', { ascending: false })
         setBills(billsData || [])
+
+        // Fetch current user role
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: currProfile } = await supabase.from('profiles').select('role').eq('auth_user_id', user.id).single()
+            setCurrentUserRole(currProfile?.role || null)
+        }
+
         setLoading(false)
     }
 
@@ -515,6 +557,32 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         })
     }
 
+    const handleDeleteUser = async () => {
+        if (!window.confirm("Sei sicuro di voler eliminare definitivamente questo profilo e tutti i suoi dati?")) return
+        toast.promise(deleteUser(id), {
+            loading: 'Eliminazione in corso...',
+            success: (res) => {
+                if (res.error) throw new Error(res.error)
+                router.replace('/admin/users')
+                return 'Utente eliminato'
+            },
+            error: (err) => `Errore: ${err.message}`
+        })
+    }
+
+    const handleDeleteSupply = async (cif: string) => {
+        if (!window.confirm(`Eliminare la fornitura ${cif}?`)) return
+        toast.promise(deleteSupply(cif, id), {
+            loading: 'Eliminazione in corso...',
+            success: (res) => {
+                if (res.error) throw new Error(res.error)
+                fetchData()
+                return 'Fornitura eliminata'
+            },
+            error: (err) => `Errore: ${err.message}`
+        })
+    }
+
     const analytics = useMemo(() => {
         if (!profile) return null
         const totalInvoices = bills.length
@@ -534,6 +602,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         })
         return Array.from(set).sort()
     }, [bills, userSupplies])
+
+    const filteredUniqueUlms = useMemo(() => {
+        if (!supplySearch) return uniqueUlms
+        const q = supplySearch.toLowerCase()
+        return uniqueUlms.filter(ulm => {
+            const supply = userSupplies.find(s => s.ulm === ulm || (s.cif && s.cif.endsWith(ulm)))
+            return ulm.toLowerCase().includes(q) || 
+                   (supply?.address?.toLowerCase().includes(q)) ||
+                   (supply?.city?.toLowerCase().includes(q))
+        })
+    }, [uniqueUlms, supplySearch, userSupplies])
 
     const filteredInvoices = useMemo(() => {
         let filtered = bills
@@ -566,19 +645,38 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     if (!profile) return <div className="p-10 text-center text-[12px] text-rose-500 font-semibold">Utente non trovato</div>
     if (!analytics) return null
 
-    const ulmValue = (profile.cif || userSupplies[0]?.cif || '').slice(-6)
-    const fullAddress = [profile.address, profile.city].filter(Boolean).join(', ')
-
     return (
         <>
 
 
             <AdminPageHero
-                title={profile.name || 'Utente non registrato'}
+                title={
+                    <div className="flex items-center gap-3">
+                        <span>{profile.name || 'Utente non registrato'}</span>
+                        {profile.stadio && (() => {
+                            const status = getContractStatus(profile.stadio)
+                            const colors = {
+                                emerald: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+                                amber: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+                                slate: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+                                rose: 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                            } as any
+                            return (
+                                <div className={cn(
+                                    "px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider flex items-center gap-2",
+                                    colors[status.color]
+                                )}>
+                                    <span className="opacity-50 text-[8px] font-bold tracking-widest">Stato Contratto</span>
+                                    <span>{status.label}</span>
+                                </div>
+                            )
+                        })()}
+                    </div>
+                }
                 backAction={
                     <button
                         onClick={() => router.back()}
-                        className="group h-9 px-3.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
+                        className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                         title="Torna indietro"
                     >
                         <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform group-hover:-translate-x-0.5">
@@ -593,7 +691,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                             <div className="flex items-center rounded-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
                                 <button
                                     onClick={handleSave}
-                                    className="flex items-center gap-2.5 pl-3 pr-4 h-full hover:bg-slate-50 dark:hover:bg-white/10 transition-colors active:opacity-80"
+                                    className="flex items-center gap-2 pl-2 pr-4 h-full hover:bg-slate-50 dark:hover:bg-white/10 transition-colors active:opacity-80"
                                 >
                                     <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                                         <Check size={11} strokeWidth={3} />
@@ -606,13 +704,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                     className="group/x w-10 h-full flex items-center justify-center transition-all active:opacity-80"
                                     title="Annulla"
                                 >
-                                    <X size={15} strokeWidth={2.5} className="text-slate-400 dark:text-slate-500 group-hover/x:text-red-500 group-hover/x:rotate-90 transition-all duration-300" />
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 group-hover/x:bg-rose-500 group-hover/x:text-white transition-all duration-300">
+                                        <X size={14} strokeWidth={2.5} className="group-hover/x:rotate-90 transition-transform duration-300" />
+                                    </div>
                                 </button>
                             </div>
                         ) : (
                             <button
                                 onClick={() => setIsEditing(true)}
-                                className="group h-9 px-3.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
+                                className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                             >
                                 <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
                                     <Edit2 size={11} strokeWidth={3} />
@@ -623,13 +723,25 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
                         <button
                             onClick={handleResetPwd}
-                            className="group h-9 px-3.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
+                            className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                         >
                             <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform group-hover:rotate-12">
                                 <Key size={11} strokeWidth={3} />
                             </div>
                             <span className="text-[12px] font-semibold tracking-tight">Reset Pwd</span>
                         </button>
+
+                        {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
+                            <button
+                                onClick={handleDeleteUser}
+                                className="group h-9 pl-2 pr-4 rounded-full border border-rose-200 dark:border-rose-500/20 bg-white dark:bg-rose-500/5 text-rose-600 dark:text-rose-400 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-[0.98]"
+                            >
+                                <div className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center transition-transform group-hover:scale-110">
+                                    <Trash2 size={11} strokeWidth={3} />
+                                </div>
+                                <span className="text-[12px] font-semibold tracking-tight">Elimina Profilo</span>
+                            </button>
+                        )}
                     </div>
                 }
                 actions={
@@ -695,7 +807,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                 <button
                                     onClick={() => setPeriodOpen(v => !v)}
                                     className={cn(
-                                        "h-8 px-3 rounded-full text-[12px] font-medium flex items-center gap-2 transition-all",
+                                        "h-9 px-4 rounded-full text-[13px] font-medium flex items-center gap-2 transition-all",
                                         (fromDate || toDate)
                                             ? "bg-[#1A1F2A] text-white border border-transparent"
                                             : "bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-white/40"
@@ -707,17 +819,19 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                             ? `${fromDate ? format(fromDate, 'dd/MM/yy') : '—'} → ${toDate ? format(toDate, 'dd/MM/yy') : '—'}`
                                             : 'Periodo'}
                                     </span>
-                                    {(fromDate || toDate) ? (
-                                        <span
+                                    <ChevronDown 
+                                        size={13} 
+                                        className={cn("transition-transform duration-200", (fromDate || toDate) ? 'text-white/60' : 'text-slate-400')} 
+                                    />
+                                    {(fromDate || toDate) && (
+                                        <div
                                             role="button"
                                             onClick={(e) => { e.stopPropagation(); setFromDate(null); setToDate(null); setCurrentPage(1) }}
-                                            className="ml-1 -mr-1 h-4 w-4 rounded-full hover:bg-white/15 flex items-center justify-center"
+                                            className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:bg-rose-500 hover:border-rose-500 -mr-1 transition-all duration-200"
                                             title="Cancella periodo"
                                         >
-                                            <X size={11} />
-                                        </span>
-                                    ) : (
-                                        <ChevronDown size={13} className="text-slate-400" />
+                                            <X size={10} strokeWidth={3} />
+                                        </div>
                                     )}
                                 </button>
                                 {periodOpen && (
@@ -762,111 +876,134 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
                             {/* Supply / Fornitura filter */}
                             {uniqueUlms.length > 0 && (
-                                <div ref={supplyRef} className="relative">
+                                <div ref={supplyRef} className="relative group">
                                     <button
-                                        onClick={() => setSupplyOpen(v => !v)}
+                                        onClick={() => { setSupplyOpen(v => !v); setSupplySearch('') }}
                                         className={cn(
-                                            "h-8 px-3 rounded-full text-[12px] font-medium flex items-center gap-2 transition-all",
+                                            "h-9 px-4 rounded-full text-[13px] font-medium flex items-center gap-2 transition-all",
                                             selectedUlm !== 'all'
                                                 ? "bg-[#1A1F2A] text-white border border-transparent"
                                                 : "bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-white/40"
                                         )}
                                     >
-                                        <FileText size={13} className={selectedUlm !== 'all' ? 'text-white/70' : 'text-slate-400'} />
-                                        <span className="flex items-center gap-1">
-                                            {selectedUlm !== 'all' ? (
-                                                <>
-                                                    <span className="opacity-70">ULM</span>
-                                                    <span
-                                                        role="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            navigator.clipboard.writeText(selectedUlm)
-                                                            toast.success("ULM Copiato!")
-                                                        }}
-                                                        className="hover:underline underline-offset-4 hover:text-lime-400 cursor-pointer transition-colors"
-                                                        title="Clicca per copiare"
-                                                    >
-                                                        {selectedUlm}
-                                                    </span>
-                                                </>
-                                            ) : (
-                                                'Fornitura'
-                                            )}
-                                        </span>
-                                        {selectedUlm !== 'all' ? (
-                                            <span
-                                                role="button"
-                                                onClick={(e) => { e.stopPropagation(); setSelectedUlm('all'); setCurrentPage(1) }}
-                                                className="ml-1 -mr-1 h-5 w-5 rounded-full hover:bg-white/15 flex items-center justify-center transition-colors shrink-0"
-                                                title="Mostra tutte"
-                                            >
-                                                <X size={11} />
-                                            </span>
-                                        ) : (
-                                            <ChevronDown size={13} className="ml-1 text-slate-400 shrink-0" />
-                                        )}
-                                    </button>
-                                    {supplyOpen && (
-                                        <div className="absolute top-full left-0 mt-1 w-[240px] bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                                            <button
-                                                onClick={() => { setSelectedUlm('all'); setSupplyOpen(false); setCurrentPage(1) }}
-                                                className={cn(
-                                                    "w-full text-left px-4 py-2.5 text-[12px] font-medium flex items-center justify-between transition-colors",
-                                                    selectedUlm === 'all'
-                                                        ? "bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white"
-                                                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
-                                                )}
-                                            >
-                                                Tutte le forniture
-                                                {selectedUlm === 'all' && <div className="w-1.5 h-1.5 rounded-full bg-[#1A1F2A] dark:bg-white" />}
-                                            </button>
-                                            {uniqueUlms.map(ulm => {
-                                                const supply = userSupplies.find(s => s.ulm === ulm || (s.cif && s.cif.endsWith(ulm)))
-                                                return (
-                                                    <button
-                                                        key={ulm}
-                                                        onClick={() => { setSelectedUlm(ulm); setSupplyOpen(false); setCurrentPage(1) }}
-                                                        className={cn(
-                                                            "w-full text-left px-4 py-2.5 text-[12px] font-medium flex items-center justify-between transition-colors",
-                                                            selectedUlm === ulm
-                                                                ? "bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white"
-                                                                : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
-                                                        )}
-                                                    >
-                                                        <div className="flex flex-col min-w-0">
-                                                            <span className="font-mono text-[11px] truncate">{ulm}</span>
-                                                            {supply?.address && (
-                                                                <span className="text-[10px] text-slate-400 truncate">{supply.address}</span>
-                                                            )}
-                                                        </div>
-                                                        {selectedUlm === ulm && <div className="w-1.5 h-1.5 rounded-full bg-[#1A1F2A] dark:bg-white shrink-0" />}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
+                <FileText size={13} className={selectedUlm !== 'all' ? 'text-white/70' : 'text-slate-400'} />
+                <span className="flex items-center gap-1.5">
+                    <span>Fornitura</span>
+                    {selectedUlm !== 'all' && (
+                        <span className="text-white/60 font-mono text-[13px] font-bold ml-1.5 leading-none flex items-center">
+                            {selectedUlm}
+                        </span>
+                    )}
+                </span>
+                
+                {selectedUlm === 'all' && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-slate-400">
+                        {uniqueUlms.length}
+                    </span>
+                )}
+
+                <ChevronDown 
+                    size={14} 
+                    className={cn("transition-transform duration-200", selectedUlm !== 'all' ? 'text-white/60' : 'text-slate-400', supplyOpen ? 'rotate-180' : '')} 
+                />
+
+                {selectedUlm !== 'all' && (
+                    <div
+                        role="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedUlm('all'); setCurrentPage(1) }}
+                        className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:bg-rose-500 hover:border-rose-500 -mr-1 transition-all duration-200"
+                        title="Tutte le forniture"
+                    >
+                        <X size={10} strokeWidth={3} />
+                    </div>
+                )}
+            </button>
+            
+            {supplyOpen && (
+                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+                        <div className="relative">
+                            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="Cerca ULM o indirizzo..."
+                                value={supplySearch}
+                                onChange={(e) => setSupplySearch(e.target.value)}
+                                className="w-full h-8 pl-8 pr-3 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[12px] text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 transition-all"
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar py-1">
+                        <button
+                            onClick={() => { setSelectedUlm('all'); setSupplyOpen(false); setCurrentPage(1) }}
+                            className={cn(
+                                "w-full text-left px-3 py-2 text-[12px] hover:bg-slate-50 dark:hover:bg-white/5 flex items-center justify-between",
+                                selectedUlm === 'all' ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"
+                            )}
+                        >
+                            <span>Tutte le forniture</span>
+                            {selectedUlm === 'all' && <Check size={12} />}
+                        </button>
+                        
+                        <div className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/30 dark:bg-white/[0.01]">
+                            Risultati ({filteredUniqueUlms.length})
+                        </div>
+                        
+                        {filteredUniqueUlms.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-[11px] text-slate-400 italic">
+                                Nessun risultato
+                            </div>
+                        ) : filteredUniqueUlms.map(ulm => {
+                            const supply = userSupplies.find(s => s.ulm === ulm || (s.cif && s.cif.endsWith(ulm)))
+                            return (
+                                <button
+                                    key={ulm}
+                                    onClick={() => { setSelectedUlm(ulm); setSupplyOpen(false); setCurrentPage(1) }}
+                                    className={cn(
+                                        "w-full text-left px-3 py-2 text-[12px] hover:bg-slate-50 dark:hover:bg-white/5 flex items-center justify-between group/opt border-l-2",
+                                        selectedUlm === ulm ? "border-indigo-600 bg-indigo-50/30 dark:bg-indigo-500/5 text-indigo-600 font-bold" : "border-transparent text-slate-600 dark:text-slate-400"
                                     )}
-                                </div>
+                                >
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="font-mono text-[11px] truncate">{ulm}</span>
+                                        {supply?.address && (
+                                            <span className="text-[10px] text-slate-400 truncate font-normal">{supply.address}</span>
+                                        )}
+                                    </div>
+                                    {selectedUlm === ulm && <Check size={12} className="shrink-0 ml-2" />}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
                             )}
 
                             <div className="ml-auto relative w-64">
                                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="text"
-                                    placeholder="Cerca bolletta…"
+                                    placeholder="Cerca..."
                                     value={invoiceSearch}
                                     onChange={(e) => setInvoiceSearch(e.target.value)}
-                                    className="w-full h-8 pl-8 pr-3 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[12px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:border-slate-300 dark:focus:border-white/20 transition-all"
+                                    className="w-full h-9 pl-9 pr-4 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[13px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:border-slate-300 dark:focus:border-white/20 transition-all"
                                 />
                             </div>
                         </div>
 
                         {/* Table — grid based, list-page style */}
                         <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_72px] gap-3 px-6 py-2 bg-white dark:bg-[#0F1115] text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 border-t border-slate-200/70 dark:border-white/5">
+                            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,0.5fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.4fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.7fr)_72px] gap-3 px-6 py-2 bg-white dark:bg-[#0F1115] text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 border-t border-slate-200/70 dark:border-white/5">
                                 <div>N° Bolletta</div>
+                                <div>CIF</div>
+                                <div>ULM</div>
                                 <div>Emissione</div>
                                 <div>Scadenza</div>
+                                <div className="text-center">Tipo</div>
+                                <div>Metodo</div>
                                 <div className="text-right">Consumo</div>
                                 <div className="text-right">Importo</div>
                                 <div className="text-right">Azioni</div>
@@ -877,16 +1014,41 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                 ) : currentInvoices.map((inv) => (
                                     <div
                                         key={inv.id}
-                                        className="group grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_72px] gap-3 items-center px-6 py-3 hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition-colors"
+                                        className="group grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,0.5fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.4fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.7fr)_72px] gap-3 items-center px-6 py-3 hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition-colors"
                                     >
                                         <div className="text-[14px] font-medium text-slate-800 dark:text-white truncate font-mono">
                                             {inv.numero_bolletta || inv.nome_pdf?.replace('.pdf', '') || `#${inv.id}`}
+                                        </div>
+                                        <div className="flex items-center min-w-0">
+                                            {inv.cif ? (
+                                                <CodeBadge value={inv.cif} label="CIF" copyable />
+                                            ) : '—'}
+                                        </div>
+                                        <div className="flex items-center min-w-0">
+                                            {inv.ulm ? (
+                                                <CodeBadge value={inv.ulm} label="ULM" copyable />
+                                            ) : '—'}
                                         </div>
                                         <div className="text-[13px] text-slate-500 dark:text-slate-400">
                                             {inv.data_emissione ? format(new Date(inv.data_emissione), 'dd/MM/yyyy') : '—'}
                                         </div>
                                         <div className="text-[13px] text-slate-500 dark:text-slate-400">
                                             {inv.scadenza ? format(new Date(inv.scadenza), 'dd/MM/yyyy') : '—'}
+                                        </div>
+                                        <div className="flex items-center justify-center">
+                                            {inv.billing_type ? (
+                                                <div className={cn(
+                                                    "w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold border",
+                                                    inv.billing_type === 'S' 
+                                                        ? "bg-amber-500/10 text-amber-600 border-amber-500/20" 
+                                                        : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                                )}>
+                                                    {inv.billing_type}
+                                                </div>
+                                            ) : '—'}
+                                        </div>
+                                        <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">
+                                            {inv.expected_method || '—'}
                                         </div>
                                         <div className="text-[13px] font-semibold text-slate-700 dark:text-slate-200 text-right tabular-nums flex items-center justify-end gap-1.5">
                                             <Droplets size={14} className="text-sky-400 fill-sky-400/30" strokeWidth={2.5} />
@@ -963,7 +1125,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                     <aside className="hidden xl:flex flex-col gap-3 min-h-0 overflow-auto custom-scrollbar pt-2 pr-6 pl-6">
                         {/* Account Details Card */}
                         <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
-                            <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 mb-3">
+                            <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 mb-3">
                                 Informazioni Account
                             </p>
                             <div className="flex flex-col gap-2.5">
@@ -989,30 +1151,90 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                         </div>
 
                         {userSupplies.length > 0 && (
-                            <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
-                                <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 mb-3">
-                                    Forniture <span className="text-slate-300 dark:text-slate-600">· {userSupplies.length}</span>
+                            <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4 flex flex-col">
+                                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 mb-3 flex items-center justify-between">
+                                    <span>Forniture</span>
+                                    <span className="bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px] font-bold">
+                                        {userSupplies.length}
+                                    </span>
                                 </p>
-                                <div className="divide-y divide-slate-100 dark:divide-white/5 -mx-1">
-                                    {userSupplies.map(s => (
-                                        <div key={s.id} className="flex flex-col gap-1 px-1 py-2.5 first:pt-0 last:pb-0">
-                                            <CodeBadge value={s.cif} label="CIF" copyable />
-                                            {(s.address || s.city) && (
-                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate pl-0.5">
-                                                    {[s.address, s.city].filter(Boolean).join(', ')}
-                                                </span>
+                                
+                                {(() => {
+                                    const distribution = userSupplies.reduce((acc, s) => {
+                                        const status = s.stadio || 'unknown'
+                                        acc[status] = (acc[status] || 0) + 1
+                                        return acc
+                                    }, {} as Record<string, number>)
+
+                                    const sortedStatuses = Object.entries(distribution).sort((a, b) => b[1] - a[1])
+
+                                    return (
+                                        <div className="flex flex-col gap-2 mt-1">
+                                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-1 opacity-70">Stato Contratti</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {sortedStatuses.map(([stadio, count]) => {
+                                                    const status = getContractStatus(stadio)
+                                                    const colors = {
+                                                        emerald: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+                                                        amber: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+                                                        slate: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+                                                        rose: 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                                                    } as any
+                                                    return (
+                                                        <div 
+                                                            key={stadio}
+                                                            className={cn(
+                                                                "flex items-center gap-2 px-2 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-tight transition-all",
+                                                                colors[status.color]
+                                                            )}
+                                                        >
+                                                            <span>{status.label}</span>
+                                                            <span className="w-5 h-5 rounded-md bg-black/5 dark:bg-white/10 flex items-center justify-center font-mono text-[10px]">
+                                                                {count}
+                                                            </span>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+
+                                            {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
+                                                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest opacity-70">Azioni Forniture</p>
+                                                        <span className="text-[10px] font-mono text-slate-400">{userSupplies.length}</span>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                                                        {userSupplies.map(s => (
+                                                            <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 group/s shrink-0">
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">{s.ulm || s.cif.slice(-6)}</span>
+                                                                    <span className="text-[9px] text-slate-400 truncate">{s.address}</span>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => handleDeleteSupply(s.cif)}
+                                                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover/s:opacity-100"
+                                                                    title="Elimina fornitura"
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
-                                    ))}
-                                </div>
+                                    )
+                                })()}
                             </div>
                         )}
 
 
 
-                        <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
-                            <MiniSpendChart bills={bills} />
-                        </div>
+                        {bills.length > 0 && (
+                            <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
+                                <MiniSpendChart bills={bills} />
+                            </div>
+                        )}
                     </aside>
                 </div>
             </div>

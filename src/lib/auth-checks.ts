@@ -36,7 +36,7 @@ export async function requireAdmin(): Promise<AdminCheckResult> {
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', user.id)
+        .eq('auth_user_id', user.id)
         .maybeSingle<ProfileRow>()
 
     if (profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'superadmin') {
@@ -61,7 +61,7 @@ export async function requireSuperadmin(): Promise<AdminCheckResult> {
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', user.id)
+        .eq('auth_user_id', user.id)
         .maybeSingle<ProfileRow>()
 
     if (profile?.role === 'super_admin' || profile?.role === 'superadmin') {

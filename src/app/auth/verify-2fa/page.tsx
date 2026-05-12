@@ -27,7 +27,7 @@ export default function Verify2FAPage() {
                     </div>
 
                     <button
-                        formAction={verifyOtp}
+                        formAction={verifyOtp as any}
                         className="w-full py-3.5 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
                     >
                         Verifica

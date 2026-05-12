@@ -1,111 +1,120 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { changePassword } from './actions'
 
 export default function ChangePasswordPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
-    const [passwords, setPasswords] = useState({
+    const [form, setForm] = useState({
+        currentPassword: '',
         newPassword: '',
         confirmPassword: ''
     })
-    const [message, setMessage] = useState<string | null>(null)
+    const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setMessage(null)
 
-        if (passwords.newPassword !== passwords.confirmPassword) {
-            setMessage('Le password non coincidono')
+        if (form.newPassword !== form.confirmPassword) {
+            setMessage({ kind: 'err', text: 'Le password non coincidono.' })
             return
         }
 
         setLoading(true)
-        try {
-            const { error } = await supabase.auth.updateUser({
-                password: passwords.newPassword
-            })
+        const res = await changePassword(form.currentPassword, form.newPassword)
 
-            if (error) throw error
-
-            setMessage('Password aggiornata con successo! Reindirizzamento...')
-            setTimeout(() => {
-                router.push('/profile')
-            }, 2000)
-        } catch (error: any) {
-            console.error('Error updating password:', error)
-            setMessage(error.message || 'Errore durante l\'aggiornamento della password.')
-        } finally {
+        if (res?.error) {
+            setMessage({ kind: 'err', text: res.error })
             setLoading(false)
+            return
         }
+
+        setMessage({ kind: 'ok', text: 'Password aggiornata. Reindirizzamento...' })
+        setTimeout(() => router.push('/profile'), 1500)
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
-            <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg border border-slate-100">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#0a0a0a]">
+            <div className="w-full max-w-md bg-white dark:bg-white/[0.04] p-8 rounded-2xl shadow-lg border border-slate-100 dark:border-white/10">
                 <div className="text-center mb-8">
-                    <h1 className="text-2xl font-bold text-slate-900 mb-2">Imposta Nuova Password</h1>
-                    <p className="text-slate-600">Inserisci la tua nuova password</p>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Cambia Password</h1>
+                    <p className="text-slate-600 dark:text-slate-400 text-sm">
+                        Per motivi di sicurezza inserisci la password attuale e quella nuova.
+                    </p>
                 </div>
 
                 {message && (
-                    <div className={`p-4 mb-4 rounded-xl text-sm ${message.includes('successo') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                        {message}
+                    <div
+                        className={`p-4 mb-4 rounded-xl text-sm ${
+                            message.kind === 'ok'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                        }`}
+                    >
+                        {message.text}
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Nuova Password
-                        </label>
-                        <input
-                            type="password"
-                            required
-                            minLength={6}
-                            value={passwords.newPassword}
-                            onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                            placeholder="••••••••"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Conferma Password
-                        </label>
-                        <input
-                            type="password"
-                            required
-                            minLength={6}
-                            value={passwords.confirmPassword}
-                            onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                            placeholder="••••••••"
-                        />
-                    </div>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <Field
+                        label="Password Attuale"
+                        value={form.currentPassword}
+                        onChange={v => setForm({ ...form, currentPassword: v })}
+                    />
+                    <Field
+                        label="Nuova Password"
+                        value={form.newPassword}
+                        onChange={v => setForm({ ...form, newPassword: v })}
+                        helper="Almeno 8 caratteri, una maiuscola, una minuscola, un numero e un carattere speciale."
+                    />
+                    <Field
+                        label="Conferma Nuova Password"
+                        value={form.confirmPassword}
+                        onChange={v => setForm({ ...form, confirmPassword: v })}
+                    />
 
                     <button
                         type="submit"
                         disabled={loading}
                         className="w-full py-3.5 px-6 rounded-xl bg-blue-600 text-white font-semibold shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? (
-                            <Loader2 className="animate-spin" size={20} />
-                        ) : (
-                            'Aggiorna Password'
-                        )}
+                        {loading ? <Loader2 className="animate-spin" size={20} /> : 'Aggiorna Password'}
                     </button>
                 </form>
             </div>
+        </div>
+    )
+}
+
+function Field({
+    label,
+    value,
+    onChange,
+    helper
+}: {
+    label: string
+    value: string
+    onChange: (v: string) => void
+    helper?: string
+}) {
+    return (
+        <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">{label}</label>
+            <input
+                type="password"
+                required
+                minLength={8}
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-white"
+                placeholder="••••••••"
+                autoComplete="current-password"
+            />
+            {helper && <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{helper}</p>}
         </div>
     )
 }

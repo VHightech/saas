@@ -5,16 +5,35 @@ import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
 export function ModeToggle() {
-    const { setTheme, theme } = useTheme()
+    const { setTheme, theme, resolvedTheme } = useTheme()
+    const [mounted, setMounted] = React.useState(false)
+
+    React.useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    // Render a fixed-size placeholder until client-side hydration completes
+    // to avoid the "flash" and ensure the correct icon is shown
+    if (!mounted) {
+        return (
+            <div className="w-9 h-9 rounded-full" aria-hidden="true" />
+        )
+    }
+
+    const isDark = resolvedTheme === "dark"
 
     return (
         <button
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            className="relative p-2 rounded-full glass hover:bg-white/50 dark:hover:bg-slate-800 transition-all group"
-            title="Cambia Tema"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className="relative p-2 w-9 h-9 rounded-full bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center touch-manipulation"
+            title={isDark ? "Passa alla modalità chiara" : "Passa alla modalità scura"}
+            aria-label="Cambia Tema"
         >
-            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 dark:text-yellow-400" />
-            <Moon className="absolute top-2 left-2 h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 dark:text-slate-100" />
+            {isDark ? (
+                <Sun className="h-[1.1rem] w-[1.1rem] text-yellow-400" />
+            ) : (
+                <Moon className="h-[1.1rem] w-[1.1rem] text-slate-700" />
+            )}
             <span className="sr-only">Toggle theme</span>
         </button>
     )

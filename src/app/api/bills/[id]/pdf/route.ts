@@ -56,14 +56,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
 
     // Authorization: owner OR admin/super_admin.
+    // Profile is resolved via auth_user_id; bill ownership is profile.id-based.
     const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('role')
-        .eq('id', user.id)
+        .select('id, role')
+        .eq('auth_user_id', user.id)
         .maybeSingle()
 
     const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'superadmin'
-    const isOwner = bill.user_id !== null && bill.user_id === user.id
+    const isOwner = bill.user_id !== null && profile?.id != null && bill.user_id === profile.id
 
     if (!isAdmin && !isOwner) {
         return NextResponse.json({ error: 'Accesso negato' }, { status: 403 })

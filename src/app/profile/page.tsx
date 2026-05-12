@@ -1,7 +1,6 @@
 import { getUserDashboardData } from '@/actions/user-data'
 import { DashboardRenderer } from '@/components/dashboard/dashboard-renderer'
 import { DashboardProvider } from '@/components/dashboard/dashboard-context'
-import { redirect } from 'next/navigation'
 import React from 'react'
 
 export default async function ProfilePage() {
@@ -9,10 +8,6 @@ export default async function ProfilePage() {
 
     if ('error' in data) {
         console.error('Dashboard Data Error:', data.error)
-        // If profile is missing but user exists, redirect to complete profile
-        if (data.error.includes('Profile not found')) {
-            redirect('/profile/complete')
-        }
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
                 <div className="bg-white p-8 rounded-2xl shadow-xl border border-red-100 text-center max-w-md">
@@ -41,7 +36,7 @@ export default async function ProfilePage() {
     const stats = {
         lastConsumption,
         percentageBadge: (
-            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isUp ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+            <span key="percentage-badge" className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isUp ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
                 {isUp ? '↑' : '↓'} {percent}%
             </span>
         ),

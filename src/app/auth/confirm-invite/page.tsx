@@ -1,106 +1,62 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 import { Loader2 } from 'lucide-react'
+import HashHandler from './HashHandler'
 
-export default function ConfirmInvitePage() {
-    const router = useRouter()
-    const [message, setMessage] = useState('Verifica invito in corso...')
+interface ConfirmInvitePageProps {
+    searchParams: Promise<{
+        code?: string
+        token_hash?: string
+        type?: string
+        error?: string
+        error_description?: string
+    }>
+}
 
-    useEffect(() => {
-        const supabase = createClient()
-        let mounted = true
+export default async function ConfirmInvitePage({ searchParams }: ConfirmInvitePageProps) {
+    const params = await searchParams
 
-        const handleAuth = async () => {
-            // 0. Check for errors in the URL hash first
-            const hash = window.location.hash
-            if (hash && hash.includes('error=')) {
-                console.error('Auth error in hash:', hash)
-                const params = new URLSearchParams(hash.substring(1)) // remove #
-                const errorDescription = params.get('error_description') || 'Errore durante l\'autenticazione.'
-                if (mounted) setMessage(errorDescription.replace(/\+/g, ' '))
-                return
-            }
+    if (params.error) {
+        const description = (params.error_description || 'Errore durante l\'autenticazione.').replace(/\+/g, ' ')
+        return renderMessage(description)
+    }
 
-            // 1. Try to manually parse parsing access_token if present (Robustness fix)
-            if (hash && hash.includes('access_token')) {
-                const params = new URLSearchParams(hash.substring(1))
-                const accessToken = params.get('access_token')
-                const refreshToken = params.get('refresh_token')
+    const supabase = await createClient()
 
-                if (accessToken && refreshToken) {
-                    const { error } = await supabase.auth.setSession({
-                        access_token: accessToken,
-                        refresh_token: refreshToken
-                    })
-
-                    if (!error) {
-                        if (mounted) setMessage('Sessione recuperata manuale. Reindirizzamento...')
-                        setTimeout(() => {
-                            if (mounted) router.replace('/admin/update-password')
-                        }, 500)
-                        return
-                    }
-                }
-            }
-
-            // 2. Standard Session Check
-            const { data: { session }, error } = await supabase.auth.getSession()
-
-            if (error) {
-                if (mounted) setMessage('Errore sessione: ' + error.message)
-                return
-            }
-
-            if (session) {
-                if (mounted) setMessage('Invito già verificato. Reindirizzamento...')
-                setTimeout(() => {
-                    if (mounted) router.replace('/admin/update-password')
-                }, 500)
-                return
-            }
-
-            // 3. Listener (fallback)
-            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-                if (event === 'SIGNED_IN' || session) {
-                    if (mounted) setMessage('Autenticazione riuscita! Entrando...')
-                    setTimeout(() => {
-                        if (mounted) router.replace('/admin/update-password')
-                    }, 500)
-                }
-            })
-
-            // 4. Timeout
-            setTimeout(() => {
-                if (mounted) {
-                    // Final check
-                    supabase.auth.getSession().then(({ data }) => {
-                        if (!data.session && mounted && message.includes('Verifica')) {
-                            setMessage('Impossibile verificare la sessione. L\'invito potrebbe essere scaduto o il link non valido.')
-                        }
-                    })
-                }
-            }, 5000)
-
-            return () => {
-                subscription.unsubscribe()
-            }
+    // PKCE flow — `code` is a UUID and the verifier lives in server cookies set during signUp.
+    if (params.code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(params.code)
+        if (error) {
+            console.error('[confirm-invite] exchangeCodeForSession error:', error.message)
+            return renderMessage('Link non valido o scaduto. Richiedi un nuovo invito.')
         }
+        redirect('/auth/set-password')
+    }
 
-        handleAuth()
-
-        return () => {
-            mounted = false
+    // Legacy / magic-link flow with token_hash.
+    if (params.token_hash) {
+        const { error } = await supabase.auth.verifyOtp({
+            token_hash: params.token_hash,
+            type: (params.type || 'signup') as 'signup' | 'invite' | 'magiclink' | 'recovery' | 'email_change' | 'email',
+        })
+        if (error) {
+            console.error('[confirm-invite] verifyOtp error:', error.message)
+            return renderMessage('Link non valido o scaduto. Richiedi un nuovo invito.')
         }
-    }, [router])
+        redirect('/auth/set-password')
+    }
 
+    // No query params — likely implicit flow with tokens in the URL hash.
+    // The hash is only readable client-side, so delegate.
+    return <HashHandler />
+}
+
+function renderMessage(message: string) {
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0a0a0a]">
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-4 max-w-md text-center px-6">
                 <Loader2 className="animate-spin text-indigo-600 dark:text-indigo-400" size={48} />
-                <p className="text-slate-600 dark:text-slate-300 font-medium animate-pulse">{message}</p>
+                <p className="text-slate-600 dark:text-slate-300 font-medium">{message}</p>
             </div>
         </div>
     )

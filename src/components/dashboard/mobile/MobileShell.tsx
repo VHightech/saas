@@ -136,7 +136,7 @@ export function MobileShell({ profile, bills, supplies = [], stats }: MobileShel
         const onPrev = currentIndex > 0 ? () => setSelectedBill(bills[currentIndex - 1]) : undefined
 
         return (
-            <div className="md:hidden">
+            <div className="lg:hidden">
                 <MobileBollettaDetail
                     bill={selectedBill} 
                     supply={matchingSupply} 
@@ -153,7 +153,7 @@ export function MobileShell({ profile, bills, supplies = [], stats }: MobileShel
     }
 
     return (
-        <div className="md:hidden min-h-screen bg-[#F8FAFC] dark:bg-[#0F1115] flex flex-col">
+        <div className="lg:hidden min-h-screen bg-[#F8FAFC] dark:bg-[#0F1115] flex flex-col">
             <div key={tab} className="flex-1 flex flex-col animate-content-in">
                 {tab === 'home' && (
                 <MobileHome
@@ -174,7 +174,7 @@ export function MobileShell({ profile, bills, supplies = [], stats }: MobileShel
                 />
             )}
             {tab === 'bollette' && <MobileBollette bills={bills} supplies={supplies} onSelectBill={openBill} onBack={() => window.history.back()} />}
-            {tab === 'profilo' && <MobileProfilo profile={profile} stats={stats} onBack={() => window.history.back()} onLogout={handleLogout} />}
+            {tab === 'profilo' && <MobileProfilo profile={profile} stats={stats} supplies={supplies} onBack={() => window.history.back()} onLogout={handleLogout} />}
             {tab === 'confronto' && <MobileConfronto bills={bills} onBack={() => window.history.back()} />}
             {tab === 'supporto' && <MobileSupporto firstName={stats.firstName} onBack={() => window.history.back()} />}
             </div>

@@ -7,24 +7,36 @@ import { createClient } from '@/lib/supabase/client'
 // ...
 const supabase = createClient()
 
+type UploadKind = 'bills' | 'users'
+
 interface UploadResult {
-    processed: number
-    newUsers: number
+    // Bills upload
+    processed?: number
+    newUsers?: number
     matchedByCif?: number
     matchedByCfpi?: number
-    pdfsUploaded: number
-    pdfsSkipped: number
-    pdfsLinked: number
-    errors: string[]
+    pdfsUploaded?: number
+    pdfsSkipped?: number
+    pdfsLinked?: number
+    // Users upload
+    imported?: number
+    profiles?: number
+    supplies?: { upserted: number; failed: number; total: number }
+    skipped?: { contrattoAnnullato: number; noCif: number; shortCif: number }
+    link?: Record<string, number> | null
+    // Common
+    errors?: string[]
 }
 
 interface AdminUploadContextType {
     isUploading: boolean
     progress: number
     status: string
+    kind: UploadKind | null
     result: UploadResult | null
     error: string | null
     uploadFiles: (csv: File, archive: File, force?: boolean) => Promise<void>
+    uploadUsers: (file: File) => Promise<void>
     resetUpload: () => void
     dismissResult: () => void
 }
@@ -35,6 +47,7 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
     const [isUploading, setIsUploading] = useState(false)
     const [progress, setProgress] = useState(0)
     const [status, setStatus] = useState('')
+    const [kind, setKind] = useState<UploadKind | null>(null)
     const [result, setResult] = useState<UploadResult | null>(null)
     const [error, setError] = useState<string | null>(null)
 
@@ -80,6 +93,7 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
         console.log('[UploadProvider] Starting upload...', { csv: csvFile.name, archive: archiveFile.name })
         resetUpload()
         setIsUploading(true)
+        setKind('bills')
         setStatus('Preparazione file...')
         setProgress(0)
 
@@ -153,11 +167,61 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
         }
     }
 
+    const uploadUsers = async (file: File) => {
+        console.log('[UploadProvider] Starting users upload...', { file: file.name })
+        resetUpload()
+        setIsUploading(true)
+        setKind('users')
+        setStatus('Preparazione anagrafica...')
+        setProgress(0)
+
+        const importId = generateUuidV4()
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('importId', importId)
+
+        const poller = setInterval(async () => {
+            const { data, error } = await supabase
+                .from('import_logs')
+                .select('status, total_files, processed_files, current_file')
+                .eq('r2_path', importId)
+                .maybeSingle()
+            if (data && !error) {
+                if (data.total_files && data.total_files > 0) {
+                    const pct = Math.min(100, Math.floor((data.processed_files / data.total_files) * 100))
+                    setProgress(pct)
+                }
+                setStatus(`${data.current_file || 'Esecuzione...'} (${data.processed_files ?? 0}/${data.total_files ?? 0})`)
+            }
+        }, 1000)
+        progressTimer.current = poller
+
+        try {
+            const res = await fetch('/api/upload-users', { method: 'POST', body: formData })
+            const data = await res.json()
+            clearInterval(poller)
+            if (!res.ok) throw new Error(data.error || 'Importazione anagrafica fallita')
+            setProgress(100)
+            setStatus('Completato!')
+            setResult(data)
+        } catch (err: any) {
+            console.error('[UploadProvider] Users upload error:', err)
+            clearInterval(poller)
+            setError(err.message)
+            setStatus('Errore')
+            setProgress(0)
+        } finally {
+            setIsUploading(false)
+        }
+    }
+
     return (
         <AdminUploadContext.Provider value={{
             isUploading,
             progress,
             status,
+            kind,
+            uploadUsers,
             result,
             error,
             uploadFiles,

@@ -57,7 +57,7 @@ export function MobileConfronto({ bills = [], onBack }: MobileConfrontoProps) {
             {/* Header */}
             <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                    <button onClick={onBack} className="w-12 h-12 rounded-full bg-white dark:bg-white/5 flex items-center justify-center text-[#0A2540] dark:text-white shrink-0 active:scale-90 transition-transform">
+                    <button onClick={onBack} className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-[#0A2540] dark:text-white shrink-0 active:scale-90 transition-transform">
                         <ChevronLeft size={24} />
                     </button>
                     <p className="text-xl font-bold text-[#0A2540] dark:text-white">Confronto consumi</p>

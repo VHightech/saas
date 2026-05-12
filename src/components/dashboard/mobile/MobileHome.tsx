@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import React from 'react'
 import { BarChart3, LifeBuoy, CheckCircle2, Files, FileText, LogOut } from 'lucide-react'
 import { BillListItem } from './BillListItem'
@@ -44,20 +44,15 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
     })
 
     const scrollRef = useRef<HTMLDivElement>(null)
-    const chartRef = useRef<HTMLDivElement>(null)
-    const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
     const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null)
     const [selectedExpenseIndex, setSelectedExpenseIndex] = useState<number | null>(null)
-
-    useLayoutEffect(() => {
-        const el = chartRef.current
-        if (!el) return
-        const update = () => setChartSize({ width: el.clientWidth, height: el.clientHeight })
-        update()
-        const ro = new ResizeObserver(update)
-        ro.observe(el)
-        return () => ro.disconnect()
-    }, [])
+    // Live scroll position for smooth gradient / scale / color interpolation
+    // between supply cards as the user swipes.
+    const [scrollLeft, setScrollLeft] = useState(0)
+    const [cardStep, setCardStep] = useState(0)
+    useEffect(() => {
+        if (scrollRef.current) setCardStep(scrollRef.current.clientWidth + 12)
+    }, [supplies.length])
 
     // Sync scroll position on mount or when selectedSupplyId changes
     useEffect(() => {
@@ -74,9 +69,11 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
 
     const handleScroll = () => {
         if (!scrollRef.current) return
-        const scrollLeft = scrollRef.current.scrollLeft
+        const sl = scrollRef.current.scrollLeft
         const cardWidth = scrollRef.current.clientWidth
-        const newIdx = Math.round(scrollLeft / (cardWidth + 12))
+        setScrollLeft(sl)
+        setCardStep(cardWidth + 12)
+        const newIdx = Math.round(sl / (cardWidth + 12))
         if (newIdx !== selectedIdx && newIdx >= 0 && newIdx < supplies.length) {
             setSelectedIdx(newIdx)
             if (supplies[newIdx]) {
@@ -139,7 +136,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
         recent.forEach((b: any, i) => {
             const d = new Date(b.data_emissione)
             slots.push({
-                key: `bill-${b.id ?? i}`,
+                key: `bill-slot-${i}-${b.id ?? 'x'}`,
                 value: Number(b.consumo || 0),
                 label: monthLabel(d),
                 ym: ymKey(d),
@@ -197,9 +194,15 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                 >
                     {supplies.map((s, idx) => {
                         const isActive = idx === selectedIdx
-                        const supplyId = getSupplyId(s)
-                        const supplyBills = bills.filter((b: any) => (b.ulm === supplyId))
-                        const latestBill = supplyBills.sort((a, b) => new Date(b.data_emissione).getTime() - new Date(a.data_emissione).getTime())[0]
+                        // Smooth per-card "centeredness" — 1 when perfectly centered,
+                        // 0 when one card width away. Drives gradient fade / scale /
+                        // text color so swipes feel continuous instead of snapping.
+                        const distance = cardStep > 0
+                            ? Math.abs(scrollLeft - idx * cardStep) / cardStep
+                            : (isActive ? 0 : 1)
+                        const progress = Math.max(0, Math.min(1, 1 - distance))
+                        const inactiveColor = '#94A3B8'
+                        const activeColor = '#FFFFFF'
 
                         return (
                             <div
@@ -218,35 +221,31 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                 className="snap-center w-full min-w-full shrink-0"
                             >
                                 <div
-                                    className={cn(
-                                        "relative overflow-hidden rounded-[2rem] p-5 transition-all duration-500 flex flex-col justify-between h-48 animate-gradient-shift",
-                                        isActive ? "text-white scale-100" : "bg-white/50 dark:bg-emerald-950/20 text-slate-400 scale-[0.95] opacity-50"
-                                    )}
-                                    style={isActive ? { background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)' } : {}}
+                                    className="relative overflow-hidden rounded-[2rem] p-5 flex flex-col justify-between h-48 animate-gradient-shift"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)',
+                                        transform: `scale(${0.95 + 0.05 * progress})`,
+                                        opacity: 0.5 + 0.5 * progress,
+                                        transition: 'transform 220ms ease-out, opacity 220ms ease-out',
+                                    }}
                                 >
-                                    <div className="relative z-10 flex flex-col h-full justify-between">
+                                    {/* White inactive overlay — fades out as the card centers */}
+                                    <div
+                                        className="absolute inset-0 bg-white dark:bg-[#1A1D23] pointer-events-none"
+                                        style={{ opacity: 1 - progress, transition: 'opacity 220ms ease-out' }}
+                                    />
+
+                                    <div className="relative z-10 flex flex-col h-full justify-between" style={{ color: `color-mix(in srgb, ${inactiveColor} ${(1 - progress) * 100}%, ${activeColor} ${progress * 100}%)` }}>
                                         <div className="flex items-start justify-between">
                                             <div>
-                                                <p className={cn(
-                                                    "text-[13px] font-bold mb-0.5",
-                                                    isActive ? "text-emerald-200/60" : "text-slate-400"
-                                                )}>Fornitura</p>
-                                                <h3 className={cn(
-                                                    "text-lg font-bold tracking-tight leading-tight truncate max-w-[240px]",
-                                                    isActive ? "text-white" : "text-[#0A2540] dark:text-white"
-                                                )}>{s.address}</h3>
+                                                <p className="text-[13px] font-bold mb-0.5 opacity-70">Fornitura</p>
+                                                <h3 className="text-lg font-bold tracking-tight leading-tight truncate max-w-[240px]">{s.address}</h3>
                                                 {s.city && (
-                                                    <p className={cn(
-                                                        "text-[11px] font-medium opacity-60 mt-0.5",
-                                                        isActive ? "text-emerald-100" : "text-slate-500"
-                                                    )}>{s.city}</p>
+                                                    <p className="text-[11px] font-medium opacity-60 mt-0.5">{s.city}</p>
                                                 )}
                                                 <div className="mt-3 flex flex-col gap-2">
                                                     {(s.codice_cliente || s.client_code) && (
-                                                        <div className={cn(
-                                                            "flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit transition-all duration-300",
-                                                            isActive ? "bg-white/20 backdrop-blur-md border border-white/20 text-white shadow-sm" : "bg-slate-50 dark:bg-white/5 text-slate-500"
-                                                        )}>
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit bg-white/20 backdrop-blur-md border border-white/25 shadow-sm">
                                                             <span className="text-[9px] font-bold uppercase tracking-[0.1em] opacity-60">Codice Cliente</span>
                                                             <span className="text-[12px] font-mono font-bold tracking-wider uppercase">
                                                                 {s.codice_cliente || s.client_code}
@@ -254,10 +253,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                                         </div>
                                                     )}
                                                     {s.cif && (
-                                                        <div className={cn(
-                                                            "flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit transition-all duration-300",
-                                                            isActive ? "bg-white/20 backdrop-blur-md border border-white/20 text-white shadow-sm" : "bg-slate-100 dark:bg-white/5 text-slate-500"
-                                                        )}>
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit bg-white/20 backdrop-blur-md border border-white/25 shadow-sm">
                                                             <span className="text-[9px] font-bold uppercase tracking-[0.1em] opacity-60">CIF</span>
                                                             <span className="text-[12px] font-mono font-bold tracking-wider uppercase">
                                                                 {s.cif}
@@ -281,28 +277,8 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                             </div>
                                         </div>
 
-                                        <div className="flex items-end justify-between">
-                                            {latestBill && (
-                                                <div>
-                                                    <p className={cn(
-                                                        "text-[9px] font-bold tracking-[0.2em] uppercase mb-1",
-                                                        isActive ? "text-emerald-200/60" : "text-slate-400"
-                                                    )}>Ultima bolletta</p>
-                                                    <div className="flex items-baseline gap-2">
-                                                        <span className={cn(
-                                                            "text-2xl font-bold tracking-tight",
-                                                            isActive ? "text-white" : "text-[#0A2540] dark:text-white"
-                                                        )}>€{Number(latestBill.importo || 0).toFixed(2).replace('.', ',')}</span>
-                                                        {isActive && (latestBill as any).status === 'unpaid' && (
-                                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#1E5BFF] text-white uppercase tracking-wider">In attesa</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
-                                    {isActive && (
-                                        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                                    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]" style={{ opacity: progress, transition: 'opacity 220ms ease-out' }}>
                                             <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
                                             <div className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl animate-wave-pulse" style={{ animationDelay: '2.5s' }} />
                                             <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">
@@ -324,11 +300,10 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
-                            </div>
-                        )
-                    })}
+                            )
+                        })}
                 </div>
                 {supplies.length > 1 && (
                     <div className="flex justify-center gap-1.5 mt-4">
@@ -363,9 +338,9 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         <p className="text-center py-8 text-xs text-slate-400 font-medium">Nessuna bolletta</p>
                     ) : (
                         <>
-                            {sortedBills.slice(0, 3).map((bill: any) => (
-                                <BillListItem 
-                                    key={bill.id}
+                            {sortedBills.slice(0, 3).map((bill: any, billIdx: number) => (
+                                <BillListItem
+                                    key={`home-bill-${billIdx}-${bill.id ?? 'x'}`}
                                     bill={bill}
                                     onSelect={onSelectBill}
                                     monthYear={monthYear}
@@ -409,7 +384,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                     })()}
                 </div>
 
-                <div ref={chartRef} className="h-32 mt-4 mb-8 relative touch-none select-none">
+                <div className="h-32 mt-4 mb-8 relative touch-none select-none">
                     {(() => {
                         const supplyUlm = currentSupply?.ulm
                         const supplyBills = supplyUlm
@@ -420,10 +395,15 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         const margin = 15
                         const width = 300 - (margin * 2)
 
-                        // Hide placeholder months — span real bills across the full width
+                        // Hide placeholder months — span real bills across the full width.
+                        // Bills with €0 importo are excluded so we don't render a flat
+                        // ramp that visually looks broken.
                         const realSlots = chartData.slots
                             .map((slot, slotIdx) => ({ slot, slotIdx }))
-                            .filter(({ slot }) => !!(slot as any).bill)
+                            .filter(({ slot }) => {
+                                const bill = (slot as any).bill
+                                return !!bill && Number(bill.importo || 0) > 0
+                            })
 
                         const realCount = realSlots.length
                         const realStep = realCount > 1 ? width / (realCount - 1) : 0
@@ -432,12 +412,40 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                             const bill = (slot as any).bill
                             const val = Number(bill.importo || 0)
                             const y = val > 0 ? 100 - ((val / maxCost) * 70 + 15) : 85
-                            const x = realCount > 1 ? margin + i * realStep : margin + width / 2
+                            // With a single real bill, anchor it at the right edge so
+                            // the cosmetic ramp climbs from €0 on the left up to it.
+                            const x = realCount > 1
+                                ? margin + i * realStep
+                                : margin + width
                             return { x, y, cost: val, slotIdx, label: (slot as any).label, key: (slot as any).key }
                         })
 
-                        const linePath = realPoints.length >= 2
-                            ? realPoints.reduce((acc, p, i, arr) => {
+                        // Synthesize cosmetic ghost points when we have 0 or 1
+                        // real points so the chart always shows a ramp climbing
+                        // from €0 (bottom-left) up to the actual amount.
+                        // Ghosts are not interactive.
+                        type LinePoint = { x: number; y: number; ghost: boolean }
+                        const buildRamp = (endY: number): LinePoint[] => {
+                            const startY = 100 // baseline (€0)
+                            const steps = 5
+                            return Array.from({ length: steps }, (_, i) => {
+                                const t = i / (steps - 1)
+                                // Ease-out curve so the climb looks organic
+                                const ease = 1 - Math.pow(1 - t, 1.6)
+                                return {
+                                    x: margin + width * t,
+                                    y: startY - (startY - endY) * ease,
+                                    ghost: i !== steps - 1,
+                                }
+                            })
+                        }
+                        const isEmpty = realPoints.length === 0
+                        const linePoints: LinePoint[] = realPoints.length === 1
+                            ? buildRamp(realPoints[0].y)
+                            : realPoints.map(p => ({ x: p.x, y: p.y, ghost: false }))
+
+                        const linePath = linePoints.length >= 2
+                            ? linePoints.reduce((acc, p, i, arr) => {
                                 if (i === 0) return `M ${p.x},${p.y}`
                                 const prev = arr[i - 1]
                                 const dx = p.x - prev.x
@@ -445,11 +453,18 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                             }, '')
                             : ''
 
-                        const areaPath = realPoints.length >= 2
-                            ? `${linePath} L ${realPoints[realPoints.length - 1].x},100 L ${realPoints[0].x},100 Z`
+                        const areaPath = linePoints.length >= 2
+                            ? `${linePath} L ${linePoints[linePoints.length - 1].x},100 L ${linePoints[0].x},100 Z`
                             : ''
 
-                        const activePoint = realPoints.find(p => p.slotIdx === selectedExpenseIndex) ?? null
+                        const ghostPoints = linePoints.filter(p => p.ghost)
+
+                        // Default to the last real point when the stored selection
+                        // doesn't match the current supply's points — otherwise the
+                        // active dot/tooltip vanishes after sliding to a new card.
+                        const activePoint = realPoints.find(p => p.slotIdx === selectedExpenseIndex)
+                            ?? realPoints[realPoints.length - 1]
+                            ?? null
 
                         const handleScrub = (clientX: number, rect: DOMRect) => {
                             if (realPoints.length === 0) return
@@ -470,37 +485,26 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         }
 
                         // Placeholder curve when there's no data — purely cosmetic
-                        const placeholderLine = 'M 15,70 C 60,55 100,80 150,40 S 240,75 285,50'
-                        const placeholderArea = `${placeholderLine} L 285,100 L 15,100 Z`
-                        const isEmpty = realPoints.length === 0
-
                         return (
                             <>
                                 <svg viewBox="0 0 300 100" className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" preserveAspectRatio="none">
                                     <defs>
                                         <linearGradient id="spendingGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                            <stop offset="0%" stopColor="#84cc16" stopOpacity="0.32" />
-                                            <stop offset="100%" stopColor="#84cc16" stopOpacity="0" />
+                                            <stop offset="0%" stopColor="#93C5FD" stopOpacity="0.32" />
+                                            <stop offset="100%" stopColor="#93C5FD" stopOpacity="0" />
                                         </linearGradient>
-                                        <pattern id="placeholderStripes" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
-                                            <rect width="6" height="6" fill="transparent" />
-                                            <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(100,116,139,0.35)" strokeWidth="1" />
-                                        </pattern>
                                     </defs>
                                     {isEmpty ? (
-                                        <>
-                                            <path d={placeholderArea} fill="url(#placeholderStripes)" opacity="0.5" />
-                                            <path
-                                                d={placeholderLine}
-                                                fill="none"
-                                                stroke="rgba(100,116,139,0.5)"
-                                                strokeWidth="1.5"
-                                                strokeDasharray="4 3"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                vectorEffect="non-scaling-stroke"
-                                            />
-                                        </>
+                                        <path
+                                            d="M 15,70 C 60,55 100,80 150,55 S 240,70 285,50"
+                                            fill="none"
+                                            stroke="rgba(100,116,139,0.5)"
+                                            strokeWidth="1.5"
+                                            strokeDasharray="4 3"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            vectorEffect="non-scaling-stroke"
+                                        />
                                     ) : (
                                         <>
                                             {areaPath && <path d={areaPath} fill="url(#spendingGradient)" />}
@@ -508,14 +512,24 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                                 <path
                                                     d={linePath}
                                                     fill="none"
-                                                    stroke="#84cc16"
+                                                    stroke="#93C5FD"
                                                     strokeWidth="2.5"
                                                     strokeLinecap="round"
                                                     strokeLinejoin="round"
                                                     vectorEffect="non-scaling-stroke"
-                                                    className="drop-shadow-[0_2px_4px_rgba(132,204,22,0.4)]"
+                                                    className="drop-shadow-[0_2px_4px_rgba(147,197,253,0.4)]"
                                                 />
                                             )}
+                                            {ghostPoints.map((p, i) => (
+                                                <circle
+                                                    key={`ghost-${i}`}
+                                                    cx={p.x}
+                                                    cy={p.y}
+                                                    r="2"
+                                                    fill="#93C5FD"
+                                                    opacity="0.45"
+                                                />
+                                            ))}
                                         </>
                                     )}
                                 </svg>
@@ -535,38 +549,40 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                 />
 
                                 {/* Vertical crosshair */}
-                                {activePoint && chartSize.width > 0 && (
+                                {activePoint && (
                                     <div
-                                        className="absolute top-0 bottom-0 w-px pointer-events-none z-10 transition-transform duration-300 ease-out will-change-transform"
+                                        className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
                                         style={{
-                                            transform: `translateX(${(activePoint.x / 300) * chartSize.width}px)`,
-                                            backgroundImage: 'repeating-linear-gradient(to bottom, rgba(132,204,22,0.4) 0 4px, transparent 4px 8px)',
+                                            left: `${(activePoint.x / 300) * 100}%`,
+                                            backgroundImage: 'repeating-linear-gradient(to bottom, rgba(147,197,253,0.5) 0 4px, transparent 4px 8px)',
                                         }}
                                     />
                                 )}
 
                                 {/* Active dot — solid, no ripple */}
-                                {activePoint && chartSize.width > 0 && (
+                                {activePoint && (
                                     <div
-                                        className="absolute top-0 left-0 pointer-events-none z-20 transition-transform duration-300 ease-out will-change-transform"
+                                        className="absolute pointer-events-none z-20 w-3.5 h-3.5 rounded-full bg-white border-[2.5px] border-[#93C5FD] shadow-[0_2px_8px_rgba(147,197,253,0.55)]"
                                         style={{
-                                            transform: `translate3d(${(activePoint.x / 300) * chartSize.width}px, ${(activePoint.y / 100) * chartSize.height}px, 0)`,
+                                            left: `${(activePoint.x / 300) * 100}%`,
+                                            top: `${activePoint.y}%`,
+                                            transform: 'translate(-50%, -50%)',
                                         }}
-                                    >
-                                        <div className="absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-[2.5px] border-[#84cc16] shadow-[0_2px_8px_rgba(132,204,22,0.55)]" />
-                                    </div>
+                                    />
                                 )}
 
-                                {/* Floating tooltip — green badge */}
-                                {activePoint && chartSize.width > 0 && (
+                                {/* Floating tooltip */}
+                                {activePoint && (
                                     <div
-                                        className="absolute top-0 left-0 bg-[#C6F36B] text-[#0A2540] px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-lg pointer-events-none z-30 whitespace-nowrap transition-transform duration-300 ease-out will-change-transform"
+                                        className="absolute bg-[#93C5FD] text-white dark:text-[#0A2540] px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-lg pointer-events-none z-30 whitespace-nowrap"
                                         style={{
-                                            transform: `translate3d(${(activePoint.x / 300) * chartSize.width}px, ${(activePoint.y / 100) * chartSize.height - 16}px, 0) translate(-50%, -100%)`,
+                                            left: `${(activePoint.x / 300) * 100}%`,
+                                            top: `${activePoint.y}%`,
+                                            transform: 'translate(-50%, calc(-100% - 14px))',
                                         }}
                                     >
                                         €{activePoint.cost.toFixed(2).replace('.', ',')}
-                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#C6F36B] rotate-45" />
+                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#93C5FD] rotate-45" />
                                     </div>
                                 )}
 
@@ -577,7 +593,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                             key={p.key}
                                             className={cn(
                                                 "absolute text-[8px] font-bold uppercase tracking-tighter w-12 text-center transition-colors duration-200",
-                                                selectedExpenseIndex === p.slotIdx ? "text-[#84cc16]" : "text-slate-400"
+                                                selectedExpenseIndex === p.slotIdx ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400"
                                             )}
                                             style={{
                                                 left: `${(p.x / 300) * 100}%`,
@@ -614,7 +630,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         return (
                             <div key={slot.key} className="flex-1 flex flex-col items-center justify-end h-full relative cursor-pointer" onClick={() => hasData && setSelectedBarIndex(i)}>
                                 {isSelected && hasData && (
-                                    <span className="absolute px-2 py-0.5 rounded-md bg-[#C6F36B] text-[#0A2540] text-[10px] font-bold whitespace-nowrap z-10 shadow-sm animate-in fade-in zoom-in duration-200" style={{ bottom: `calc(${Math.max(heightPct, 20)}% + 14px)` }}>
+                                    <span className="absolute px-2 py-0.5 rounded-md bg-[#93C5FD] text-white dark:text-black text-[10px] font-bold whitespace-nowrap z-10 shadow-sm animate-in fade-in zoom-in duration-200" style={{ bottom: `calc(${Math.max(heightPct, 20)}% + 14px)` }}>
                                         {slot.value} mc
                                     </span>
                                 )}
@@ -631,10 +647,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                             )} />
                                         </>
                                     ) : (
-                                        <div
-                                            className="absolute inset-0 bg-slate-50 dark:bg-white/5"
-                                            style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent 0, transparent 5px, rgba(100, 116, 139, 0.4) 5px, rgba(100, 116, 139, 0.4) 7px)' }}
-                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-200/70 via-slate-100/40 to-transparent dark:from-white/10 dark:via-white/5 dark:to-transparent" />
                                     )}
                                 </div>
                             </div>

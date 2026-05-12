@@ -1,27 +1,59 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
-import { ShieldCheck, Mail, UserPlus, Loader2 } from 'lucide-react'
-import { inviteAdmin, getAdmins } from './actions'
+import { ShieldCheck, Mail, UserPlus, Loader2, X, Check, ArrowRight } from 'lucide-react'
+import { inviteAdmin, getAdmins, removeAdmin } from './actions'
 import { toast } from 'sonner'
+import { AdminPageHero } from '@/components/admin/admin-page-hero'
+import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import { Trash2 } from 'lucide-react'
 
 export default function AdminManagementPage() {
     const [admins, setAdmins] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
-    const [isnamPending, startTransition] = useTransition()
+    const [isPending, startTransition] = useTransition()
+    const [currentUser, setCurrentUser] = useState<any>(null)
+
     // Form State
     const [email, setEmail] = useState('')
-    const [fullName, setFullName] = useState('')
+
+    const supabase = createClient()
 
     useEffect(() => {
-        loadAdmins()
+        const init = async () => {
+            try {
+                // Get current user profile
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError) throw authError
+                
+                if (user) {
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('auth_user_id', user.id)
+                        .maybeSingle()
+                    
+                    if (profileError) console.error('Error fetching profile:', profileError)
+                    setCurrentUser(profile)
+                }
+            } catch (err) {
+                console.error('Initialization error:', err)
+            } finally {
+                loadAdmins()
+            }
+        }
+        init()
     }, [])
 
     const loadAdmins = async () => {
         setLoading(true)
-        const data = await getAdmins()
-        setAdmins(data)
-        setLoading(false)
+        try {
+            const data = await getAdmins()
+            setAdmins(data)
+        } finally {
+            setLoading(false)
+        }
     }
 
     const handleInvite = async (e: React.FormEvent) => {
@@ -29,14 +61,13 @@ export default function AdminManagementPage() {
 
         const formData = new FormData()
         formData.append('email', email)
-        formData.append('fullName', fullName)
+        formData.append('fullName', 'Amministratore') // Default name
 
         startTransition(async () => {
             const res = await inviteAdmin(formData)
             if (res.success) {
-                toast.success("Invito inviato con successo! L'utente riceverà una email.")
+                toast.success("Invito inviato con successo!")
                 setEmail('')
-                setFullName('')
                 loadAdmins()
             } else {
                 toast.error(res.error || "Errore durante l'invio dell'invito")
@@ -44,124 +75,203 @@ export default function AdminManagementPage() {
         })
     }
 
+    const handleRemove = async (userId: string) => {
+        if (!confirm("Sei sicuro di voler revocare l'accesso a questo amministratore?")) return
 
+        const res = await removeAdmin(userId)
+        if (res.success) {
+            toast.success("Accesso revocato con successo")
+            loadAdmins()
+        } else {
+            toast.error(res.error || "Errore durante la revoca")
+        }
+    }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header */}
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Gestione Amministratori</h2>
-                <p className="text-slate-500 dark:text-slate-400 mt-2">Invita nuovi amministratori o gestisci i permessi esistenti.</p>
-            </div>
+        <>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                {/* Left Column: Invite Form */}
-                <div className="lg:col-span-1">
-                    <div className="bg-white/60 dark:bg-[#1e1e1e]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-sm sticky top-8">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-black shadow-lg shadow-slate-900/10">
-                                <UserPlus size={20} />
+            <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-0 flex-1 overflow-hidden bg-white dark:bg-[#0F1115] rounded-2xl">
+
+                    {/* Left: Invite Form Section */}
+                    <div className="border-r border-slate-200/70 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] p-8">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="w-9 h-9 rounded-full bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-[#0F1115]">
+                                <UserPlus size={18} strokeWidth={2.5} />
                             </div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Invita Admin</h3>
+                            <div>
+                                <h3 className="text-[16px] font-bold text-slate-900 dark:text-white leading-tight">Nuova Utenza</h3>
+                                <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Invia un invito via email</p>
+                            </div>
                         </div>
 
-                        <form onSubmit={handleInvite} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Email</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                        placeholder="admin@esempio.com"
-                                        className="w-full pl-10 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-white transition-all"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Nome Completo</label>
+                        <form onSubmit={handleInvite} className="space-y-2">
+                            <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 ml-4">Indirizzo Email</label>
+                            <div className="group/input relative flex items-center bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full p-1 pl-12 focus-within:border-sky-300 dark:focus-within:border-sky-500/50 transition-all duration-300">
+                                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-sky-500 transition-colors" size={16} />
                                 <input
-                                    type="text"
-                                    value={fullName}
-                                    onChange={(e) => setFullName(e.target.value)}
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    placeholder="Mario Rossi"
-                                    className="w-full px-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-white transition-all"
+                                    placeholder="admin@acquambiente.it"
+                                    className="flex-1 h-9 bg-transparent border-none outline-none text-[13px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
                                 />
+
+                                <button
+                                    type="submit"
+                                    disabled={isPending || !email}
+                                    className={cn(
+                                        "group/btn relative inline-flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.9] overflow-hidden shrink-0 ml-1",
+                                        isPending
+                                            ? "bg-slate-50 dark:bg-white/5 text-slate-400"
+                                            : "bg-sky-100 dark:bg-sky-900/40 text-sky-900 dark:text-sky-100 hover:bg-sky-200 dark:hover:bg-sky-800/60"
+                                    )}
+                                >
+                                    <span className="relative flex-shrink-0 w-5 h-5 bg-white dark:bg-white/10 rounded-full flex items-center justify-center overflow-hidden transition-colors duration-300">
+                                        {isPending ? (
+                                            <Loader2 size={12} className="animate-spin text-sky-600" />
+                                        ) : (
+                                            <>
+                                                <svg
+                                                    viewBox="0 0 14 15" fill="none" xmlns="http://www.w3.org/2000/svg"
+                                                    className={cn(
+                                                        "w-2 text-sky-600 dark:text-sky-400 transition-transform duration-300",
+                                                        email ? "group-hover/btn:translate-x-[150%] group-hover/btn:-translate-y-[150%]" : ""
+                                                    )}
+                                                >
+                                                    <path d="M13.376 11.552l-.264-10.44-10.44-.24.024 2.28 6.96-.048L.2 12.56l1.488 1.488 9.432-9.432-.048 6.912 2.304.024z" fill="currentColor" />
+                                                </svg>
+                                                <svg
+                                                    viewBox="0 0 14 15" fill="none" xmlns="http://www.w3.org/2000/svg"
+                                                    className={cn(
+                                                        "absolute w-2 text-sky-600 dark:text-sky-400 transition-transform duration-300 translate-x-[-150%] translate-y-[150%]",
+                                                        email ? "group-hover/btn:translate-x-0 group-hover/btn:translate-y-0 group-hover/btn:delay-75" : ""
+                                                    )}
+                                                >
+                                                    <path d="M13.376 11.552l-.264-10.44-10.44-.24.024 2.28 6.96-.048L.2 12.56l1.488 1.488 9.432-9.432-.048 6.912 2.304.024z" fill="currentColor" />
+                                                </svg>
+                                            </>
+                                        )}
+                                    </span>
+                                </button>
                             </div>
-
-
-
-                            <button
-                                type="submit"
-                                disabled={isnamPending}
-                                className="w-full py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-slate-200 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 disabled:opacity-70 disabled:cursor-not-allowed"
-                            >
-                                {isnamPending ? <Loader2 size={18} className="animate-spin" /> : 'Invia Invito'}
-                            </button>
                         </form>
+
+                        <div className="mt-12 p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-100/50 dark:border-indigo-500/10">
+                            <div className="flex gap-3">
+                                <ShieldCheck className="text-indigo-500 shrink-0" size={18} />
+                                <p className="text-[12px] text-indigo-700/80 dark:text-indigo-300/80 leading-relaxed font-medium">
+                                    Le nuove utenze riceveranno un link sicuro via email per impostare la propria password e accedere al pannello.
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                {/* Right Column: List */}
-                <div className="lg:col-span-2">
-                    <div className="bg-white/60 dark:bg-[#1e1e1e]/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden shadow-sm">
-                        <div className="p-6 border-b border-slate-100 dark:border-white/10 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <ShieldCheck size={20} className="text-slate-500" />
-                                Amministratori Attivi
-                            </h3>
-
+                    {/* Right: Active Admins List */}
+                    <div className="flex flex-col min-h-0 bg-white dark:bg-[#0F1115]">
+                        <div className="h-14 px-8 border-b border-slate-200/70 dark:border-white/5 flex items-center justify-between sticky top-0 bg-white/80 dark:bg-[#0F1115]/80 backdrop-blur-md z-10">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-[13px] font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                                    Utenze Attive
+                                </h3>
+                                <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                    {admins.length}
+                                </span>
+                            </div>
                         </div>
 
-                        {loading ? (
-                            <div className="p-12 flex justify-center">
-                                <Loader2 className="animate-spin text-slate-400" />
-                            </div>
-                        ) : admins.length === 0 ? (
-                            <div className="p-12 text-center text-slate-500">
-                                Nessun amministratore trovato.
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-slate-100 dark:divide-white/5">
-                                {admins.map((admin) => (
-                                    <div key={admin.id} className="p-4 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm">
-                                                {(admin.name || admin.email || 'A')[0].toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-slate-900 dark:text-white text-sm">
-                                                    {admin.name || 'Admin'}
-                                                </div>
-                                                <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                                                    {admin.email}
-                                                </div>
-                                            </div>
+                        <div className="flex-1 overflow-auto custom-scrollbar">
+                            {loading ? (
+                                <div className="p-20 flex flex-col items-center justify-center gap-3">
+                                    <Loader2 className="animate-spin text-slate-300 dark:text-slate-700" size={32} strokeWidth={1.5} />
+                                    <span className="text-[12px] font-medium text-slate-400 animate-pulse">Caricamento...</span>
+                                </div>
+                            ) : admins.length === 0 ? (
+                                <div className="p-20 text-center">
+                                    <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-white/[0.02] flex items-center justify-center mx-auto mb-4 border border-slate-100 dark:border-white/5">
+                                        <ShieldCheck size={28} className="text-slate-300 dark:text-slate-700" />
+                                    </div>
+                                    <h4 className="text-[14px] font-bold text-slate-900 dark:text-white mb-1">Nessuna Utenza</h4>
+                                    <p className="text-[12px] text-slate-500">Non ci sono ancora utenze attive nel sistema.</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col">
+                                    {/* Table Header */}
+                                    <div className="flex items-center px-8 py-3 border-b border-slate-100 dark:border-white/5 bg-slate-50/30 dark:bg-white/[0.01]">
+                                        <div className="flex-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Utenza</span>
                                         </div>
-
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right hidden sm:block">
-                                                <div className="text-[10px] uppercase font-bold text-slate-400">Ruolo</div>
-                                                <div className="text-xs font-medium text-slate-600 dark:text-slate-300 capitalize">
-                                                    {admin.role}
-                                                </div>
-                                            </div>
-
-
+                                        <div className="w-32 text-center">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ruolo</span>
+                                        </div>
+                                        <div className="w-20 text-right">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Azioni</span>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+
+                                    <div className="divide-y divide-slate-100 dark:divide-white/5">
+                                        {admins.map((admin) => (
+                                            <div key={admin.id} className="group flex items-center px-8 py-5 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                                                {/* Admin Info Column */}
+                                                <div className="flex-1 flex items-center gap-4 min-w-0">
+                                                    <div className="relative shrink-0">
+                                                        <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-[12px] tracking-tight">
+                                                            {(admin.name || admin.email || 'A')
+                                                                .split(' ')
+                                                                .map((n: any) => n[0])
+                                                                .join('')
+                                                                .toUpperCase()
+                                                                .slice(0, 2)}
+                                                        </div>
+                                                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-[#0F1115] rounded-full" />
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[14px] font-bold text-slate-900 dark:text-white truncate">
+                                                                {admin.name || 'Utenza'}
+                                                            </span>
+                                                            {admin.role === 'superadmin' && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-wider">
+                                                                    Super
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[12px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                                                            {admin.email}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Role Column */}
+                                                <div className="w-32 text-center">
+                                                    <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 capitalize tracking-tight">
+                                                        {admin.role}
+                                                    </p>
+                                                </div>
+
+                                                {/* Actions Column */}
+                                                <div className="w-20 flex justify-end">
+                                                    {currentUser?.role === 'super_admin' && admin.id !== currentUser?.id && (
+                                                        <button
+                                                            onClick={() => handleRemove(admin.id)}
+                                                            className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 transition-all group/trash"
+                                                            title="Revoca Accesso Utenza"
+                                                        >
+                                                            <Trash2 size={18} strokeWidth={2} className="group-hover/trash:scale-110 transition-transform" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-
             </div>
-        </div>
+        </>
     )
 }

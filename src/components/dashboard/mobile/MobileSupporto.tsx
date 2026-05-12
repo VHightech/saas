@@ -119,7 +119,7 @@ export function MobileSupporto({ firstName, onBack }: MobileSupportoProps) {
             <div className="pt-4 flex items-center justify-between">
                 <button
                     onClick={onBack}
-                    className="w-12 h-12 rounded-full bg-white dark:bg-white/5 flex items-center justify-center text-[#0A2540] dark:text-white shrink-0 active:scale-90 transition-transform"
+                    className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-[#0A2540] dark:text-white shrink-0 active:scale-90 transition-transform"
                 >
                     <ChevronLeft size={24} />
                 </button>
@@ -154,7 +154,7 @@ export function MobileSupporto({ firstName, onBack }: MobileSupportoProps) {
             {/* Service CTA + status */}
             <a
                 href={telHref(SERVICE_NUMBER)}
-                className="block w-full bg-[#C6F36B] text-[#0A2540] rounded-[2rem] p-5 active:scale-[0.98] transition-transform"
+                className="block w-full bg-[#93C5FD] text-[#0A2540] rounded-[2rem] p-5 active:scale-[0.98] transition-transform"
             >
                 <div className="flex items-center justify-between">
                     <div>
@@ -171,7 +171,7 @@ export function MobileSupporto({ firstName, onBack }: MobileSupportoProps) {
                         <p className="text-[11px] font-medium opacity-70 mt-0.5">Numero verde gratuito · Lun–Ven 8–20</p>
                     </div>
                     <div className="w-14 h-14 rounded-full bg-[#0A2540] flex items-center justify-center shrink-0">
-                        <Phone size={24} className="text-[#C6F36B]" strokeWidth={2.5} />
+                        <Phone size={24} className="text-[#93C5FD]" strokeWidth={2.5} />
                     </div>
                 </div>
             </a>
@@ -360,7 +360,7 @@ function TopicSheet({ topic, onClose }: { topic: Topic; onClose: () => void }) {
 
                 <a
                     href={telHref(topic.callNumber)}
-                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-[#C6F36B] text-[#0A2540] font-bold text-sm tracking-tight active:scale-[0.98] transition-transform"
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-[#93C5FD] text-[#0A2540] font-bold text-sm tracking-tight active:scale-[0.98] transition-transform"
                 >
                     <Phone size={18} strokeWidth={2.5} />
                     {topic.callLabel} · {topic.callNumber}
