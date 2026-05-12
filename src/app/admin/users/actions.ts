@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireAdmin } from '@/lib/auth-checks'
+import { requireAdmin, requireSuperadmin } from '@/lib/auth-checks'
 
 export async function deleteUser(userId: string) {
     const authCheck = await requireAdmin()
@@ -157,5 +157,37 @@ export async function resetUserPassword(userId: string) {
         return { error: 'Errore nell\'invio dell\'email: ' + sendError.message }
     }
 
+    return { success: true }
+}
+
+export async function deleteSupply(cif: string, userId?: string) {
+    const authCheck = await requireAdmin()
+    if (authCheck.error) return { error: authCheck.error }
+
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        }
+    )
+
+    const { error } = await supabaseAdmin
+        .from('user_supplies')
+        .delete()
+        .eq('cif', cif)
+
+    if (error) {
+        console.error('Error deleting supply:', error)
+        return { error: 'Errore durante la cancellazione della fornitura.' }
+    }
+
+    if (userId) {
+        revalidatePath(`/admin/users/${userId}`)
+    }
+    revalidatePath('/admin/users')
     return { success: true }
 }

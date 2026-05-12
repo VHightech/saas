@@ -34,18 +34,14 @@ export async function register(formData: FormData) {
     const clientCode = (formData.get('client_code') as string)?.trim()
     const fullNameInput = (formData.get('full_name') as string)?.trim() || ''
 
-    // Automatically assign the username since the UI no longer collects it.
-    // Fiscal Code is unique per user and works perfectly as a behind-the-scenes username.
-    const username = fiscalCode || clientCode;
-
     // 1. Tenant Resolution Removed (Single Tenant)
     const headersList = await headers()
 
     // 0. SECURITY CHECK: Verify if Client Code exists AND matches Fiscal Code
     // We only allow registration if the user's data is already pre-loaded (e.g. from CSV import)
-    const { data: existingProfile, error: profileCheckError } = await supabaseAdmin
+    const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
-        .select('id, codice_cliente, name, email, cif, cfpi')
+        .select('id, codice_cliente, name, email, cfpi')
         .eq('codice_cliente', clientCode)
         .maybeSingle()
 
@@ -54,41 +50,41 @@ export async function register(formData: FormData) {
     // 2. Must match the provided Fiscal Code (either via CIF or CFPI)
     let isValid = false;
     let name = '';
-    let existingProfileId: string | null = null;
 
     if (existingProfile) {
-        isValid = (
-            (existingProfile.cif && existingProfile.cif.toUpperCase() === fiscalCode) ||
-            (existingProfile.cfpi && existingProfile.cfpi.toUpperCase() === fiscalCode)
-        )
+        // Validate against CFPI (Fiscal Code / VAT)
+        isValid = (existingProfile.cfpi && existingProfile.cfpi.toUpperCase() === fiscalCode)
         if (isValid) {
             name = existingProfile.name || fullNameInput;
-            existingProfileId = existingProfile.id;
         }
     }
 
-    // Fallback: If no shadow profile exists, check if they have valid supplies or bills
-    // We must validate that the provided fiscalCode matches the 'cif' in these tables.
+    // Fallback: If no shadow profile exists, check if they have valid supplies or bills.
+    // SECURITY (C-1 fix 2026-05-06): we MUST validate against the user's CF/PIVA (cfpi),
+    // NOT against the technical Codice Identificativo Fornitura (cif) — `cif` is printed
+    // on every paper bill and would let anyone with a paper bill claim the account.
     if (!isValid && !existingProfile) {
         const { data: supplyFallback } = await supabaseAdmin
             .from('user_supplies')
-            .select('id, codice_cliente, cif')
+            .select('id, codice_cliente, cfpi')
             .eq('codice_cliente', clientCode)
+            .not('cfpi', 'is', null)
             .limit(1)
             .maybeSingle()
 
-        if (supplyFallback && supplyFallback.cif && supplyFallback.cif.toUpperCase() === fiscalCode) {
+        if (supplyFallback?.cfpi && supplyFallback.cfpi.toUpperCase() === fiscalCode) {
             isValid = true;
-            name = fullNameInput; // Fallback to user-provided name
+            name = fullNameInput;
         } else {
             const { data: billFallback } = await supabaseAdmin
                 .from('bills')
-                .select('id, codice_cliente, cif')
+                .select('id, codice_cliente, cfpi')
                 .eq('codice_cliente', clientCode)
+                .not('cfpi', 'is', null)
                 .limit(1)
                 .maybeSingle()
 
-            if (billFallback && billFallback.cif && billFallback.cif.toUpperCase() === fiscalCode) {
+            if (billFallback?.cfpi && billFallback.cfpi.toUpperCase() === fiscalCode) {
                 isValid = true;
                 name = fullNameInput;
             }
@@ -142,75 +138,33 @@ export async function register(formData: FormData) {
         return { error: "Errore durante la creazione dell'account. Riprova." }
     }
 
-    // 3. Update/Create Profile (Skeleton)
-    // We do this FIRST to ensure foreign key constraints on bills and user_supplies don't fail.
-    // CRITICAL: We purposely omit `codice_cliente` here because the old shadow profile still holds it,
-    // and passing it now would violate the `profiles_codice_cliente_key` unique constraint.
+    // 3. Profile finalization.
+    //    The handle_new_user trigger has already done one of two things:
+    //      (a) If a shadow profile existed for clientCode, it set
+    //          auth_user_id = new.id and is_shadow = false on that shadow row
+    //          — bills/supplies/payments remain pointing at profiles.id, no
+    //          row migration needed.
+    //      (b) Otherwise, it inserted a fresh profile with
+    //          id = auth_user_id = new.id.
+    //    We just enrich the linked profile row with any extra fields collected
+    //    by the form that the trigger didn't set.
     const { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .upsert({
-            id: authData.user.id,
-            name,
-            email,
-            username,
-            cfpi: fiscalCode, // Save the CFPI from registration
+        .update({
+            name: name,
+            email: email,
+            cfpi: fiscalCode,
+            role: 'user',
             is_shadow: false,
-            role: 'user'
         })
+        .eq('auth_user_id', authData.user.id)
 
     if (profileError) {
-        console.error('Profile creation error:', profileError)
+        console.error('Profile finalize error:', profileError.code)
         if (profileError.code === '23505') {
-            if (profileError.message.includes('username')) return { error: 'Questo Username è già stato utilizzato.' }
-            if (profileError.message.includes('cif')) return { error: 'Questo CIF/P.IVA risulta già registrato.' }
-            return { error: 'Dati duplicati (Username o CIF già in uso).' }
+            return { error: 'Dati non validi o già in uso. Verifica e riprova.' }
         }
         return { error: 'Account creato, ma errore nel salvataggio del profilo.' }
-    }
-
-    // 4. Link Existing Data (Claim Shadow Data)
-    if (existingProfileId) {
-        const { error: billsUpdateError } = await supabaseAdmin.from('bills')
-            .update({ user_id: authData.user.id })
-            .eq('user_id', existingProfileId)
-        if (billsUpdateError) console.error("Bills Update Error:", billsUpdateError)
-
-        const { error: suppliesUpdateError } = await supabaseAdmin.from('user_supplies')
-            .update({ user_id: authData.user.id })
-            .eq('user_id', existingProfileId)
-        if (suppliesUpdateError) console.error("Supplies Update Error:", suppliesUpdateError)
-    } else {
-        // Fallback: Claim orphaned bills and supplies by codice_cliente directly
-        const { error: billsUpdateError } = await supabaseAdmin.from('bills')
-            .update({ user_id: authData.user.id })
-            .eq('codice_cliente', clientCode)
-        if (billsUpdateError) console.error("Bills Update Error (Fallback):", billsUpdateError)
-
-        const { error: suppliesUpdateError } = await supabaseAdmin.from('user_supplies')
-            .update({ user_id: authData.user.id })
-            .eq('codice_cliente', clientCode)
-        if (suppliesUpdateError) console.error("Supplies Update Error (Fallback):", suppliesUpdateError)
-    }
-
-    // 5. Handle existing Shadow Profile
-    // Delete the old shadow profile to avoid duplicates now that data is migrated.
-    // This officially frees up the unique `codice_cliente`.
-    if (existingProfileId && existingProfileId !== authData.user.id) {
-        const { error: shadowDeleteError } = await supabaseAdmin.from('profiles')
-            .delete()
-            .eq('id', existingProfileId)
-            .eq('is_shadow', true)
-        if (shadowDeleteError) console.error("Shadow Profile Delete Error:", shadowDeleteError)
-    }
-
-    // 6. Complete Profile Migration
-    // Now that the unique constraint lock is lifted, attach the codice_cliente to the real profile.
-    if (clientCode) {
-        const { error: finalUpdateError } = await supabaseAdmin.from('profiles')
-            .update({ codice_cliente: clientCode })
-            .eq('id', authData.user.id)
-
-        if (finalUpdateError) console.error("Profile Finalization Error:", finalUpdateError)
     }
 
     revalidatePath('/', 'layout')

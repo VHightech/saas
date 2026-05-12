@@ -11,6 +11,8 @@ export default function ForgotPasswordPage() {
     const [step, setStep] = useState(1) // 1: Search, 2: Confirm Email, 3: OTP, 4: New Password, 5: Success
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [showError, setShowError] = useState(false)
+    const [isCodeInvalid, setIsCodeInvalid] = useState(false)
 
     // State
     const [identifier, setIdentifier] = useState('')
@@ -21,7 +23,18 @@ export default function ForgotPasswordPage() {
     // Handlers
     async function handleLookup(e: React.FormEvent) {
         e.preventDefault()
-        setLoading(true); setError(null)
+        setLoading(true)
+        setError(null)
+        setShowError(false)
+        setIsCodeInvalid(false)
+
+        if (identifier.length < 6) {
+            setShowError(true)
+            setError("Inserisci il tuo Codice Cliente di 6 cifre.")
+            setLoading(false)
+            return
+        }
+
         const res = await lookupUser(identifier)
         setLoading(false)
         if (res.success && res.maskedEmail) {
@@ -29,6 +42,7 @@ export default function ForgotPasswordPage() {
             setStep(2)
         } else {
             setError(res.error || 'Utenza non trovata.')
+            setIsCodeInvalid(true)
         }
     }
 
@@ -105,20 +119,71 @@ export default function ForgotPasswordPage() {
                     </div>
                 )}
 
-                {/* STEP 1: Identification */}
+                {/* Identification Step */}
                 {step === 1 && (
                     <form onSubmit={handleLookup} className="space-y-6 animate-in fade-in slide-in-from-right-4">
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email o Codice Utenza</label>
-                            <input
-                                type="text"
-                                placeholder="Inserisci la tua email o codice cliente"
-                                required
-                                value={identifier}
-                                onChange={(e) => setIdentifier(e.target.value)}
-                                className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
-                            />
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">Codice Cliente</label>
+                            <div className="flex gap-2 justify-between">
+                                {[0, 1, 2, 3, 4, 5].map((index) => {
+                                    const isEmpty = !identifier[index]
+                                    const isError = isCodeInvalid || (showError && isEmpty)
+                                    
+                                    return (
+                                        <input
+                                            key={index}
+                                            id={`otp-${index}`}
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={1}
+                                            placeholder="0"
+                                            onFocus={(e) => e.target.select()}
+                                            className={`w-12 h-14 text-center text-xl font-bold rounded-lg bg-slate-50 dark:bg-white/5 border focus:bg-white dark:focus:bg-black focus:outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono shadow-sm ${
+                                                isError 
+                                                ? 'border-red-500 ring-1 ring-red-500' 
+                                                : 'border-slate-200 dark:border-white/10 focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white'
+                                            }`}
+                                            value={identifier[index] || ''}
+                                            onChange={(e) => {
+                                                setShowError(false)
+                                                setIsCodeInvalid(false)
+                                                const val = e.target.value.replace(/[^0-9]/g, '')
+                                                if (!val && e.target.value) return 
+
+                                                const newCode = identifier.split('')
+                                                while (newCode.length < 6) newCode.push('')
+
+                                                newCode[index] = val
+                                                const newCodeString = newCode.join('').slice(0, 6)
+                                                setIdentifier(newCodeString)
+
+                                                if (val && index < 5) {
+                                                    document.getElementById(`otp-${index + 1}`)?.focus()
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Backspace' && !identifier[index] && index > 0) {
+                                                    document.getElementById(`otp-${index - 1}`)?.focus()
+                                                }
+                                            }}
+                                            onPaste={(e) => {
+                                                e.preventDefault()
+                                                const pastedData = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6)
+                                                if (pastedData) {
+                                                    setIdentifier(pastedData)
+                                                    const focusIndex = Math.min(pastedData.length, 5)
+                                                    document.getElementById(`otp-${focusIndex}`)?.focus()
+                                                }
+                                            }}
+                                        />
+                                    )
+                                })}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 text-center">
+                                Inserisci il codice di 6 cifre della tua utenza.
+                            </p>
                         </div>
+                        
                         <button disabled={loading} className="w-full py-3.5 px-6 rounded-lg bg-black dark:bg-white text-white dark:text-black font-bold hover:bg-slate-800 dark:hover:bg-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
                             {loading ? 'Ricerca...' : 'Trova Account'} <UserSearch size={18} />
                         </button>

@@ -12,11 +12,11 @@ export async function getCurrentUserRole(): Promise<UserRole> {
         return 'user' // Default safe fallback
     }
 
-    // 1. Check in profiles table (Unified Role System)
+    // 1. Check in profiles table (linked via auth_user_id, not id).
     const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', user.id)
+        .eq('auth_user_id', user.id)
         .maybeSingle()
 
     const role = profile?.role

@@ -58,7 +58,7 @@ export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillList
                     </span>
                 )}
                 {!isPaid && bill.expected_method === 'MP23' && (
-                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#C6F36B] text-[#0A2540] whitespace-nowrap">
+                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#93C5FD] text-[#0A2540] whitespace-nowrap">
                         Da pagare
                     </span>
                 )}

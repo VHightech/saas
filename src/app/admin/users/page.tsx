@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { 
-    Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X, 
-    Printer, Download, Check, Pencil, Key, Copy,
-    TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity 
+import {
+    Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X,
+    Printer, Download, Check, Pencil, Edit2, Key, Copy,
+    TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
 } from 'lucide-react'
-import { resetUserPassword } from './actions'
+import { resetUserPassword, deleteUser } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { cn } from '@/lib/utils'
@@ -20,12 +20,11 @@ interface UserProfile {
     cfpi: string
     clientCode: string
     isShadow: boolean
-    cif: string
-    address: string
-    city: string
     unpaidAmount?: number
     billsCount?: number
     suppliesCount?: number
+    supplies?: string[]
+    userSupplies?: any[]
 }
 
 function initialsOf(name: string) {
@@ -33,8 +32,19 @@ function initialsOf(name: string) {
     return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || 'U'
 }
 
-function formatEuro(n: number) {
-    return `${n.toFixed(2).replace('.', ',')} €`
+function formatEuro(n: number | null | undefined) {
+    if (n === null || n === undefined) return '0,00 €'
+    return `${(Number(n) || 0).toFixed(2).replace('.', ',')} €`
+}
+
+function getContractStatus(status: string) {
+    switch (status) {
+        case '03': return { label: 'Attivo', color: 'emerald', theme: 'bg-emerald-500 text-white border-emerald-600' }
+        case '04': return { label: 'In Lavorazione', color: 'amber', theme: 'bg-amber-500 text-white border-amber-600' }
+        case '05': return { label: 'Chiuso', color: 'slate', theme: 'bg-slate-500 text-white border-slate-600' }
+        case '08': return { label: 'Annullato', color: 'rose', theme: 'bg-rose-500 text-white border-rose-600' }
+        default: return { label: status || '—', color: 'slate', theme: 'bg-slate-400 text-white border-slate-500' }
+    }
 }
 
 export default function AdminUsersPage() {
@@ -59,11 +69,15 @@ export default function AdminUsersPage() {
     const [unpaidTotal] = useState(0)
     const [unpaidUsersCount] = useState(0)
     const [selected, setSelected] = useState<Set<string>>(new Set())
+    const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
     const [activeUserId, setActiveUserId] = useState<string | null>(null)
+    const [editingUserId, setEditingUserId] = useState<string | null>(null)
+    const [rowDrafts, setRowDrafts] = useState<Partial<UserProfile>>({})
     const [activeBills, setActiveBills] = useState<any[]>([])
     const [activeBillsLoading, setActiveBillsLoading] = useState(false)
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'shadow'>('all')
-    const [sortBy, setSortBy] = useState<'created_at' | 'name'>('created_at')
+    const [contractStatusFilter, setContractStatusFilter] = useState<string>('all')
+    const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'user_supplies_count' | 'bills_count'>('created_at')
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
     const toggleSelect = (id: string) => {
@@ -74,11 +88,25 @@ export default function AdminUsersPage() {
             return next
         })
     }
+
+    const handleDeleteUser = async (u: UserProfile) => {
+        if (!window.confirm(`Sei sicuro di voler eliminare definitivamente l'utente ${u.fullName}?`)) return
+        toast.promise(deleteUser(u.id), {
+            loading: 'Eliminazione in corso...',
+            success: (res) => {
+                if (res.error) throw new Error(res.error)
+                fetchUsers()
+                return 'Utente eliminato'
+            },
+            error: (err) => `Errore: ${err.message}`
+        })
+    }
     const toggleSelectAll = () => {
         setSelected(prev => prev.size === users.length ? new Set() : new Set(users.map(u => u.id)))
     }
     const clearSelection = () => setSelected(new Set())
-    const toggleSort = (key: string) => {
+    type SortKey = 'created_at' | 'name' | 'user_supplies_count' | 'bills_count'
+    const toggleSort = (key: SortKey) => {
         if (sortBy === key) {
             setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
         } else {
@@ -128,65 +156,69 @@ export default function AdminUsersPage() {
     useEffect(() => {
         fetchUsers()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearchTerm, currentPage, itemsPerPage, statusFilter, sortBy, sortOrder])
+    }, [debouncedSearchTerm, currentPage, itemsPerPage, statusFilter, contractStatusFilter, sortBy, sortOrder])
 
     async function fetchUsers() {
         setLoading(true)
         try {
-            if (debouncedSearchTerm) {
-                const { data, error } = await supabase.rpc('search_users', {
-                    search_term: debouncedSearchTerm,
-                    _limit: itemsPerPage,
-                    _offset: (currentPage - 1) * itemsPerPage,
-                })
-                if (error) throw error
-                if (data) {
-                    const filtered = data.filter((p: any) => !['admin', 'super_admin', 'superadmin'].includes(p.role))
-                    setUsers(filtered.map(adapt))
-                    setTotalResults(filtered[0]?.total_count || 0)
+            // Single source of truth: search_users RPC. Works with empty search term
+            // and supports server-side sort by bills_count / user_supplies_count.
+            const { data, error } = await supabase.rpc('search_users', {
+                search_term: debouncedSearchTerm ?? '',
+                _limit: itemsPerPage,
+                _offset: (currentPage - 1) * itemsPerPage,
+                _status_filter: contractStatusFilter,
+                _shadow_filter: statusFilter,           // 'all' | 'active' | 'shadow'
+                _sort_by: sortBy,                        // created_at | name | bills_count | user_supplies_count
+                _sort_order: sortOrder                   // asc | desc
+            })
+
+            if (error) {
+                if (error.message?.includes('stato_contratto')) {
+                    toast.error('Errore Database: La colonna "stato_contratto" non esiste. Esegui le migrazioni SQL.', { id: 'db-error' })
+                } else {
+                    console.error('Fetch error:', error)
+                    toast.error(`Errore caricamento utenti: ${error.message}`, { id: 'db-error' })
                 }
-            } else {
-                let query = supabase
-                    .from('profiles')
-                    .select('*, bills(count), user_supplies(count)', { count: 'exact' })
-                    .not('role', 'in', '("admin","super_admin","superadmin")')
+                throw error
+            }
 
-                if (statusFilter === 'active') query = query.eq('is_shadow', false)
-                if (statusFilter === 'shadow') query = query.eq('is_shadow', true)
+            if (data) {
+                setUsers((data as any[]).map(adapt))
+                const total = data[0]?.total_count ?? 0
+                setTotalResults(total)
 
-                const { data, count, error } = await (
-                    ['name', 'created_at'].includes(sortBy)
-                        ? query.order(sortBy, { ascending: sortOrder === 'asc' })
-                        : query
-                ).range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1)
-
-                if (error) throw error
-                if (data) {
-                    let adapted = data.map(adapt)
-                    // If we sorted by count, we'll do it locally for the current page for now
-                    if (!['name', 'created_at'].includes(sortBy)) {
-                        adapted = adapted.sort((a, b) => {
-                            const valA = sortBy === 'user_supplies_count' ? (a.suppliesCount || 0) : (a.billsCount || 0)
-                            const valB = sortBy === 'user_supplies_count' ? (b.suppliesCount || 0) : (b.billsCount || 0)
-                            return sortOrder === 'asc' ? valA - valB : valB - valA
-                        })
-                    }
-                    setUsers(adapted)
-                    setTotalResults(count || 0)
+                if (contractStatusFilter !== 'all' && total === 0) {
+                    toast.warning(`Nessun utente trovato con stato "${getContractStatus(contractStatusFilter).label}". Verifica i dati importati.`, { id: 'filter-empty' })
                 }
             }
 
-            // Aggregate stats (independent of pagination)
-            const { data: allProfiles } = await supabase
-                .from('profiles')
-                .select('id, name, email, is_shadow, role')
-                .not('role', 'in', '("admin","super_admin","superadmin")')
-
-            if (allProfiles) {
-                const shadow = allProfiles.filter((p: any) => p.is_shadow || !p.email || !p.name).length
-                setShadowCount(shadow)
-                setActiveCount(allProfiles.length - shadow)
+            // Fetch current user role
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: currProfile } = await supabase.from('profiles').select('role').eq('auth_user_id', user.id).maybeSingle()
+                setCurrentUserRole(currProfile?.role || null)
             }
+
+            // Aggregate stats (independent of pagination).
+            // Use head:true count queries so we get exact counts without
+            // hitting the PostgREST default 1000-row cap.
+            const baseFilter = (q: any) =>
+                q.not('role', 'in', '("admin","super_admin","superadmin")')
+
+            const [{ count: totalCount }, { count: shadowDb }] = await Promise.all([
+                baseFilter(
+                    supabase.from('profiles').select('id', { count: 'exact', head: true })
+                ),
+                baseFilter(
+                    supabase.from('profiles').select('id', { count: 'exact', head: true })
+                ).eq('is_shadow', true)
+            ])
+
+            const total = totalCount ?? 0
+            const shadow = shadowDb ?? 0
+            setShadowCount(shadow)
+            setActiveCount(Math.max(0, total - shadow))
         } catch (e: any) {
             console.error('Error fetching users:', e?.message || e)
         } finally {
@@ -195,7 +227,50 @@ export default function AdminUsersPage() {
     }
 
     const handleRowClick = (userId: string) => {
+        if (editingUserId) return
         setActiveUserId(prev => prev === userId ? null : userId)
+    }
+
+    const startEditRow = (u: UserProfile) => {
+        setEditingUserId(u.id)
+        setRowDrafts(u)
+    }
+
+    const saveEditRow = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!editingUserId) return
+
+        const toastId = toast.loading('Salvataggio in corso...')
+        try {
+            const updates = {
+                name: rowDrafts.fullName,
+                email: rowDrafts.email,
+                cfpi: rowDrafts.cfpi,
+                codice_cliente: rowDrafts.clientCode
+            }
+            const { error } = await supabase.from('profiles').update(updates).eq('id', editingUserId)
+            if (error) throw error
+
+            // Update user supplies addresses if changed
+            if (rowDrafts.userSupplies && rowDrafts.userSupplies.length > 0) {
+                for (const s of rowDrafts.userSupplies) {
+                    if (s.cif) {
+                        await supabase.from('user_supplies').update({
+                            indirizzo_fornitura: s.indirizzo_fornitura,
+                            citta: s.citta
+                        }).eq('cif', s.cif)
+                    }
+                }
+            }
+
+            toast.success('Utente aggiornato con successo', { id: toastId })
+
+            setUsers(users.map(u => u.id === editingUserId ? { ...u, ...rowDrafts } as UserProfile : u))
+            setEditingUserId(null)
+        } catch (error) {
+            console.error('Error saving user:', error)
+            toast.error('Errore durante il salvataggio', { id: toastId })
+        }
     }
 
     const handleViewMore = () => {
@@ -216,21 +291,21 @@ export default function AdminUsersPage() {
         if (!activeUserId) { setActiveBills([]); return }
         let cancelled = false
         setActiveBillsLoading(true)
-        ;(async () => {
-            const { data, error } = await supabase
-                .from('bills')
-                .select('*')
-                .eq('user_id', activeUserId)
-                .order('data_emissione', { ascending: false })
-            if (cancelled) return
-            if (error) {
-                console.error('Bills fetch failed:', error.message)
-                setActiveBills([])
-            } else {
-                setActiveBills(data || [])
-            }
-            setActiveBillsLoading(false)
-        })()
+            ; (async () => {
+                const { data, error } = await supabase
+                    .from('bills')
+                    .select('*')
+                    .eq('user_id', activeUserId)
+                    .order('data_emissione', { ascending: false })
+                if (cancelled) return
+                if (error) {
+                    console.error('Bills fetch failed:', error.message)
+                    setActiveBills([])
+                } else {
+                    setActiveBills(data || [])
+                }
+                setActiveBillsLoading(false)
+            })()
         return () => { cancelled = true }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeUserId])
@@ -257,10 +332,7 @@ export default function AdminUsersPage() {
             fullName: 'name',
             email: 'email',
             cfpi: 'cfpi',
-            cif: 'cif',
-            clientCode: 'codice_cliente',
-            address: 'address',
-            city: 'city',
+            clientCode: 'codice_cliente'
         }
         const col = dbColumn[field as string]
         if (!col) return
@@ -288,7 +360,7 @@ export default function AdminUsersPage() {
     const handleExportCSV = useCallback(() => {
         const selectedUsers = users.filter(u => selected.has(u.id))
         if (selectedUsers.length === 0) return
-        
+
         const headers = ['Nome', 'Email', 'CF/PIVA', 'Codice Cliente', 'Indirizzo', 'Città']
         const csvContent = [
             headers.join(','),
@@ -519,42 +591,42 @@ export default function AdminUsersPage() {
                 </head>
                 <body>
                     ${selectedUsers.map((u, pageIdx) => {
-                        const userBills = allBills?.filter(b => b.user_id === u.id) || []
-                        const sortedBills = [...userBills].sort((a, b) => new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime())
+                const userBills = allBills?.filter(b => b.user_id === u.id) || []
+                const sortedBills = [...userBills].sort((a, b) => new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime())
 
-                        // KPI calculations
-                        const totalAmount = userBills.reduce((s, b) => s + (Number(b.importo) || 0), 0)
-                        const totalConsumo = userBills.reduce((s, b) => s + (Number(b.consumo) || 0), 0)
-                        const unpaidCount = userBills.filter(b => b.status !== 'paid').length
-                        const unpaidAmount = userBills.filter(b => b.status !== 'paid').reduce((s, b) => s + (Number(b.importo) || 0), 0)
+                // KPI calculations
+                const totalAmount = userBills.reduce((s, b) => s + (Number(b.importo) || 0), 0)
+                const totalConsumo = userBills.reduce((s, b) => s + (Number(b.consumo) || 0), 0)
+                const unpaidCount = userBills.filter(b => b.status !== 'paid').length
+                const unpaidAmount = userBills.filter(b => b.status !== 'paid').reduce((s, b) => s + (Number(b.importo) || 0), 0)
 
-                        // Chart geometry
-                        const chartWidth = 720
-                        const chartHeight = 200
-                        const padL = 38, padR = 16, padT = 18, padB = 28
-                        const dataPoints = sortedBills.slice(-12)
-                        const innerW = chartWidth - padL - padR
-                        const innerH = chartHeight - padT - padB
+                // Chart geometry
+                const chartWidth = 720
+                const chartHeight = 200
+                const padL = 38, padR = 16, padT = 18, padB = 28
+                const dataPoints = sortedBills.slice(-12)
+                const innerW = chartWidth - padL - padR
+                const innerH = chartHeight - padT - padB
 
-                        const maxImporto = Math.max(...dataPoints.map(b => Number(b.importo) || 0), 50)
-                        const maxConsumo = Math.max(...dataPoints.map(b => Number(b.consumo) || 0), 10)
-                        const niceMax = (v) => { const e = Math.pow(10, Math.floor(Math.log10(v))); return Math.ceil(v / e) * e }
-                        const yMax = niceMax(maxImporto * 1.15)
+                const maxImporto = Math.max(...dataPoints.map(b => Number(b.importo) || 0), 50)
+                const maxConsumo = Math.max(...dataPoints.map(b => Number(b.consumo) || 0), 10)
+                const niceMax = (v: number) => { const e = Math.pow(10, Math.floor(Math.log10(v))); return Math.ceil(v / e) * e }
+                const yMax = niceMax(maxImporto * 1.15)
 
-                        const n = dataPoints.length
-                        const stepX = n > 1 ? innerW / (n - 1) : 0
-                        const getX = (i) => padL + (n > 1 ? i * stepX : innerW / 2)
-                        const getYImp = (v) => padT + innerH - (v * innerH / yMax)
-                        const getYCon = (v) => padT + innerH - (v * innerH / Math.max(maxConsumo, 1))
+                const n = dataPoints.length
+                const stepX = n > 1 ? innerW / (n - 1) : 0
+                const getX = (i: number) => padL + (n > 1 ? i * stepX : innerW / 2)
+                const getYImp = (v: number) => padT + innerH - (v * innerH / yMax)
+                const getYCon = (v: number) => padT + innerH - (v * innerH / Math.max(maxConsumo, 1))
 
-                        const linePts = dataPoints.map((b, i) => `${getX(i)},${getYImp(Number(b.importo) || 0)}`).join(' ')
-                        const areaPts = n > 0
-                            ? `${getX(0)},${padT + innerH} ${linePts} ${getX(n - 1)},${padT + innerH}`
-                            : ''
-                        const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: padT + innerH - t * innerH, val: yMax * t }))
-                        const barW = Math.min(20, stepX * 0.5)
+                const linePts = dataPoints.map((b, i) => `${getX(i)},${getYImp(Number(b.importo) || 0)}`).join(' ')
+                const areaPts = n > 0
+                    ? `${getX(0)},${padT + innerH} ${linePts} ${getX(n - 1)},${padT + innerH}`
+                    : ''
+                const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: padT + innerH - t * innerH, val: yMax * t }))
+                const barW = Math.min(20, stepX * 0.5)
 
-                        return `
+                return `
                         <div class="page">
                             <div class="header">
                                 <div>
@@ -632,25 +704,25 @@ export default function AdminUsersPage() {
                                     <line class="axis-line" x1="${padL}" y1="${padT + innerH}" x2="${chartWidth - padR}" y2="${padT + innerH}" />
 
                                     ${dataPoints.map((b, i) => {
-                                        const x = getX(i)
-                                        const y = getYCon(Number(b.consumo) || 0)
-                                        const h = (padT + innerH) - y
-                                        return `<rect class="bar" x="${x - barW / 2}" y="${y}" width="${barW}" height="${h}" rx="2" />`
-                                    }).join('')}
+                    const x = getX(i)
+                    const y = getYCon(Number(b.consumo) || 0)
+                    const h = (padT + innerH) - y
+                    return `<rect class="bar" x="${x - barW / 2}" y="${y}" width="${barW}" height="${h}" rx="2" />`
+                }).join('')}
 
                                     ${areaPts ? `<polygon class="area" points="${areaPts}" />` : ''}
                                     <polyline class="line" points="${linePts}" />
 
                                     ${dataPoints.map((b, i) => {
-                                        const x = getX(i)
-                                        const y = getYImp(Number(b.importo) || 0)
-                                        return `<circle class="dot" cx="${x}" cy="${y}" r="3.5" />`
-                                    }).join('')}
+                    const x = getX(i)
+                    const y = getYImp(Number(b.importo) || 0)
+                    return `<circle class="dot" cx="${x}" cy="${y}" r="3.5" />`
+                }).join('')}
 
                                     ${dataPoints.map((b, i) => {
-                                        const x = getX(i)
-                                        return `<text class="x-txt" x="${x}" y="${chartHeight - 8}" text-anchor="middle">${new Date(b.data_emissione).toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }).replace('.', '')}</text>`
-                                    }).join('')}
+                    const x = getX(i)
+                    return `<text class="x-txt" x="${x}" y="${chartHeight - 8}" text-anchor="middle">${new Date(b.data_emissione).toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }).replace('.', '')}</text>`
+                }).join('')}
                                 </svg>
                             </div>
 
@@ -687,7 +759,7 @@ export default function AdminUsersPage() {
                             </div>
                         </div>
                         `
-                    }).join('')}
+            }).join('')}
                 </body>
                 </html>
             `
@@ -733,20 +805,43 @@ export default function AdminUsersPage() {
         <>
             <AdminPageHero
                 title="Anagrafica clienti"
-                subtitle={`${stats.total} clienti${stats.shadow > 0 ? ` · ${stats.shadow} utenze fantasma` : ''}`}
+                actions={
+                    <div className="flex items-center justify-end w-full animate-in fade-in slide-in-from-right-4 duration-700">
+                        <div className="flex items-center gap-10">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Utenti Totali</span>
+                                <span className="text-[19px] font-bold text-slate-900 dark:text-white leading-none tabular-nums">
+                                    {stats.total}
+                                </span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Registrati</span>
+                                <span className="text-[19px] font-bold text-slate-900 dark:text-white leading-none tabular-nums">
+                                    {stats.active}
+                                </span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Non Registrati</span>
+                                <span className="text-[19px] font-bold text-slate-900 dark:text-white leading-none tabular-nums">
+                                    {stats.shadow}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                }
             />
 
             <div className="h-full flex flex-col gap-3 min-h-0 px-0">
                 {/* Body grid: table + right rail */}
-                <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-0">
+                <div className="flex-1 min-h-0 flex flex-col gap-0">
                     {/* Main content column */}
                     <div className="flex flex-col min-h-0">
                         {/* Filter chips moved inside the grid for perfect alignment with table/footer */}
                         <div className="flex items-center gap-2 shrink-0 flex-wrap px-6 py-2 bg-white dark:bg-[#0F1115]">
                             <div className="relative group">
-                                <FilterChip 
-                                    label={`Stato${statusFilter !== 'all' ? `: ${statusFilter === 'active' ? 'Attivo' : 'Fantasma'}` : ''}`} 
-                                    active={statusFilter !== 'all'} 
+                                <FilterChip
+                                    label={`Utenza${statusFilter !== 'all' ? `: ${statusFilter === 'active' ? 'Registrato' : 'Fantasma'}` : ''}`}
+                                    active={statusFilter !== 'all'}
                                     onClear={() => { setStatusFilter('all'); setCurrentPage(1) }}
                                 />
                                 <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg py-1 hidden group-hover:block z-50 animate-in fade-in zoom-in-95 duration-100">
@@ -759,20 +854,54 @@ export default function AdminUsersPage() {
                                                 statusFilter === s ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"
                                             )}
                                         >
-                                            {s === 'all' ? 'Tutti' : s === 'active' ? 'Attivi' : 'Fantasma'}
+                                            {s === 'all' ? 'Tutte le utenze' : s === 'active' ? 'Registrato' : 'Fantasma'}
                                         </button>
                                     ))}
                                 </div>
                             </div>
-                            
+
                             <div className="relative group">
-                                <FilterChip 
-                                    label={`Ordina per: ${
-                                        sortBy === 'created_at' ? 'Data' : 
+                                <FilterChip
+                                    label={`Contratto${contractStatusFilter !== 'all' ? `: ${getContractStatus(contractStatusFilter).label}` : ''}`}
+                                    active={contractStatusFilter !== 'all'}
+                                    onClear={() => { setContractStatusFilter('all'); setCurrentPage(1) }}
+                                />
+                                <div className="absolute top-full left-0 mt-1 w-44 bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg py-1 hidden group-hover:block z-50 animate-in fade-in zoom-in-95 duration-100">
+                                    <button
+                                        onClick={() => { setContractStatusFilter('all'); setCurrentPage(1) }}
+                                        className={cn(
+                                            "w-full text-left px-3 py-2 text-[12px] hover:bg-slate-50 dark:hover:bg-white/5",
+                                            contractStatusFilter === 'all' ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"
+                                        )}
+                                    >
+                                        Tutti i contratti
+                                    </button>
+                                    {(['03', '04', '05', '08'] as const).map(s => {
+                                        const st = getContractStatus(s)
+                                        return (
+                                            <button
+                                                key={s}
+                                                onClick={() => { setContractStatusFilter(s); setCurrentPage(1) }}
+                                                className={cn(
+                                                    "w-full text-left px-3 py-2 text-[12px] hover:bg-slate-50 dark:hover:bg-white/5 flex items-center justify-between",
+                                                    contractStatusFilter === s ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"
+                                                )}
+                                            >
+                                                <span>{st.label}</span>
+                                                <span className="text-[9px] opacity-40 font-mono">{s}</span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="relative group">
+                                <FilterChip
+                                    label={`Ordina per: ${sortBy === 'created_at' ? 'Data' :
                                         sortBy === 'name' ? 'Nome' :
-                                        sortBy === 'user_supplies_count' ? 'Forniture' :
-                                        'Bollette'
-                                    }`} 
+                                            sortBy === 'user_supplies_count' ? 'Forniture' :
+                                                'Bollette'
+                                        }`}
                                     active={sortBy !== 'created_at'}
                                     onClear={() => { setSortBy('created_at'); setSortOrder('desc'); setCurrentPage(1) }}
                                 />
@@ -815,58 +944,59 @@ export default function AdminUsersPage() {
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div className="ml-auto relative w-64">
                                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="text"
-                                    placeholder="Cerca per nome o codice fiscale…"
+                                    placeholder="Cerca..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full h-8 pl-8 pr-3 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[12px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:border-slate-300 dark:focus:border-white/20 transition-all"
+                                    className="w-full h-9 pl-9 pr-4 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[13px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:border-slate-300 dark:focus:border-white/20 transition-all"
                                 />
                             </div>
                         </div>
 
                         <div ref={tableRef} className="flex-1 min-h-0 overflow-auto custom-scrollbar">
                             {/* Header */}
-                            <div className="sticky top-0 z-10 grid grid-cols-[48px_minmax(0,1.6fr)_minmax(0,2fr)_minmax(0,1.4fr)_64px_64px_28px] gap-3 px-6 py-2 bg-white dark:bg-[#0F1115] text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 border-t border-slate-200/70 dark:border-white/5">
+                            <div className="sticky top-0 z-10 grid grid-cols-[48px_1.5fr_1.5fr_1fr_2.2fr_0.6fr_0.6fr_160px] gap-4 px-6 py-2 bg-white dark:bg-[#0F1115] text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 border-t border-slate-200/70 dark:border-white/5">
                                 <div className="flex items-center justify-center">
                                     <Checkbox checked={allSelected} indeterminate={!allSelected && selected.size > 0} onChange={toggleSelectAll} />
                                 </div>
-                                <div className="flex items-center gap-1">Cliente</div>
+                                <div className="flex items-center gap-1">Anagrafica</div>
                                 <div>Identificativi</div>
-                                <div>Indirizzo</div>
-                                <div 
+                                <div>Fornitura</div>
+                                <div>Indirizzo Fornitura</div>
+                                <div
                                     className="text-center flex items-center justify-center gap-1 cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 transition-colors group/h"
                                     onClick={() => toggleSort('user_supplies_count')}
                                 >
-                                    Forn.
-                                    <ChevronDown 
-                                        size={11} 
+                                    Contratti
+                                    <ChevronDown
+                                        size={11}
                                         className={cn(
                                             "transition-all duration-300",
-                                            sortBy === 'user_supplies_count' 
-                                                ? "text-indigo-500 dark:text-indigo-400 opacity-100" 
+                                            sortBy === 'user_supplies_count'
+                                                ? "text-indigo-500 dark:text-indigo-400 opacity-100"
                                                 : "text-slate-300 dark:text-slate-600 opacity-40 group-hover/h:opacity-100",
                                             sortBy === 'user_supplies_count' && sortOrder === 'asc' && "rotate-180"
-                                        )} 
+                                        )}
                                     />
                                 </div>
-                                <div 
+                                <div
                                     className="text-center flex items-center justify-center gap-1 cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 transition-colors group/h"
                                     onClick={() => toggleSort('bills_count')}
                                 >
                                     Boll.
-                                    <ChevronDown 
-                                        size={11} 
+                                    <ChevronDown
+                                        size={11}
                                         className={cn(
                                             "transition-all duration-300",
-                                            sortBy === 'bills_count' 
-                                                ? "text-indigo-500 dark:text-indigo-400 opacity-100" 
+                                            sortBy === 'bills_count'
+                                                ? "text-indigo-500 dark:text-indigo-400 opacity-100"
                                                 : "text-slate-300 dark:text-slate-600 opacity-40 group-hover/h:opacity-100",
                                             sortBy === 'bills_count' && sortOrder === 'asc' && "rotate-180"
-                                        )} 
+                                        )}
                                     />
                                 </div>
                                 <div />
@@ -884,15 +1014,16 @@ export default function AdminUsersPage() {
                                     return (
                                         <div
                                             key={u.id}
-                                            onClick={() => handleRowClick(u.id)}
-                                            onDoubleClick={() => router.push(`/admin/users/${u.id}`)}
+                                            onClick={() => { if (editingUserId !== u.id) router.push(`/admin/users/${u.id}`); }}
                                             className={cn(
-                                                'group grid grid-cols-[48px_minmax(0,1.6fr)_minmax(0,2fr)_minmax(0,1.4fr)_64px_64px_28px] gap-3 items-center px-6 py-3 cursor-pointer transition-colors',
-                                                isActive
-                                                    ? 'bg-slate-100 dark:bg-white/[0.06]'
-                                                    : isSel
-                                                        ? 'bg-slate-100/70 dark:bg-white/[0.04]'
-                                                        : 'hover:bg-slate-100/50 dark:hover:bg-white/[0.02]'
+                                                'group grid grid-cols-[48px_1.5fr_1.5fr_1fr_2.2fr_0.6fr_0.6fr_160px] gap-4 items-center px-6 py-3 cursor-pointer transition-colors relative border-l-2',
+                                                editingUserId === u.id
+                                                    ? 'bg-slate-50 dark:bg-white/[0.04] border-indigo-500'
+                                                    : isActive
+                                                        ? 'bg-slate-100 dark:bg-white/[0.06] border-transparent'
+                                                        : isSel
+                                                            ? 'bg-slate-100/70 dark:bg-white/[0.04] border-transparent'
+                                                            : 'hover:bg-slate-100/50 dark:hover:bg-white/[0.02] border-transparent'
                                             )}
                                         >
                                             {/* Checkbox */}
@@ -905,58 +1036,217 @@ export default function AdminUsersPage() {
 
                                             {/* Client */}
                                             <div className="flex items-center gap-2.5 min-w-0">
-                                                <div
-                                                    className={cn(
-                                                        'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0',
-                                                        u.isShadow
-                                                            ? 'bg-sky-100 dark:bg-sky-500/15 text-sky-500 dark:text-sky-300'
-                                                            : 'bg-[#0A2540] text-white'
-                                                    )}
-                                                >
-                                                    {u.isShadow ? <Ghost size={13} strokeWidth={2} /> : initialsOf(u.fullName)}
-                                                </div>
-                                                <span className={cn(
-                                                    'text-[13px] truncate font-medium',
-                                                    u.isShadow ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'
+                                                <div className={cn(
+                                                    'w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors duration-300 border border-current opacity-80',
+                                                    u.isShadow
+                                                        ? 'bg-sky-50 text-sky-500 dark:bg-sky-500/10 dark:text-sky-400'
+                                                        : 'bg-[#0A2540] text-white dark:bg-white dark:text-[#0A2540]'
                                                 )}>
-                                                    {u.fullName}
-                                                </span>
+                                                    {u.isShadow ? <Ghost size={13} strokeWidth={2.5} /> : initialsOf(u.fullName)}
+                                                </div>
+                                                <div className="flex flex-col min-w-0 w-full gap-1">
+                                                    {editingUserId === u.id ? (
+                                                        <>
+                                                            <input
+                                                                className="h-6 px-2 text-[12px] font-bold border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                                value={rowDrafts.fullName || ''}
+                                                                onChange={e => setRowDrafts({ ...rowDrafts, fullName: e.target.value })}
+                                                                placeholder="Nome"
+                                                                onClick={e => e.stopPropagation()}
+                                                            />
+                                                            <input
+                                                                className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                                value={rowDrafts.clientCode || ''}
+                                                                onChange={e => setRowDrafts({ ...rowDrafts, clientCode: e.target.value })}
+                                                                placeholder="Codice Cliente"
+                                                                onClick={e => e.stopPropagation()}
+                                                            />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className={cn(
+                                                                'text-[13px] truncate font-medium',
+                                                                u.isShadow ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'
+                                                            )}>
+                                                                {u.fullName}
+                                                            </span>
+                                                            {u.clientCode && (
+                                                                <div className="mt-0.5">
+                                                                    <CodeBadge value={u.clientCode} label="CODICE CLIENTE" copyable />
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
 
-                                            {/* Identificativi (copy-able) */}
-                                            <div className="flex flex-wrap gap-1 min-w-0">
-                                                {(u.cif || u.cfpi) && (
-                                                    <CodeBadge value={u.cif || u.cfpi} label={u.cif ? 'CIF' : (/^\d{11}$/.test(u.cfpi) ? 'P.IVA' : 'CF')} copyable />
+                                            {/* Identificativi (copy-able) / Editable fields */}
+                                            <div className="flex flex-col gap-2 min-w-0">
+                                                {editingUserId === u.id ? (
+                                                    <>
+                                                        <input
+                                                            className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                            value={rowDrafts.cfpi || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, cfpi: e.target.value })}
+                                                            placeholder="C.F. o P.IVA"
+                                                            onClick={e => e.stopPropagation()}
+                                                        />
+                                                        <input
+                                                            className="h-6 px-2 text-[11px] border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                            value={rowDrafts.email || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, email: e.target.value })}
+                                                            placeholder="Email"
+                                                            onClick={e => e.stopPropagation()}
+                                                        />
+                                                    </>
+                                                ) : (
+                                                    <div className="flex flex-col gap-2">
+                                                        {(u.cif || u.cfpi) && (
+                                                            <div className="h-6 flex items-center">
+                                                                <CodeBadge value={u.cif || u.cfpi} label={u.cif ? 'CIF' : (/^\d{11}$/.test(u.cfpi) ? 'P.IVA' : 'CF')} copyable />
+                                                            </div>
+                                                        )}
+                                                        {u.email && (
+                                                            <div className="h-6 flex items-center">
+                                                                <CodeBadge value={u.email} label="EMAIL" copyable />
+                                                            </div>
+                                                        )}
+                                                        {!u.cif && !u.cfpi && !u.email && (
+                                                            <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
+                                                        )}
+                                                    </div>
                                                 )}
-                                                {u.email && (
-                                                    <CodeBadge value={u.email} label="EMAIL" copyable />
-                                                )}
-                                                {u.clientCode && (
-                                                    <CodeBadge value={u.clientCode} label="CODICE CLIENTE" copyable />
-                                                )}
-                                                {!u.cif && !u.cfpi && !u.email && !u.clientCode && (
+                                            </div>
+
+                                            {/* Dettagli Fornitura (CIFs) */}
+                                            <div className="flex flex-col gap-2 min-w-0">
+                                                {u.supplies && u.supplies.length > 1 ? (
+                                                    <div className="h-6 flex items-center">
+                                                        <MultiBadge count={u.supplies.length} />
+                                                    </div>
+                                                ) : u.supplies && u.supplies.length === 1 ? (
+                                                    <div className="h-6 flex items-center">
+                                                        <CodeBadge value={u.supplies[0]} label="CIF" copyable />
+                                                    </div>
+                                                ) : (
                                                     <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
                                                 )}
                                             </div>
 
-                                            {/* Address */}
-                                            <div className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
-                                                {[u.address, u.city].filter(Boolean).join(', ') || '—'}
+                                            {/* Address per Fornitura */}
+                                            <div className="flex flex-col gap-2 min-w-0">
+                                                {u.supplies && u.supplies.length > 1 ? (
+                                                    <div className="h-6 flex items-center gap-1.5 text-[10px] font-normal text-slate-400 dark:text-slate-500 uppercase tracking-widest italic">
+                                                        <MapPin size={12} className="text-slate-400 dark:text-slate-500" />
+                                                        Indirizzi Multipli
+                                                    </div>
+                                                ) : u.supplies && u.supplies.length === 1 ? (
+                                                    (() => {
+                                                        const cif = u.supplies[0];
+                                                        const s = u.userSupplies?.find((us: any) => us.cif === cif);
+                                                        const addr = s?.indirizzo_fornitura || s?.address;
+                                                        const cty = s?.citta || s?.city;
+
+                                                        if (editingUserId === u.id) {
+                                                            const draftSup = rowDrafts.userSupplies?.find((ds: any) => ds.cif === cif) || s;
+                                                            return (
+                                                                <div className="h-6 flex items-center gap-1.5 text-[11px] w-full">
+                                                                    <input
+                                                                        className="flex-[2] min-w-0 h-6 px-1.5 border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                                        value={draftSup?.indirizzo_fornitura || addr || ''}
+                                                                        onChange={e => {
+                                                                            const newSups = [...(rowDrafts.userSupplies || u.userSupplies || [])];
+                                                                            const supIdx = newSups.findIndex(ns => ns.cif === cif);
+                                                                            if (supIdx > -1) newSups[supIdx] = { ...newSups[supIdx], indirizzo_fornitura: e.target.value };
+                                                                            else newSups.push({ cif, indirizzo_fornitura: e.target.value });
+                                                                            setRowDrafts({ ...rowDrafts, userSupplies: newSups });
+                                                                        }}
+                                                                        placeholder="Indirizzo"
+                                                                        onClick={e => e.stopPropagation()}
+                                                                    />
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-[12px] text-slate-700 dark:text-slate-300 truncate">
+                                                                    {addr || '—'}
+                                                                </span>
+                                                                {cty && <span className="text-[10px] text-slate-400 truncate">{cty}</span>}
+                                                            </div>
+                                                        );
+                                                    })()
+                                                ) : (
+                                                    <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
+                                                )}
                                             </div>
 
-                                            {/* Supplies */}
-                                            <div className="text-center text-[13px] font-semibold text-slate-700 dark:text-slate-200">
-                                                {u.suppliesCount ?? 0}
+                                            {/* Contratti Count */}
+                                            <div className="flex flex-col items-center justify-center min-w-0">
+                                                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">
+                                                    {u.suppliesCount || 0}
+                                                </span>
                                             </div>
 
-                                            {/* Bills */}
-                                            <div className="text-center text-[13px] font-semibold text-slate-700 dark:text-slate-200">
-                                                {u.billsCount ?? 0}
+                                            {/* Boll. Count */}
+                                            <div className="flex flex-col items-center justify-center min-w-0">
+                                                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">
+                                                    {u.billsCount || 0}
+                                                </span>
                                             </div>
 
-
-                                            {/* Row spacing placeholder */}
-                                            <div />
+                                            {/* Actions */}
+                                            <div className={cn(
+                                                "flex items-center justify-end pr-2 gap-1.5 transition-all duration-200",
+                                                editingUserId === u.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                            )}>
+                                                {editingUserId === u.id ? (
+                                                    <div className="flex items-center rounded-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+                                                        <button
+                                                            onClick={saveEditRow}
+                                                            className="flex items-center gap-2 pl-2 pr-4 h-full hover:bg-slate-50 dark:hover:bg-white/10 transition-colors active:opacity-80"
+                                                            title="Salva"
+                                                        >
+                                                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                                                <Check size={11} strokeWidth={3} />
+                                                            </div>
+                                                            <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 tracking-tight">Salva</span>
+                                                        </button>
+                                                        <div className="w-px h-4 bg-slate-200 dark:bg-white/10" />
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setEditingUserId(null); }}
+                                                            className="group/x w-10 h-full flex items-center justify-center transition-all active:opacity-80"
+                                                            title="Annulla"
+                                                        >
+                                                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 group-hover/x:bg-rose-500 group-hover/x:text-white transition-all duration-300">
+                                                                <X size={14} strokeWidth={2.5} className="group-hover/x:rotate-90 transition-transform duration-300" />
+                                                            </div>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
+                                                                className="w-9 h-9 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white transition-all active:scale-90"
+                                                                title="Elimina utente"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); startEditRow(u); }}
+                                                            className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
+                                                        >
+                                                            <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
+                                                                <Edit2 size={11} strokeWidth={3} />
+                                                            </div>
+                                                            <span className="text-[12px] font-semibold tracking-tight">Modifica</span>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )
                                 })}
@@ -1000,83 +1290,6 @@ export default function AdminUsersPage() {
 
                     </div>
 
-                    {/* Right rail — stats by default; user detail when row is selected */}
-                    <aside className="hidden xl:flex flex-col gap-3 min-h-0 overflow-auto custom-scrollbar pr-1">
-                        {activeUser ? (
-                            <UserDetailPanel
-                                user={activeUser}
-                                billStats={activeBillStats}
-                                billsLoading={activeBillsLoading}
-                                onClose={() => setActiveUserId(null)}
-                                onViewMore={handleViewMore}
-                                onSave={updateActiveUserField}
-                            />
-                        ) : (
-                            <>
-                            <div className="space-y-6">
-                                {/* Insoluto Card */}
-                                <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl p-5">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400">Insoluto totale</p>
-                                    </div>
-                                    <p className={cn(
-                                        "text-[26px] font-bold tracking-tight leading-none",
-                                        stats.unpaid > 0 ? "text-rose-600 dark:text-rose-500" : "text-slate-900 dark:text-white"
-                                    )}>
-                                        {stats.unpaid > 0 ? formatEuro(stats.unpaid) : '—'}
-                                    </p>
-                                    <p className="text-[11px] text-slate-400 font-medium mt-2">
-                                        {stats.unpaidUsers > 0 ? `${stats.unpaidUsers} clienti in arretrato` : 'Nessuna pendenza'}
-                                    </p>
-                                </div>
-
-                                {/* Status Card */}
-                                <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl p-5">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400">Distribuzione Clienti</p>
-                                    </div>
-                                    <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100 dark:bg-white/5 mb-4">
-                                        <div style={{ width: `${(stats.active / (stats.total || 1)) * 100}%` }} className="bg-emerald-500" />
-                                        <div style={{ width: `${(stats.shadow / (stats.total || 1)) * 100}%` }} className="bg-amber-500" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between text-[12px]">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                <span className="text-slate-600 dark:text-slate-400 font-medium">Attivi</span>
-                                            </div>
-                                            <span className="text-slate-900 dark:text-white font-bold">{stats.active}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-[12px]">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                                <span className="text-slate-600 dark:text-slate-400 font-medium">Fantasmi</span>
-                                            </div>
-                                            <span className="text-slate-900 dark:text-white font-bold">{stats.shadow}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Summary Card */}
-                                <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl p-5">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400">Panoramica Global</p>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                                        <div>
-                                            <p className="text-[18px] font-bold text-slate-900 dark:text-white">{stats.total}</p>
-                                            <p className="text-[9px] font-bold uppercase text-slate-400 mt-0.5">Totale</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[18px] font-bold text-indigo-600 dark:text-indigo-400">100%</p>
-                                            <p className="text-[9px] font-bold uppercase text-slate-400 mt-0.5">Compliance</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            </>
-                        )}
-                    </aside>
                 </div>
             </div>
 
@@ -1086,26 +1299,26 @@ export default function AdminUsersPage() {
                     {/* Independent Close Button */}
                     <button
                         onClick={clearSelection}
-                        className="w-10 h-10 flex items-center justify-center bg-[#1A1F2A] hover:bg-red-500/20 hover:text-red-400 text-white rounded-xl shadow-2xl border border-white/10 transition-all group"
+                        className="w-10 h-10 flex items-center justify-center bg-[#1A1F2A] dark:bg-white dark:text-[#1A1F2A] hover:bg-red-500/20 dark:hover:bg-red-500 hover:text-red-400 dark:hover:text-white text-white rounded-xl border border-white/10 dark:border-transparent transition-all group"
                         title="Annulla selezione"
                     >
                         <X size={18} className="transition-transform group-hover:rotate-90" />
                     </button>
 
                     {/* Main Actions Bar */}
-                    <div className="bg-[#1A1F2A] text-white rounded-xl shadow-2xl border border-white/10 flex items-stretch overflow-hidden divide-x divide-white/10 h-10">
-                        <div className="px-4 flex items-center text-[12px] whitespace-nowrap border-r border-white/10">
-                            <span className="text-white/60 font-medium uppercase tracking-wider text-[9px]">Selezionati</span>
-                            <span className="text-white font-bold ml-2 bg-white/10 px-1.5 py-0.5 rounded text-[11px] min-w-[20px] text-center">{selected.size}</span>
+                    <div className="bg-[#1A1F2A] dark:bg-white text-white dark:text-[#1A1F2A] rounded-xl border border-white/10 dark:border-transparent flex items-stretch overflow-hidden divide-x divide-white/10 dark:divide-slate-200 h-10">
+                        <div className="px-4 flex items-center text-[12px] whitespace-nowrap border-r border-white/10 dark:border-slate-200">
+                            <span className="text-white/60 dark:text-[#1A1F2A]/50 font-medium uppercase tracking-wider text-[9px]">Selezionati</span>
+                            <span className="text-white dark:text-[#1A1F2A] font-bold ml-2 bg-white/10 dark:bg-[#1A1F2A]/10 px-1.5 py-0.5 rounded text-[11px] min-w-[20px] text-center">{selected.size}</span>
                         </div>
-                        <SelectionAction 
-                            icon={<Download size={14} />} 
-                            label="Esporta CSV" 
+                        <SelectionAction
+                            icon={<Download size={14} />}
+                            label="Esporta CSV"
                             onClick={handleExportCSV}
                         />
-                        <SelectionAction 
-                            icon={<Printer size={14} />} 
-                            label="Stampa riepilogo" 
+                        <SelectionAction
+                            icon={<Printer size={14} />}
+                            label="Stampa riepilogo"
                             onClick={handlePrint}
                         />
                     </div>
@@ -1121,13 +1334,21 @@ function adapt(p: any): UserProfile {
         fullName: p.name || 'Utente non registrato',
         email: p.email || '',
         cfpi: p.cfpi || '',
-        address: p.address || '',
-        city: p.city || '',
         clientCode: p.codice_cliente || '',
         isShadow: p.is_shadow || !p.email || !p.name,
-        cif: p.cif || '',
-        billsCount: typeof p.bills_count === 'number' ? p.bills_count : (p.bills?.[0]?.count || 0),
-        suppliesCount: typeof p.user_supplies_count === 'number' ? p.user_supplies_count : (p.user_supplies?.[0]?.count || 0),
+        billsCount: typeof p.bills_count === 'number' ? p.bills_count : (Array.isArray(p.bills) ? p.bills.length : 0),
+        suppliesCount: typeof p.user_supplies_count === 'number' ? p.user_supplies_count : (Array.isArray(p.user_supplies) ? p.user_supplies.length : 0),
+        userSupplies: p.user_supplies || [],
+        supplies: (() => {
+            const set = new Set<string>()
+            p.bills?.forEach((b: any) => {
+                if (b.cif) set.add(b.cif)
+            })
+            p.user_supplies?.forEach((s: any) => {
+                if (s.cif) set.add(s.cif)
+            })
+            return Array.from(set).sort()
+        })()
     }
 }
 
@@ -1157,292 +1378,6 @@ function DetailMetric({ value, label, icon: Icon, colorClass }: { value: string;
     )
 }
 
-function DetailField({ label, value, icon: Icon, editing, onChange, type = 'text', mono }: { label: string; value: string; icon: any; editing: boolean; onChange: (v: string) => void; type?: string; mono?: boolean }) {
-    return (
-        <div className="flex flex-col gap-1.5 px-1">
-            <div className="flex items-center gap-2">
-                {Icon && <Icon size={12} className="text-slate-400" />}
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
-            </div>
-            {editing ? (
-                <input
-                    type={type}
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="w-full h-8 px-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[12px] text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 transition-all"
-                />
-            ) : (
-                <div className={cn(
-                    "text-[13px] font-semibold text-slate-700 dark:text-slate-200 pl-5",
-                    mono && "font-mono"
-                )}>
-                    {value || '—'}
-                </div>
-            )}
-        </div>
-    )
-}
-
-const PROFILE_FIELDS = [
-    { key: 'fullName', label: 'Nome completo', placeholder: '' },
-    { key: 'email', label: 'Email', type: 'email' },
-    { key: 'clientCode', label: 'Codice cliente', mono: true },
-    { key: 'address', label: 'Indirizzo' },
-    { key: 'city', label: 'Città' },
-] as const
-
-function UserDetailPanel({
-    user,
-    billStats,
-    billsLoading,
-    onClose,
-    onViewMore,
-    onSave,
-}: {
-    user: UserProfile
-    billStats: BillStats
-    billsLoading: boolean
-    onClose: () => void
-    onViewMore: () => void
-    onSave: (field: string, value: string) => Promise<void> | void
-}) {
-    const [editing, setEditing] = useState(false)
-    const [drafts, setDrafts] = useState<Record<string, string>>({})
-    const [saving, setSaving] = useState(false)
-
-    // Reset drafts when user or edit mode changes
-    useEffect(() => {
-        setDrafts({})
-        setEditing(false)
-    }, [user.id])
-
-    const getValue = (key: string) => {
-        if (editing && drafts[key] !== undefined) return drafts[key]
-        const v = (user as any)[key]
-        if (key === 'fullName' && v === 'Utente non registrato') return ''
-        return v ?? ''
-    }
-
-    const setDraft = (key: string, v: string) => {
-        setDrafts(prev => ({ ...prev, [key]: v }))
-    }
-
-    const handleSave = async () => {
-        setSaving(true)
-        try {
-            for (const [key, value] of Object.entries(drafts)) {
-                if (value !== (user as any)[key]) {
-                    await onSave(key, value)
-                }
-            }
-            setDrafts({})
-            setEditing(false)
-            toast.success('Profilo aggiornato')
-        } catch (err: any) {
-            console.error('Error saving profile:', err)
-            toast.error('Errore durante il salvataggio')
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    const cancelEdit = () => {
-        setDrafts({})
-        setEditing(false)
-    }
-
-    const fmt = (n: number) => {
-        try {
-            return `${(n || 0).toFixed(2).replace('.', ',')} €`
-        } catch {
-            return '0,00 €'
-        }
-    }
-
-    const [lastDate, setLastDate] = useState('—')
-    useEffect(() => {
-        if (billStats.last?.data_emissione) {
-            try {
-                const d = new Date(billStats.last.data_emissione)
-                if (!isNaN(d.getTime())) {
-                    setLastDate(d.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' }))
-                }
-            } catch (e) {
-                console.error('Date formatting error:', e)
-            }
-        } else {
-            setLastDate('—')
-        }
-    }, [billStats.last])
-
-    return (
-        <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 flex flex-col">
-            {/* Header / Identity */}
-            <div className="px-6 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col items-center text-center bg-slate-50/30 dark:bg-white/[0.01]">
-                <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xl font-bold mb-4 border border-indigo-100/50 dark:border-indigo-500/20">
-                    {initialsOf(user.fullName)}
-                </div>
-                <h3 className="text-[18px] font-bold tracking-tight text-slate-900 dark:text-white leading-tight mb-1">
-                    {user.fullName}
-                </h3>
-                <div className="flex items-center gap-2">
-                    <span className={cn(
-                        "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider",
-                        user.isShadow 
-                            ? "bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400 border border-sky-100 dark:border-sky-500/20"
-                            : "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20"
-                    )}>
-                        {user.isShadow ? 'Fantasma' : 'Attivo'}
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-medium">
-                        ID: <span className="font-mono text-slate-600 dark:text-slate-300">{user.clientCode}</span>
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-auto custom-scrollbar p-6 space-y-8">
-                {/* Profile Data */}
-                <section className="space-y-6">
-                    <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 mb-2 flex items-center gap-2">
-                        <User size={12} className="text-indigo-500" />
-                        Dettagli Anagrafici
-                    </p>
-                    <div className="space-y-5">
-                        {PROFILE_FIELDS.map((f) => {
-                            let icon = User
-                            if (f.key === 'email') icon = Mail
-                            if (f.key === 'address') icon = MapPin
-                            if (f.key === 'city') icon = Map
-                            if (f.key === 'codice_cliente') icon = Hash
-
-                            return (
-                                <DetailField
-                                    key={f.key}
-                                    label={f.label}
-                                    value={getValue(f.key)}
-                                    icon={icon}
-                                    editing={editing}
-                                    onChange={(v) => setDraft(f.key, v)}
-                                    type={(f as any).type}
-                                    mono={(f as any).mono}
-                                />
-                            )
-                        })}
-                        <DetailField
-                            label={user.cif ? 'P.IVA / CIF' : 'Codice Fiscale'}
-                            value={editing && drafts.__cf !== undefined ? drafts.__cf : (user.cif || user.cfpi)}
-                            icon={CreditCard}
-                            editing={editing}
-                            onChange={(v) => setDraft(user.cif ? 'cif' : 'cfpi', v)}
-                            mono
-                        />
-                    </div>
-                </section>
-            </div>
-
-            {/* Actions */}
-            <div className="p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01]">
-                {editing ? (
-                    <div className="h-10 flex items-center bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="flex-1 h-full flex items-center justify-center gap-2.5 px-4 hover:bg-slate-50 dark:hover:bg-white/10 transition-all text-slate-900 dark:text-white disabled:opacity-50"
-                        >
-                            <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                                {saving ? (
-                                    <div className="w-3 h-3 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-                                ) : (
-                                    <Check size={12} strokeWidth={3} />
-                                )}
-                            </div>
-                            <span className="text-[13px] font-bold tracking-tight">Salva modifiche</span>
-                        </button>
-                        <div className="w-px h-5 bg-slate-200 dark:bg-white/10" />
-                        <button
-                            onClick={cancelEdit}
-                            disabled={saving}
-                            className="group/x w-12 h-full flex items-center justify-center transition-all text-slate-400 dark:text-slate-500 disabled:opacity-50"
-                            title="Annulla"
-                        >
-                            <X size={16} strokeWidth={2.5} className="group-hover/x:text-red-500 group-hover/x:rotate-90 transition-all duration-300" />
-                        </button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={() => setEditing(true)}
-                            className="h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 text-[13px] font-bold flex items-center justify-center gap-2.5 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
-                        >
-                            <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-sm">
-                                <Pencil size={11} strokeWidth={3} />
-                            </div>
-                            Modifica
-                        </button>
-                        <button
-                            onClick={() => onViewMore()}
-                            className="h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 text-[13px] font-bold flex items-center justify-center hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
-                        >
-                            Vai a scheda
-                        </button>
-                    </div>
-                )}
-            </div>
-        </div>
-    )
-}
-function FieldRow({
-    label,
-    value,
-    editing,
-    type = 'text',
-    mono,
-    icon,
-    onChange,
-}: {
-    label: string
-    value: string
-    editing: boolean
-    type?: string
-    mono?: boolean
-    icon?: React.ReactNode
-    onChange: (v: string) => void
-}) {
-    return (
-        <div className="group/field">
-            <div className="flex items-center gap-1.5 mb-0.5">
-                <div className="text-slate-300 dark:text-slate-600">
-                    {icon}
-                </div>
-                <p className="text-[9px] font-bold tracking-widest uppercase text-slate-400">{label}</p>
-            </div>
-            {editing ? (
-                <input
-                    type={type}
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    className={cn(
-                        'w-full h-7 px-2 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[12px] text-slate-800 dark:text-white outline-none focus:border-indigo-500 transition-all',
-                        mono && 'font-mono'
-                    )}
-                />
-            ) : (
-                <div className={cn(
-                    'min-h-[28px] px-2 py-1 rounded-md bg-slate-50/30 dark:bg-white/[0.01] flex items-center',
-                    !value && 'opacity-60'
-                )}>
-                    <p className={cn(
-                        'text-[12px] text-slate-700 dark:text-slate-200 font-medium truncate',
-                        mono && 'font-mono text-[11px] tracking-tight',
-                        !value && 'italic text-slate-400'
-                    )}>
-                        {value || '—'}
-                    </p>
-                </div>
-            )}
-        </div>
-    )
-}
 
 function Checkbox({ checked, indeterminate, onChange }: { checked: boolean; indeterminate?: boolean; onChange: () => void }) {
     return (
@@ -1451,8 +1386,8 @@ function Checkbox({ checked, indeterminate, onChange }: { checked: boolean; inde
             className={cn(
                 'w-4 h-4 rounded border flex items-center justify-center transition-colors',
                 checked || indeterminate
-                    ? 'bg-[#0A2540] border-[#0A2540] text-white'
-                    : 'bg-white dark:bg-white/5 border-slate-300 dark:border-white/15 hover:border-slate-400'
+                    ? 'bg-[#0A2540] dark:bg-white border-[#0A2540] dark:border-white text-white dark:text-[#0A2540]'
+                    : 'bg-white dark:bg-white/5 border-slate-300 dark:border-white/30 hover:border-slate-400'
             )}
         >
             {indeterminate ? (
@@ -1474,9 +1409,9 @@ function Checkbox({ checked, indeterminate, onChange }: { checked: boolean; inde
 
 function SelectionAction({ icon, label, onClick }: { icon: React.ReactNode; label?: string | null; onClick?: () => void }) {
     return (
-        <button 
+        <button
             onClick={onClick}
-            className="h-10 px-3 hover:bg-white/5 flex items-center gap-1.5 text-[12px] text-white/80 hover:text-white transition-colors whitespace-nowrap"
+            className="h-10 px-3 hover:bg-white/5 dark:hover:bg-slate-100 flex items-center gap-1.5 text-[12px] text-white/80 dark:text-[#1A1F2A]/80 hover:text-white dark:hover:text-[#1A1F2A] transition-colors whitespace-nowrap"
         >
             {icon}
             {label}
@@ -1488,7 +1423,7 @@ function FilterChip({ label, badge, active, onClear }: { label: string; badge?: 
     return (
         <button
             className={cn(
-                'h-8 px-4 rounded-full text-[13px] font-medium flex items-center gap-2 transition-all duration-200 group/f',
+                'h-9 px-4 rounded-full text-[13px] font-medium flex items-center gap-2 transition-all duration-200 group/f',
                 active
                     ? 'bg-black text-white border-transparent'
                     : 'bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-white/40'
@@ -1496,31 +1431,23 @@ function FilterChip({ label, badge, active, onClear }: { label: string; badge?: 
         >
             <span className="flex items-center gap-1.5">
                 {label}
-                {active && onClear && (
-                    <div 
-                        role="button"
-                        onClick={(e) => { e.stopPropagation(); onClear() }}
-                        className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-white/20 -mr-1 transition-colors"
-                    >
-                        <X size={11} />
-                    </div>
-                )}
             </span>
-            {badge != null && (
-                <span className={cn(
-                    'text-[11px] ml-0.5 font-bold',
-                    active ? 'text-slate-400' : 'text-slate-400'
-                )}>
-                    {badge}
-                </span>
-            )}
-            <ChevronDown 
-                size={14} 
+            <ChevronDown
+                size={14}
                 className={cn(
                     'transition-transform duration-200',
                     active ? 'text-white/60' : 'text-slate-400'
-                )} 
+                )}
             />
+            {active && onClear && (
+                <div
+                    role="button"
+                    onClick={(e) => { e.stopPropagation(); onClear() }}
+                    className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:bg-rose-500 hover:border-rose-500 -mr-1 transition-all duration-200"
+                >
+                    <X size={10} strokeWidth={3} />
+                </div>
+            )}
         </button>
     )
 }
@@ -1530,20 +1457,19 @@ function CodeBadge({ value, label, copyable, mono = true }: { value: string; lab
     const copy = async (e: React.MouseEvent) => {
         e.stopPropagation()
         if (!copyable || !value) return
-        try { await navigator.clipboard.writeText(value) } catch {}
+        try { await navigator.clipboard.writeText(value) } catch { }
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
     }
     const Wrapper: any = copyable ? 'button' : 'span'
-    
+
     return (
-        <div className="group relative inline-flex items-center">
+        <div className="group/badge relative inline-flex items-center gap-1.5">
             <Wrapper
                 {...(copyable ? { onClick: copy, title: `Copia ${value}` } : {})}
                 className={cn(
                     'relative inline-flex items-center h-7 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 px-3 rounded-full max-w-full transition-all duration-300',
                     copyable && 'cursor-pointer hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98]',
-                    copyable && 'pr-8', // Reserve space for icon on right
                     copied && 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10'
                 )}
             >
@@ -1559,26 +1485,51 @@ function CodeBadge({ value, label, copyable, mono = true }: { value: string; lab
                     <span className={cn(
                         "text-[11px] font-bold truncate transition-colors duration-300 tabular-nums",
                         mono && "font-mono",
-                        copied ? "text-emerald-700 dark:text-emerald-400" : "text-slate-700 dark:text-slate-200"
+                        copied
+                            ? "text-emerald-700 dark:text-emerald-400"
+                            : "text-slate-700 dark:text-slate-200 group-hover/badge:text-emerald-600 dark:group-hover/badge:text-emerald-400 group-hover/badge:underline decoration-emerald-500 underline-offset-2"
                     )}>
                         {copied ? 'Copiato!' : value}
                     </span>
                 </div>
-
-                {/* Internal Icon - revealed on right */}
-                {copyable && (
-                    <div className={cn(
-                        "absolute right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 origin-center",
-                        copied 
-                            ? "opacity-100 scale-100 bg-emerald-600 text-white" 
-                            : "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100 bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A]"
-                    )}>
-                        {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={9} strokeWidth={2.5} />}
-                    </div>
-                )}
             </Wrapper>
+
+            {/* External Icon - revealed on hover */}
+            {copyable && (
+                <div 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        copy(e as any);
+                    }}
+                    className={cn(
+                        "w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer origin-left",
+                        copied
+                            ? "opacity-100 scale-100 translate-x-0 bg-emerald-600 text-white"
+                            : "opacity-0 -translate-x-2 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:translate-x-0 group-hover/badge:pointer-events-auto bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] hover:bg-slate-800 dark:hover:bg-white/90"
+                    )}>
+                    {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={10} strokeWidth={2.5} />}
+                </div>
+            )}
         </div>
     )
 }
+
+function MultiBadge({ count }: { count: number }) {
+    return (
+        <div className="group/multi relative inline-flex items-center h-7 pl-3 pr-1 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 transition-all duration-300 hover:border-indigo-500/30 hover:bg-slate-50 dark:hover:bg-white/[0.08]">
+            <span className="text-[8px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2 transition-colors group-hover/multi:text-slate-600 dark:group-hover/multi:text-slate-300">
+                Forniture Multiple
+            </span>
+            <div className="h-5 px-1.5 min-w-[20px] rounded-full bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-[#1A1F2A] text-[11px] font-mono tabular-nums transition-transform group-hover/multi:scale-110">
+                {count}
+            </div>
+        </div>
+    )
+}
+
+
+
+
+
 
 

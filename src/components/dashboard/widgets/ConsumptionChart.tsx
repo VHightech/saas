@@ -86,10 +86,17 @@ export function ConsumptionChart({ settings = {}, initialData = [] }: Consumptio
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('auth_user_id', user.id)
+                .maybeSingle()
+            if (!profile?.id) return
+
             const { data: bills, error } = await supabase
                 .from('bills')
                 .select('consumo, data_emissione')
-                .eq('user_id', user.id)
+                .eq('user_id', profile.id)
                 .order('data_emissione', { ascending: true })
 
             if (bills && bills.length > 0) {

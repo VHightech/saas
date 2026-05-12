@@ -184,7 +184,7 @@ export class DynamicCsvAdapter implements ImportAdapter {
                 }
 
                 bills.push({
-                    id: billId,
+                    idboll: billId,
                     user_id: userId,
                     cfpi: rowCfpi,
                     codice_cliente: rowCif || '',

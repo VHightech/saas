@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Download, CreditCard, Euro, MapPin, FileText, Clock, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, CreditCard, Euro, MapPin, FileText, Clock, Loader2, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
@@ -31,6 +31,12 @@ export function MobileBollettaDetail({
 }: MobileBollettaDetailProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
     const [isScrolling, setIsScrolling] = useState(false)
+    // Live scroll position for smooth per-card animation
+    const [scrollLeft, setScrollLeft] = useState(0)
+    const [stride, setStride] = useState(0)
+    useEffect(() => {
+        if (scrollRef.current) setStride(getStride(scrollRef.current))
+    }, [allBills.length])
 
     const currentIndex = useMemo(() => {
         return allBills.findIndex(b => b.id === bill.id)
@@ -56,10 +62,50 @@ export function MobileBollettaDetail({
     // Stride between successive card snap points = card width (100vw - 60) + gap (12) = clientWidth - 48
     const getStride = (el: HTMLDivElement) => Math.max(1, el.clientWidth - 48)
 
+    // Target progress (0..100) for the issued → due timeline of the current bill.
+    // - today before issued      → 0 (bar stays at left)
+    // - today between dates      → proportional (bar stops mid-way)
+    // - today on or past scadenza → 100 (bar fully filled)
+    // - invalid / missing dates  → 0 (don't lie with a full bar)
+    const targetProgress = useMemo(() => {
+        const dueDateStr = bill.scadenza || bill.data_scadenza
+        const issuedStr = bill.data_emissione
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const dueDate = dueDateStr ? new Date(dueDateStr) : null
+        const issued = issuedStr ? new Date(issuedStr) : null
+        if (!issued || !dueDate) return 0
+        const dueMs = dueDate.getTime()
+        const issuedMs = issued.getTime()
+        if (Number.isNaN(dueMs) || Number.isNaN(issuedMs)) return 0
+        const totalMs = dueMs - issuedMs
+        if (totalMs <= 0) return 0
+        const elapsedMs = today.getTime() - issuedMs
+        return Math.max(0, Math.min(100, (elapsedMs / totalMs) * 100))
+    }, [bill.scadenza, bill.data_scadenza, bill.data_emissione])
+
+    // Animated progress — on bill change we instantly snap to 0 (no transition)
+    // and then enable the transition for the slide to the target. Without the
+    // snap-step, the bar would first animate BACKWARDS from the previous bill's
+    // value to 0 and the user would never see the clean left-to-right fill.
+    const [animatedProgress, setAnimatedProgress] = useState(0)
+    const [progressTransitionOn, setProgressTransitionOn] = useState(false)
+    useEffect(() => {
+        setProgressTransitionOn(false)
+        setAnimatedProgress(0)
+        const t = setTimeout(() => {
+            setProgressTransitionOn(true)
+            setAnimatedProgress(targetProgress)
+        }, 60)
+        return () => clearTimeout(t)
+    }, [bill.id, targetProgress])
+
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const s = getStride(e.currentTarget)
+        setScrollLeft(e.currentTarget.scrollLeft)
+        setStride(s)
         if (isScrolling) return
-        const stride = getStride(e.currentTarget)
-        const index = Math.round(e.currentTarget.scrollLeft / stride)
+        const index = Math.round(e.currentTarget.scrollLeft / s)
 
         if (index !== currentIndex && index >= 0 && index < allBills.length) {
             onSelectBill?.(allBills[index])
@@ -96,7 +142,7 @@ export function MobileBollettaDetail({
                 <div className="flex items-center justify-between">
                     <button 
                         onClick={onBack} 
-                        className="w-12 h-12 rounded-full bg-white dark:bg-white/5 flex items-center justify-center text-[#0A2540] dark:text-white active:scale-90 transition-transform"
+                        className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-[#0A2540] dark:text-white active:scale-90 transition-transform"
                     >
                         <ChevronLeft size={24} />
                     </button>
@@ -131,33 +177,43 @@ export function MobileBollettaDetail({
                             const isSaldo = type.startsWith('S')
                             const tLabel = isSaldo ? 'Saldo' : 'Acconto'
                             const isActive = idx === currentIndex
-                            
+                            // Smooth per-card "centeredness" — drives gradient fade,
+                            // scale, opacity and grayscale continuously while scrolling.
+                            const distance = stride > 0
+                                ? Math.abs(scrollLeft - idx * stride) / stride
+                                : (isActive ? 0 : 1)
+                            const progress = Math.max(0, Math.min(1, 1 - distance))
+
                             return (
                                 <div
                                     key={b.id}
                                     className={cn(
-                                        "shrink-0 snap-center transition-[transform,opacity,filter] duration-500 ease-out",
-                                        allBills.length === 1 ? "w-full" : "w-[calc(100vw-60px)]",
-                                        !isActive && "opacity-40 scale-[0.92] grayscale-[0.2]"
+                                        "shrink-0 snap-center",
+                                        allBills.length === 1 ? "w-full" : "w-[calc(100vw-60px)]"
                                     )}
+                                    style={{
+                                        transform: `scale(${0.92 + 0.08 * progress})`,
+                                        opacity: 0.4 + 0.6 * progress,
+                                        filter: `grayscale(${(1 - progress) * 0.2})`,
+                                        transition: 'transform 220ms ease-out, opacity 220ms ease-out, filter 220ms ease-out',
+                                    }}
                                 >
                                     <div
                                         className="relative overflow-hidden rounded-[2.5rem] text-white p-8 min-h-[220px] bg-slate-900 dark:bg-white/5"
                                     >
-                                        {/* Layered active gradient — fades in/out smoothly */}
+                                        {/* Layered active gradient — fades in/out smoothly with scroll progress */}
                                         <div
-                                            className={cn(
-                                                "absolute inset-0 transition-opacity duration-500 ease-out animate-gradient-shift",
-                                                isActive ? "opacity-100" : "opacity-0"
-                                            )}
+                                            className="absolute inset-0 animate-gradient-shift"
                                             style={{
                                                 background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)',
+                                                opacity: progress,
+                                                transition: 'opacity 220ms ease-out',
                                             }}
                                         />
                                         <div className="relative z-10">
                                             <div className="flex justify-between items-start mb-8">
                                                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/20 backdrop-blur-md border border-white/20">
-                                                    <div className={cn("w-2 h-2 rounded-full", isPaid ? "bg-emerald-400" : "bg-[#C6F36B] animate-pulse")} />
+                                                    <div className={cn("w-2 h-2 rounded-full", isPaid ? "bg-emerald-400" : "bg-[#93C5FD] animate-pulse")} />
                                                     <span className="text-[10px] font-black tracking-[0.2em] uppercase">
                                                         {isPaid ? "Pagata" : "Da Pagare"}
                                                     </span>
@@ -192,9 +248,11 @@ export function MobileBollettaDetail({
                                             )}
                                         </div>
 
-                                        {/* Waves Background — only animated on active card to save battery */}
-                                        {isActive && (
-                                            <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]">
+                                        {/* Waves Background — fades smoothly with scroll progress */}
+                                        <div
+                                            className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
+                                            style={{ opacity: progress, transition: 'opacity 220ms ease-out' }}
+                                        >
                                                 <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
                                                 <div className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl animate-wave-pulse" style={{ animationDelay: '2.5s' }} />
                                                 <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">
@@ -216,9 +274,8 @@ export function MobileBollettaDetail({
                                                     </div>
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
-                                    
+                                        </div>
+
                                     {/* Unattached View Button */}
                                     <button
                                         onClick={(e) => {
@@ -251,8 +308,8 @@ export function MobileBollettaDetail({
                     )}
                 </div>
 
-                {/* Details Section - Synchronized with current bill */}
-                <div key={bill.id} className="px-5 space-y-4 animate-content-in">
+                {/* Details Section - Synchronized with current bill (no remount animation) */}
+                <div className="px-5 space-y-4">
                     {(() => {
                         const dueDateStr = bill.scadenza || bill.data_scadenza
                         const issuedStr = bill.data_emissione
@@ -261,13 +318,6 @@ export function MobileBollettaDetail({
                         today.setHours(0, 0, 0, 0)
                         const dueDate = dueDateStr ? new Date(dueDateStr) : null
                         const issued = issuedStr ? new Date(issuedStr) : null
-
-                        let progress = 0
-                        if (issued && dueDate) {
-                            const totalMs = dueDate.getTime() - issued.getTime()
-                            const elapsedMs = today.getTime() - issued.getTime()
-                            progress = totalMs > 0 ? Math.max(0, Math.min(100, (elapsedMs / totalMs) * 100)) : 100
-                        }
 
                         return (
                             <div className="bg-white dark:bg-[#1A1D23] p-5 rounded-[2rem] space-y-5">
@@ -296,8 +346,14 @@ export function MobileBollettaDetail({
                                 <div className="space-y-2">
                                     <div className="relative h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
                                         <div
-                                            className="absolute top-0 left-0 h-full rounded-full bg-[#1E5BFF] dark:bg-[#93C5FD] transition-all duration-500 ease-out"
-                                            style={{ width: `${progress}%` }}
+                                            className="absolute top-0 left-0 h-full rounded-full bg-[#1E5BFF] dark:bg-[#93C5FD]"
+                                            style={{
+                                                width: `${animatedProgress}%`,
+                                                transformOrigin: 'left center',
+                                                transition: progressTransitionOn
+                                                    ? 'width 1400ms cubic-bezier(0.16, 1, 0.3, 1)'
+                                                    : 'none',
+                                            }}
                                         />
                                     </div>
                                     <div className="flex justify-between">
@@ -315,13 +371,13 @@ export function MobileBollettaDetail({
                         )
                     })()}
 
-                    <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] px-4 py-1">
+                    <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] px-4 py-1 divide-y divide-slate-100 dark:divide-white/5">
                         <div className="py-3 flex justify-between items-center gap-3">
                             <div className="flex items-center gap-2.5 text-slate-400">
                                 <FileText size={14} />
                                 <span className="text-[10px] font-bold uppercase tracking-wider">N° Bolletta</span>
                             </div>
-                            <span className="text-[13px] font-mono font-bold text-[#0A2540] dark:text-white truncate">{billNumber(bill)}</span>
+                            <span className="text-[15px] font-mono font-bold text-[#0A2540] dark:text-white truncate">{billNumber(bill)}</span>
                         </div>
                         <div className="py-3 flex justify-between items-center gap-3">
                             <div className="flex items-center gap-2.5 text-slate-400 shrink-0">
@@ -330,6 +386,15 @@ export function MobileBollettaDetail({
                             </div>
                             <span className="text-[13px] font-bold text-[#0A2540] dark:text-white text-right truncate">
                                 {supply?.address || bill.ulm}
+                            </span>
+                        </div>
+                        <div className="py-3 flex justify-between items-center gap-3">
+                            <div className="flex items-center gap-2.5 text-slate-400">
+                                <User size={14} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">CIF</span>
+                            </div>
+                            <span className="text-[13px] font-bold text-[#0A2540] dark:text-white truncate">
+                                {supply?.cif || bill.cif || '—'}
                             </span>
                         </div>
                     </div>

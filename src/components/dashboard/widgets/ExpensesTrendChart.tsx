@@ -97,11 +97,18 @@ export function ExpensesTrendChart({ bills: externalBills, className }: Expenses
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('auth_user_id', user.id)
+                .maybeSingle()
+            if (!profile?.id) return
+
             const { data: bills } = await supabase
                 .from('bills')
                 .select('id, consumo, importo, data_emissione')
-                .eq('user_id', user.id)
-                .order('data_emissione', { ascending: true }) // Ensure order
+                .eq('user_id', profile.id)
+                .order('data_emissione', { ascending: true })
 
             if (bills) processData(bills)
         } catch (e) {
