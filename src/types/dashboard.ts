@@ -42,3 +42,12 @@ export interface UploadLog {
     total_files: number
     created_at: string
 }
+
+export interface UserSupply {
+    codice_cliente?: string
+    cif?: string
+    address?: string
+    city?: string
+    ulm?: string
+    [key: string]: any
+}

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react'
 import React from 'react'
-import { BarChart3, LifeBuoy, CheckCircle2, Files, FileText, LogOut } from 'lucide-react'
+import { BarChart3, LifeBuoy, CheckCircle2, Files, FileText, LogOut, Droplets, Layers } from 'lucide-react'
 import { BillListItem } from './BillListItem'
 import { cn } from '@/lib/utils'
 import type { Profile, Bill } from '@/types/dashboard'
@@ -33,9 +33,21 @@ interface MobileHomeProps {
 export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCount = 0, onGoToBollette, onGoToConfronto, onGoToSupporto, onGoToProfilo, onSelectBill, onPay, selectedSupplyId, onSelectSupply, onLogout }: MobileHomeProps) {
     const getSupplyId = (s: any) => s?.ulm || 'all'
 
+    const carouselItems = useMemo(() => {
+        if (!supplies || supplies.length <= 1) return supplies || []
+        return [
+            {
+                ulm: 'all',
+                address: 'Tutte le forniture',
+                isVirtualAll: true
+            },
+            ...supplies
+        ]
+    }, [supplies])
+
     // Initialize with correct index from context to prevent flickering
     const [selectedIdx, setSelectedIdx] = useState(() => {
-        const items = supplies || []
+        const items = carouselItems || []
         if (selectedSupplyId && items.length > 0) {
             const idx = items.findIndex(s => getSupplyId(s) === selectedSupplyId)
             return idx !== -1 ? idx : 0
@@ -52,11 +64,11 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
     const [cardStep, setCardStep] = useState(0)
     useEffect(() => {
         if (scrollRef.current) setCardStep(scrollRef.current.clientWidth + 12)
-    }, [supplies.length])
+    }, [carouselItems.length])
 
     // Sync scroll position on mount or when selectedSupplyId changes
     useEffect(() => {
-        const items = supplies || []
+        const items = carouselItems || []
         if (selectedSupplyId && items.length > 0 && scrollRef.current) {
             const idx = items.findIndex(s => getSupplyId(s) === selectedSupplyId)
             if (idx !== -1) {
@@ -65,7 +77,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                 setSelectedIdx(idx)
             }
         }
-    }, [selectedSupplyId, supplies])
+    }, [selectedSupplyId, carouselItems])
 
     const handleScroll = () => {
         if (!scrollRef.current) return
@@ -74,15 +86,15 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
         setScrollLeft(sl)
         setCardStep(cardWidth + 12)
         const newIdx = Math.round(sl / (cardWidth + 12))
-        if (newIdx !== selectedIdx && newIdx >= 0 && newIdx < supplies.length) {
+        if (newIdx !== selectedIdx && newIdx >= 0 && newIdx < carouselItems.length) {
             setSelectedIdx(newIdx)
-            if (supplies[newIdx]) {
-                onSelectSupply?.(getSupplyId(supplies[newIdx]))
+            if (carouselItems[newIdx]) {
+                onSelectSupply?.(getSupplyId(carouselItems[newIdx]))
             }
         }
     }
 
-    const currentSupply = supplies[selectedIdx] || supplies[0]
+    const currentSupply = carouselItems[selectedIdx] || carouselItems[0]
     const initials = useMemo(() => {
         const name = stats.fullName || stats.firstName || 'U'
         const parts = name.trim().split(/\s+/)
@@ -102,6 +114,9 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
         // If the supply has no ulm (registered supply not linked to any bill),
         // show nothing — never leak bills from other (e.g. unregistered) ULMs.
         if (!supplyUlm) return []
+        if (supplyUlm === 'all') {
+            return [...bills].sort((a, b) => new Date(b.data_emissione).getTime() - new Date(a.data_emissione).getTime())
+        }
         return bills
             .filter((b: any) => b.ulm === supplyUlm)
             .sort((a, b) => new Date(b.data_emissione).getTime() - new Date(a.data_emissione).getTime())
@@ -117,7 +132,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
 
         const supplyUlm = currentSupply?.ulm
         const supplyBills = supplyUlm
-            ? bills.filter((b: any) => b.ulm === supplyUlm)
+            ? (supplyUlm === 'all' ? bills : bills.filter((b: any) => b.ulm === supplyUlm))
             : []
 
         const recent = [...supplyBills]
@@ -137,14 +152,14 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
             const d = new Date(b.data_emissione)
             slots.push({
                 key: `bill-slot-${i}-${b.id ?? 'x'}`,
-                value: Number(b.consumo || 0),
+                value: parseFloat(String(b.consumo || 0).replace(',', '.')) || 0,
                 label: monthLabel(d),
                 ym: ymKey(d),
                 bill: b
             })
         })
 
-        const max = Math.max(...recent.map((b: any) => Number(b.consumo || 0)), 1)
+        const max = Math.max(...recent.map((b: any) => parseFloat(String(b.consumo || 0).replace(',', '.')) || 0), 1)
         // Index of the last slot that actually has a bill (-1 if none)
         const lastRealIndex = slots.reduce((acc, s, i) => (s as any).bill ? i : acc, -1)
         const lastBill = recent.length > 0 ? recent[recent.length - 1] : null
@@ -189,10 +204,10 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                     onScroll={handleScroll}
                     className={cn(
                         "flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-3",
-                        supplies.length === 1 && "justify-center overflow-x-hidden snap-none"
+                        carouselItems.length === 1 && "justify-center overflow-x-hidden snap-none"
                     )}
                 >
-                    {supplies.map((s, idx) => {
+                    {carouselItems.map((s, idx) => {
                         const isActive = idx === selectedIdx
                         // Smooth per-card "centeredness" — 1 when perfectly centered,
                         // 0 when one card width away. Drives gradient fade / scale /
@@ -203,6 +218,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         const progress = Math.max(0, Math.min(1, 1 - distance))
                         const inactiveColor = '#94A3B8'
                         const activeColor = '#FFFFFF'
+                        const isAll = getSupplyId(s) === 'all'
 
                         return (
                             <div
@@ -223,7 +239,9 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                 <div
                                     className="relative overflow-hidden rounded-[2rem] p-5 flex flex-col justify-between h-48 animate-gradient-shift"
                                     style={{
-                                        background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)',
+                                        background: isAll 
+                                            ? 'linear-gradient(135deg, #0A2540 0%, #1A365D 50%, #1E5BFF 100%)'
+                                            : 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)',
                                         transform: `scale(${0.95 + 0.05 * progress})`,
                                         opacity: 0.5 + 0.5 * progress,
                                         transition: 'transform 220ms ease-out, opacity 220ms ease-out',
@@ -236,47 +254,62 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                     />
 
                                     <div className="relative z-10 flex flex-col h-full justify-between" style={{ color: `color-mix(in srgb, ${inactiveColor} ${(1 - progress) * 100}%, ${activeColor} ${progress * 100}%)` }}>
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <p className="text-[13px] font-bold mb-0.5 opacity-70">Fornitura</p>
-                                                <h3 className="text-lg font-bold tracking-tight leading-tight truncate max-w-[240px]">{s.address}</h3>
-                                                {s.city && (
-                                                    <p className="text-[11px] font-medium opacity-60 mt-0.5">{s.city}</p>
-                                                )}
-                                                <div className="mt-3 flex flex-col gap-2">
-                                                    {(s.codice_cliente || s.client_code) && (
-                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit bg-white/20 backdrop-blur-md border border-white/25 shadow-sm">
-                                                            <span className="text-[9px] font-bold uppercase tracking-[0.1em] opacity-60">Codice Cliente</span>
-                                                            <span className="text-[12px] font-mono font-bold tracking-wider uppercase">
-                                                                {s.codice_cliente || s.client_code}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    {s.cif && (
-                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit bg-white/20 backdrop-blur-md border border-white/25 shadow-sm">
-                                                            <span className="text-[9px] font-bold uppercase tracking-[0.1em] opacity-60">CIF</span>
-                                                            <span className="text-[12px] font-mono font-bold tracking-wider uppercase">
-                                                                {s.cif}
-                                                            </span>
-                                                        </div>
-                                                    )}
+                                        {isAll ? (
+                                            <div className="w-full h-full flex flex-col items-center justify-center">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center mb-3 shadow-[0_8px_16px_rgba(0,0,0,0.1)] border border-white/20">
+                                                    <Layers className="text-white opacity-90" strokeWidth={1.5} size={28} />
                                                 </div>
+                                                <h3 className="text-[17px] font-black tracking-tight uppercase text-white/95">
+                                                    Panoramica Utenze
+                                                </h3>
+                                                <p className="text-[13px] font-medium opacity-80 mt-1.5 text-center">
+                                                    Riepilogo globale di {supplies.length} {supplies.length === 1 ? 'fornitura collegata' : 'forniture collegate'}
+                                                </p>
                                             </div>
-                                            <div className={cn(
-                                                "w-14 h-14 flex items-center justify-center shrink-0 overflow-hidden transition-all duration-500",
-                                                isActive ? "scale-125 grayscale-0" : "scale-100 grayscale opacity-40"
-                                            )}>
-                                                <img
-                                                    src="/acq_favicon.ico"
-                                                    alt="Acquambiente"
-                                                    className="w-full h-full object-contain"
-                                                    loading="eager"
-                                                    // @ts-ignore
-                                                    fetchPriority="high"
-                                                />
-                                            </div>
-                                        </div>
-
+                                        ) : (
+                                            <>
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <p className="text-[14px] font-bold mb-0.5 opacity-70">Fornitura</p>
+                                                        <h3 className="text-lg font-bold tracking-tight leading-tight truncate max-w-[240px]">{s.address}</h3>
+                                                        {s.city && (
+                                                            <p className="text-[13px] font-medium opacity-60 mt-0.5">{s.city}</p>
+                                                        )}
+                                                        <div className="mt-3 flex flex-col gap-2">
+                                                            {(s.codice_cliente || s.client_code) && (
+                                                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit bg-white/20 backdrop-blur-md border border-white/25 shadow-sm">
+                                                                    <span className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-60">Codice Cliente</span>
+                                                                    <span className="text-[13px] font-mono font-bold tracking-wider uppercase">
+                                                                        {s.codice_cliente || s.client_code}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            {s.cif && (
+                                                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit bg-white/20 backdrop-blur-md border border-white/25 shadow-sm">
+                                                                    <span className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-60">CIF</span>
+                                                                    <span className="text-[13px] font-mono font-bold tracking-wider uppercase">
+                                                                        {s.cif}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className={cn(
+                                                        "w-14 h-14 flex items-center justify-center shrink-0 overflow-hidden transition-all duration-500",
+                                                        isActive ? "scale-125 grayscale-0" : "scale-100 grayscale opacity-40"
+                                                    )}>
+                                                        <img
+                                                            src="/acq_favicon.ico"
+                                                            alt="Acquambiente"
+                                                            className="w-full h-full object-contain"
+                                                            loading="eager"
+                                                            // @ts-ignore
+                                                            fetchPriority="high"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                     <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]" style={{ opacity: progress, transition: 'opacity 220ms ease-out' }}>
                                             <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
@@ -305,17 +338,29 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                             )
                         })}
                 </div>
-                {supplies.length > 1 && (
-                    <div className="flex justify-center gap-1.5 mt-4">
-                        {supplies.map((_, i) => (
-                            <div
-                                key={`dot-${i}`}
-                                className={cn(
-                                    "h-1.5 rounded-full transition-all duration-300",
-                                    selectedIdx === i ? "w-6 bg-[#0A2540] dark:bg-[#1E5BFF]" : "w-1.5 bg-slate-200 dark:bg-white/10"
-                                )}
-                            />
-                        ))}
+                {carouselItems.length > 1 && (
+                    <div className="flex flex-col items-center mt-4">
+                        <div className="flex justify-center gap-2 items-center">
+                            {carouselItems.map((s, i) => {
+                                const isVirtualAll = s.isVirtualAll
+                                const activeColor = isVirtualAll ? 'bg-slate-700 dark:bg-slate-300' : 'bg-blue-600 dark:bg-blue-400'
+                                const inactiveColor = isVirtualAll ? 'bg-slate-400 dark:bg-slate-600' : 'bg-blue-300 dark:bg-blue-800'
+                                return (
+                                    <div
+                                        key={`dot-${i}`}
+                                        className={cn(
+                                            "h-2 rounded-full transition-all duration-300 shrink-0",
+                                            selectedIdx === i 
+                                                ? `w-8 ${activeColor}` 
+                                                : `w-2 ${inactiveColor}`
+                                        )}
+                                    />
+                                )
+                            })}
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-400 mt-2.5 flex items-center gap-1.5">
+                            Scorri per selezionare una fornitura
+                        </p>
                     </div>
                 )}
             </div>
@@ -335,7 +380,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
             <div>
                 <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] overflow-hidden">
                     {sortedBills.slice(0, 3).length === 0 ? (
-                        <p className="text-center py-8 text-xs text-slate-400 font-medium">Nessuna bolletta</p>
+                        <p className="text-center py-8 text-[14px] text-slate-400 font-medium">Nessuna bolletta</p>
                     ) : (
                         <>
                             {sortedBills.slice(0, 3).map((bill: any, billIdx: number) => (
@@ -347,10 +392,10 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                     formatEuro={formatEuro}
                                 />
                             ))}
-                            {sortedBills.length > 0 && (
+                            {sortedBills.length >= 3 && (
                                 <button
                                     onClick={onGoToBollette}
-                                    className="w-full py-4 text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase hover:bg-slate-50 dark:hover:bg-white/5 transition-all border-t border-slate-100 dark:border-white/5"
+                                    className="w-full py-4 text-slate-500 dark:text-slate-400 text-[12px] font-bold uppercase hover:bg-slate-50 dark:hover:bg-white/5 transition-all border-t border-slate-100 dark:border-white/5"
                                 >
                                     Vedi tutto
                                 </button>
@@ -361,36 +406,47 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
             </div>
 
             <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
-                <div className="flex items-start justify-between mb-4">
-                    {(() => {
-                        const selectedSlot = selectedExpenseIndex !== null ? chartData.slots[selectedExpenseIndex] : null
+                        <div className="flex items-start justify-between mb-4">
+                            {(() => {
+                                const selectedSlot = selectedExpenseIndex !== null ? chartData.slots[selectedExpenseIndex] : null
                         const selectedBill = (selectedSlot as any)?.bill
-                        const displayPrice = selectedBill ? Number(selectedBill.importo || 0) : Number(chartData.lastBill?.importo || 0)
+                        const displayPrice = selectedBill ? (parseFloat(String(selectedBill.importo || 0).replace(',', '.')) || 0) : (parseFloat(String(chartData.lastBill?.importo || 0).replace(',', '.')) || 0)
                         const displayDate = selectedBill ? monthYear(selectedBill.data_emissione) : (chartData.lastBill ? monthYear(chartData.lastBill.data_emissione) : '')
 
                         return (
                             <div>
-                                <p className="text-[9px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">Andamento Spesa</p>
-                                <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight">
-                                    € {displayPrice.toFixed(2).replace('.', ',')}
-                                </h3>
-                                {displayDate && (
-                                    <p className="text-[10px] text-[#1E5BFF] dark:text-[#93C5FD] font-bold uppercase tracking-wider mt-0.5">
-                                        {displayDate}
-                                    </p>
+                                <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">Andamento Spesa</p>
+                                {currentSupply?.ulm !== 'all' && (
+                                    <>
+                                        <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight">
+                                            € {displayPrice.toFixed(2).replace('.', ',')}
+                                        </h3>
+                                        {displayDate && (
+                                            <p className="text-[12px] text-[#1E5BFF] dark:text-[#93C5FD] font-bold uppercase tracking-wider mt-0.5">
+                                                {displayDate}
+                                            </p>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         )
                     })()}
                 </div>
 
+                {currentSupply?.ulm === 'all' ? (
+                    <div className="h-32 mt-4 mb-8 flex items-center justify-center text-center px-6 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                            Seleziona una singola fornitura per visualizzare il grafico della spesa.
+                        </p>
+                    </div>
+                ) : (
                 <div className="h-32 mt-4 mb-8 relative touch-none select-none">
                     {(() => {
                         const supplyUlm = currentSupply?.ulm
                         const supplyBills = supplyUlm
-                            ? bills.filter((b: any) => b.ulm === supplyUlm)
+                            ? (supplyUlm === 'all' ? bills : bills.filter((b: any) => b.ulm === supplyUlm))
                             : []
-                        const maxCost = Math.max(...supplyBills.map(b => Number(b.importo || 0)), 1)
+                        const maxCost = Math.max(...supplyBills.map(b => parseFloat(String(b.importo || 0).replace(',', '.')) || 0), 1)
 
                         const margin = 15
                         const width = 300 - (margin * 2)
@@ -402,7 +458,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                             .map((slot, slotIdx) => ({ slot, slotIdx }))
                             .filter(({ slot }) => {
                                 const bill = (slot as any).bill
-                                return !!bill && Number(bill.importo || 0) > 0
+                                return !!bill && (parseFloat(String(bill.importo || 0).replace(',', '.')) || 0) > 0
                             })
 
                         const realCount = realSlots.length
@@ -410,7 +466,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
 
                         const realPoints = realSlots.map(({ slot, slotIdx }, i) => {
                             const bill = (slot as any).bill
-                            const val = Number(bill.importo || 0)
+                            const val = parseFloat(String(bill.importo || 0).replace(',', '.')) || 0
                             const y = val > 0 ? 100 - ((val / maxCost) * 70 + 15) : 85
                             // With a single real bill, anchor it at the right edge so
                             // the cosmetic ramp climbs from €0 on the left up to it.
@@ -574,7 +630,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                 {/* Floating tooltip */}
                                 {activePoint && (
                                     <div
-                                        className="absolute bg-[#93C5FD] text-white dark:text-[#0A2540] px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-lg pointer-events-none z-30 whitespace-nowrap"
+                                        className="absolute bg-[#93C5FD] text-white dark:text-[#0A2540] px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-lg pointer-events-none z-30 whitespace-nowrap"
                                         style={{
                                             left: `${(activePoint.x / 300) * 100}%`,
                                             top: `${activePoint.y}%`,
@@ -592,7 +648,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                         <span
                                             key={p.key}
                                             className={cn(
-                                                "absolute text-[8px] font-bold uppercase tracking-tighter w-12 text-center transition-colors duration-200",
+                                                "absolute text-[10px] font-bold uppercase tracking-tighter w-12 text-center transition-colors duration-200",
                                                 selectedExpenseIndex === p.slotIdx ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400"
                                             )}
                                             style={{
@@ -608,20 +664,49 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         )
                     })()}
                 </div>
+                )}
             </div>
 
             <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
                 <div className="flex items-start justify-between mb-4">
                     <div>
-                        <p className="text-[9px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">Consumo mensile</p>
-                        <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight">
-                            {chartData.lastBill?.consumo || '0'} <span className="text-xs font-medium text-slate-400">mc</span>
-                        </h3>
-                        <p className="text-[10px] text-slate-400 font-medium mt-1">Ultimi 6 mesi</p>
+                        <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">Consumo mensile</p>
+                        {currentSupply?.ulm !== 'all' && (
+                            <>
+                                <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight flex items-center gap-1.5">
+                                    <Droplets size={18} className="text-[#1E5BFF] dark:text-[#93C5FD] shrink-0" fill="currentColor" fillOpacity={0.25} />
+                                    {chartData.lastBill?.consumo || '0'}{' '}
+                                    <span className="text-[14px] font-medium text-slate-400">mc</span>
+                                </h3>
+                                <p className="text-[12px] text-slate-400 font-medium mt-1">Ultimi 6 mesi</p>
+                            </>
+                        )}
                     </div>
-                    {chartData.lastBill && stats.percentageBadge}
+                    {currentSupply?.ulm !== 'all' && (() => {
+                        const realBills = chartData.slots.map(s => (s as any).bill).filter(Boolean)
+                        if (realBills.length < 2) return null
+                        const current = parseFloat(String(realBills[realBills.length - 1].consumo || 0).replace(',', '.')) || 0
+                        const prev = parseFloat(String(realBills[realBills.length - 2].consumo || 0).replace(',', '.')) || 0
+                        if (prev === 0) return null
+                        const diff = current - prev
+                        const isUp = diff > 0
+                        const percent = Math.abs((diff / prev) * 100).toFixed(0)
+                        return (
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isUp ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'}`}>
+                                {isUp ? '↑' : '↓'} {percent}%
+                            </span>
+                        )
+                    })()}
                 </div>
 
+                {currentSupply?.ulm === 'all' ? (
+                    <div className="h-40 mt-4 mb-3 flex items-center justify-center text-center px-6 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                            Seleziona una singola fornitura per visualizzare il grafico dei consumi.
+                        </p>
+                    </div>
+                ) : (
+                <>
                 <div className="flex items-end justify-between gap-2.5 h-40 mb-3 pt-4">
                     {chartData.slots.map((slot, i) => {
                         const isSelected = selectedBarIndex === i
@@ -630,7 +715,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         return (
                             <div key={slot.key} className="flex-1 flex flex-col items-center justify-end h-full relative cursor-pointer" onClick={() => hasData && setSelectedBarIndex(i)}>
                                 {isSelected && hasData && (
-                                    <span className="absolute px-2 py-0.5 rounded-md bg-[#93C5FD] text-white dark:text-black text-[10px] font-bold whitespace-nowrap z-10 shadow-sm animate-in fade-in zoom-in duration-200" style={{ bottom: `calc(${Math.max(heightPct, 20)}% + 14px)` }}>
+                                    <span className="absolute px-2 py-0.5 rounded-md bg-[#93C5FD] text-white dark:text-black text-[11px] font-bold whitespace-nowrap z-10 shadow-sm animate-in fade-in zoom-in duration-200" style={{ bottom: `calc(${Math.max(heightPct, 20)}% + 14px)` }}>
                                         {slot.value} mc
                                     </span>
                                 )}
@@ -659,7 +744,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         <span
                             key={slot.key}
                             className={cn(
-                                "flex-1 text-center text-[8px] font-bold uppercase tracking-tighter transition-colors duration-200",
+                                "flex-1 text-center text-[10px] font-bold uppercase tracking-tighter transition-colors duration-200",
                                 selectedBarIndex === i ? "text-[#1E5BFF]" : "text-slate-400"
                             )}
                         >
@@ -667,6 +752,8 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                         </span>
                     ))}
                 </div>
+                </>
+                )}
             </div>
             </div>
             <div className="pb-32" />
@@ -691,7 +778,7 @@ function QuickAction({ icon, label, onClick, badge }: { icon: React.ReactNode; l
                     </span>
                 )}
             </div>
-            <span className="text-[13px] font-semibold text-slate-400 dark:text-slate-400 leading-tight text-center">{label}</span>
+            <span className="text-[14px] font-semibold text-slate-400 dark:text-slate-400 leading-tight text-center">{label}</span>
         </button>
     )
 }

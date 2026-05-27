@@ -122,7 +122,6 @@ export async function register(formData: FormData) {
             emailRedirectTo: `${origin}/auth/callback`,
             data: {
                 full_name: name,
-                username,
                 codice_cliente: clientCode || null
             }
         }

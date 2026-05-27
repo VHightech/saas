@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import { Euro, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface BillSummaryCardProps {
@@ -11,6 +10,7 @@ interface BillSummaryCardProps {
     currentYear: number
     formatEuro: (n: number) => string
     onDetails?: () => void
+    isAll?: boolean
 }
 
 export function BillSummaryCard({ 
@@ -19,36 +19,52 @@ export function BillSummaryCard({
     unpaidCount, 
     currentYear, 
     formatEuro,
-    onDetails 
+    onDetails,
+    isAll
 }: BillSummaryCardProps) {
+    const formatNumberOnly = (n: number) => {
+        return n.toFixed(2).replace('.', ',')
+    }
+
     return (
         <div 
-            className="relative overflow-hidden rounded-[2rem] text-white p-6 animate-gradient-shift"
-            style={{ background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)' }}
+            className="relative overflow-hidden rounded-[2.25rem] text-white p-6 aspect-[1.6/1] min-h-[200px] flex flex-col justify-between animate-gradient-shift"
+            style={{ 
+                background: isAll 
+                    ? 'linear-gradient(135deg, #0A2540 0%, #1A365D 50%, #1E5BFF 100%)'
+                    : 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)' 
+            }}
         >
-            <div className="flex justify-between items-start mb-6 relative z-10">
-                <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-200/60 mb-1">
-                        Totale Spese {currentYear}
-                    </p>
-                    <h3 className="text-3xl font-bold tracking-tighter">{formatEuro(total)}</h3>
+            <div className="relative z-10 flex-1 flex flex-col justify-between h-full">
+                {/* Top Row: Title */}
+                <div className="flex justify-between items-center">
+                    <span className="text-[16px] font-black uppercase tracking-[0.1em] text-white/90">
+                        Totale Spese
+                    </span>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Euro size={20} className="text-[#93C5FD]" />
-                </div>
-            </div>
 
-            <div className="pt-4 border-t border-white/10 relative z-10">
-                <div className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-                        Da pagare ({unpaidCount})
-                    </p>
-                    <p className="text-[16px] font-black text-white tracking-tight">{formatEuro(unpaidTotal)}</p>
+                {/* Middle Row: Amount with Currency sign split */}
+                <div className="my-auto pt-2 flex items-center gap-1.5">
+                    <span className="text-3xl font-extrabold opacity-70">€</span>
+                    <span className="text-4xl font-extrabold tracking-tight">{formatNumberOnly(total)}</span>
+                </div>
+
+                {/* Bottom Row: Unpaid Status/Summary */}
+                <div className="pt-3 border-t border-white/10">
+                    <div className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2.5 flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+                            Da pagare ({unpaidCount})
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[12px] font-bold opacity-60">€</span>
+                            <span className="text-[16px] font-black text-white tracking-tight">{formatNumberOnly(unpaidTotal)}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             {/* Premium Animations */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.25rem]">
                 <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
                 <div className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl animate-wave-pulse" style={{ animationDelay: '2.5s' }} />
                 <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">

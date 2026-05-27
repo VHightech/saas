@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { requireAdmin } from '@/lib/auth-checks'
+import { requireAdmin, requireSuperadmin } from '@/lib/auth-checks'
 
 // Helper to create Admin Client (bypass RLS)
 
@@ -128,7 +128,7 @@ export async function getAdmins() {
 }
 
 export async function removeAdmin(userId: string) {
-    const authCheck = await requireAdmin()
+    const authCheck = await requireSuperadmin()
     if (authCheck.error) return { success: false, error: authCheck.error }
     if (authCheck.user?.id === userId) return { success: false, error: 'Non puoi rimuovere te stesso.' }
 

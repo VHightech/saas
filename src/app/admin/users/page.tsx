@@ -25,6 +25,9 @@ interface UserProfile {
     suppliesCount?: number
     supplies?: string[]
     userSupplies?: any[]
+    address?: string
+    city?: string
+    cif?: string
 }
 
 function initialsOf(name: string) {
@@ -1329,6 +1332,8 @@ export default function AdminUsersPage() {
 }
 
 function adapt(p: any): UserProfile {
+    const userSupplies = p.user_supplies || []
+    const firstSup = userSupplies[0]
     return {
         id: p.id,
         fullName: p.name || 'Utente non registrato',
@@ -1337,14 +1342,17 @@ function adapt(p: any): UserProfile {
         clientCode: p.codice_cliente || '',
         isShadow: p.is_shadow || !p.email || !p.name,
         billsCount: typeof p.bills_count === 'number' ? p.bills_count : (Array.isArray(p.bills) ? p.bills.length : 0),
-        suppliesCount: typeof p.user_supplies_count === 'number' ? p.user_supplies_count : (Array.isArray(p.user_supplies) ? p.user_supplies.length : 0),
-        userSupplies: p.user_supplies || [],
+        suppliesCount: typeof p.user_supplies_count === 'number' ? p.user_supplies_count : userSupplies.length,
+        userSupplies: userSupplies,
+        cif: p.cif || firstSup?.cif || '',
+        address: firstSup?.indirizzo_fornitura || firstSup?.address || '',
+        city: firstSup?.citta || firstSup?.city || '',
         supplies: (() => {
             const set = new Set<string>()
             p.bills?.forEach((b: any) => {
                 if (b.cif) set.add(b.cif)
             })
-            p.user_supplies?.forEach((s: any) => {
+            userSupplies.forEach((s: any) => {
                 if (s.cif) set.add(s.cif)
             })
             return Array.from(set).sort()

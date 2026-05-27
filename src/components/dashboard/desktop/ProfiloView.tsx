@@ -2,13 +2,12 @@
 
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mail, FileText, MapPin, Smartphone, Home as HomeIcon, Building2, ChevronRight, KeyRound } from 'lucide-react'
+import { Mail, FileText, Smartphone, Home as HomeIcon, Building2, ChevronRight, KeyRound } from 'lucide-react'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
 import { MobileProfilo } from '@/components/dashboard/mobile/MobileProfilo'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
-import type { Profile } from '@/types/dashboard'
-import type { UserSupply } from '@/components/dashboard/desktop/DesktopShell'
+import type { Profile, UserSupply } from '@/types/dashboard'
 
 interface ProfiloViewProps {
     profile: Profile
@@ -51,7 +50,7 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
             </div>
 
             {/* DESKTOP */}
-            <div className="hidden lg:block h-screen overflow-hidden bg-white dark:bg-[#0F1115]">
+            <div className="hidden lg:block h-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0F1115]">
                 <DesktopSidebar />
 
                 <main className="ml-20 h-full overflow-y-auto custom-scrollbar">
@@ -62,18 +61,55 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                     </div>
 
                     {/* Identity card */}
-                    <div className="rounded-[2rem] p-6 text-white relative overflow-hidden flex items-center gap-6"
-                        style={{ background: 'linear-gradient(135deg, #0A2540 0%, #064E3B 50%, #1E5BFF 100%)' }}>
-                        <div className="w-20 h-20 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-2xl font-extrabold">
-                            {initials}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80 mb-1">Cliente Acquambiente</p>
-                            <h2 className="text-3xl font-extrabold tracking-tight truncate">{stats.fullName}</h2>
-                            <div className="flex flex-wrap gap-2 mt-3">
-                                <Pill label="Codice Cliente" value={stats.clientCode} />
-                                {memberSince && <Pill label="Cliente dal" value={String(memberSince)} />}
+                    <div className="rounded-[2rem] p-6 text-white relative overflow-hidden animate-gradient-shift"
+                        style={{ background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)' }}>
+                        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                            <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
+                            <div className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl animate-wave-pulse" style={{ animationDelay: '2.5s' }} />
+                            <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">
+                                <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-wave-slide reverse opacity-15" style={{ animationDuration: '25s' }}>
+                                    <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                        <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
+                                    </svg>
+                                    <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                        <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
+                                    </svg>
+                                </div>
+                                <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-wave-slide opacity-25" style={{ animationDuration: '18s' }}>
+                                    <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                        <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
+                                    </svg>
+                                    <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                        <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
+                                    </svg>
+                                </div>
                             </div>
+                        </div>
+
+                        <div className="relative z-10 flex items-center gap-6">
+                            <div className="w-20 h-20 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-2xl font-extrabold">
+                                {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80 mb-1">Cliente Acquambiente</p>
+                                <h2 className="text-3xl font-extrabold tracking-tight truncate">{stats.fullName}</h2>
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    <Pill label="Codice Cliente" value={stats.clientCode} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
+                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sicurezza e account</h3>
+                        <div className="space-y-2">
+                            <ActionRow
+                                icon={<KeyRound size={16} />}
+                                title="Cambia password"
+                                desc="Aggiorna la password del tuo account"
+                                onClick={() => router.push('/profile/change-password')}
+                            />
                         </div>
                     </div>
 
@@ -85,7 +121,6 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                                 <Row icon={<Mail size={14} />} label="Email" value={stats.email} />
                                 <Row icon={<Smartphone size={14} />} label="Telefono" value={stats.phone} />
                                 <Row icon={<FileText size={14} />} label="Codice Fiscale / P.IVA" value={stats.fiscalCode} mono />
-                                <Row icon={<MapPin size={14} />} label="Indirizzo" value={stats.address} />
                             </div>
                         </div>
 
@@ -112,18 +147,6 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                         </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
-                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sicurezza e account</h3>
-                        <div className="space-y-2">
-                            <ActionRow
-                                icon={<KeyRound size={16} />}
-                                title="Cambia password"
-                                desc="Aggiorna la password del tuo account"
-                                onClick={() => router.push('/profile/change-password')}
-                            />
-                        </div>
-                    </div>
                     </div>
                 </main>
             </div>

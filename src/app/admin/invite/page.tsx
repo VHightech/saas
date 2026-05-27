@@ -253,7 +253,7 @@ export default function AdminManagementPage() {
 
                                                 {/* Actions Column */}
                                                 <div className="w-20 flex justify-end">
-                                                    {currentUser?.role === 'super_admin' && admin.id !== currentUser?.id && (
+                                                    {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && admin.id !== currentUser?.id && (
                                                         <button
                                                             onClick={() => handleRemove(admin.id)}
                                                             className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 transition-all group/trash"

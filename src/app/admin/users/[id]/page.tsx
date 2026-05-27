@@ -583,13 +583,20 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         })
     }
 
+    // Bills scoped to the currently selected fornitura (ULM). When 'all' is
+    // selected this is every bill. KPIs and the right-bar chart reflect this.
+    const scopedBills = useMemo(() => {
+        if (selectedUlm === 'all') return bills
+        return bills.filter(b => b.ulm === selectedUlm)
+    }, [bills, selectedUlm])
+
     const analytics = useMemo(() => {
         if (!profile) return null
-        const totalInvoices = bills.length
-        const totalAmount = bills.reduce((s, i) => s + (Number(i.importo) || 0), 0)
-        const totalConsumo = bills.reduce((s, i) => s + (Number(i.consumo) || 0), 0)
+        const totalInvoices = scopedBills.length
+        const totalAmount = scopedBills.reduce((s, i) => s + (Number(i.importo) || 0), 0)
+        const totalConsumo = scopedBills.reduce((s, i) => s + (Number(i.consumo) || 0), 0)
         return { totalInvoices, totalAmount, totalConsumo }
-    }, [profile, bills])
+    }, [profile, scopedBills])
 
     const uniqueUlms = useMemo(() => {
         const set = new Set<string>()
@@ -1230,9 +1237,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
 
 
-                        {bills.length > 0 && (
+                        {scopedBills.length > 0 && (
                             <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
-                                <MiniSpendChart bills={bills} />
+                                <MiniSpendChart bills={scopedBills} />
                             </div>
                         )}
                     </aside>

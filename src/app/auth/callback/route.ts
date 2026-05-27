@@ -5,8 +5,11 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url)
     const code = searchParams.get('code')
-    // if "next" is in param, use it as the redirect URL
-    const next = searchParams.get('next') ?? '/profile'
+    const rawNext = searchParams.get('next') ?? '/profile'
+    // Whitelist: solo path interni assoluti, niente '//' né backslash (che alcuni
+    // browser normalizzano in '/', aggirando un controllo su solo '//').
+    const SAFE_NEXT = /^\/(?!\/)[A-Za-z0-9/_\-.]*$/
+    const next = SAFE_NEXT.test(rawNext) ? rawNext : '/profile'
 
     if (code) {
         const supabase = await createClient()

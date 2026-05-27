@@ -25,8 +25,8 @@ export async function getUserDashboardData() {
         .maybeSingle()
 
     if (profileError) {
-        console.error('Detailed Profile Error:', JSON.stringify(profileError, null, 2))
-        return { error: `Failed to fetch profile: ${profileError.message}` }
+        console.error('[getUserDashboardData] profile fetch failed:', profileError.code)
+        return { error: 'Profilo non disponibile. Riprova più tardi.' }
     }
 
     // Auto-recovery: if no profile yet, the trigger may not have run (rare) or
@@ -92,9 +92,25 @@ export async function getUserDashboardData() {
         console.error('Error fetching user_supplies:', suppliesError)
     }
 
+    // Sanitize before returning to the client. These pages render via client
+    // components, so anything returned here is serialized into the browser RSC
+    // payload. Strip internal/sensitive columns:
+    //  - bills.pdf_url  → R2 object key (PDFs are served only via signed-URL API)
+    //  - profile.role / is_shadow → internal authz state, not needed for render
+    const safeProfile = (() => {
+        if (!profile) return profile
+        const { role: _role, is_shadow: _isShadow, ...rest } = profile as Record<string, unknown>
+        return rest
+    })()
+
+    const safeBills = (bills || []).map((b: Record<string, unknown>) => {
+        const { pdf_url: _pdfUrl, ...rest } = b
+        return rest
+    })
+
     return {
-        profile,
-        bills: (bills || []) as any[],
+        profile: safeProfile,
+        bills: safeBills as any[],
         supplies: (supplies || []) as any[],
     }
 }

@@ -2,8 +2,24 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createHash } from 'crypto'
 
 const SAFE_IDENTIFIER = /^[a-zA-Z0-9._@+\-]+$/
+
+// Maschera un'email reale: "mario.rossi@x.it" -> "ma***@x.it".
+function maskEmail(email: string): string {
+    const [local, domain] = email.split('@')
+    const maskedLocal = local.length > 2 ? `${local.substring(0, 2)}***` : `${local}***`
+    return `${maskedLocal}@${domain}`
+}
+
+// Email mascherata FITTIZIA ma deterministica per identifier, usata quando
+// l'utenza non esiste: garantisce una risposta di forma identica al caso reale
+// (anti-enumeration, §1.10) senza rivelare l'esistenza dell'account.
+function fakeMaskedEmail(identifier: string): string {
+    const h = createHash('sha256').update(identifier.trim().toLowerCase()).digest('hex')
+    return `${h.substring(0, 2)}***@***`
+}
 
 function createAdminClient() {
     return createSupabaseClient(
@@ -38,21 +54,13 @@ async function resolveEmailFromIdentifier(identifier: string): Promise<string | 
     return null
 }
 
-// STEP 1: Lookup User
+// STEP 1: Lookup User — risposta uniforme (sempre success+maskedEmail) così un
+// attaccante non può distinguere un'utenza esistente da una inesistente.
 export async function lookupUser(identifier: string) {
     const email = await resolveEmailFromIdentifier(identifier)
-
-    if (!email) {
-        return { success: false, error: 'Utenza non trovata.' }
-    }
-
-    const [local, domain] = email.split('@')
-    const maskedLocal = local.length > 2 ? `${local.substring(0, 2)}***` : `${local}***`
-    const maskedEmail = `${maskedLocal}@${domain}`
-
     return {
         success: true,
-        maskedEmail,
+        maskedEmail: email ? maskEmail(email) : fakeMaskedEmail(identifier),
     }
 }
 
@@ -89,7 +97,8 @@ export async function sendRecoveryOTP(identifier: string) {
 // STEP 3: Verify OTP & Login
 export async function verifyRecoveryOTP(identifier: string, token: string) {
     const email = await resolveEmailFromIdentifier(identifier)
-    if (!email) return { success: false, error: 'Utenza non trovata.' }
+    // Stesso messaggio del codice errato: non riveliamo se l'utenza esiste.
+    if (!email) return { success: false, error: 'Codice non valido o scaduto.' }
 
     const supabase = await createClient()
 

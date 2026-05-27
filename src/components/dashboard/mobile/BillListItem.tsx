@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { FileText, CheckCircle2 } from 'lucide-react'
+import { FileText, CheckCircle2, Droplets } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Bill } from '@/types/dashboard'
 
@@ -35,10 +35,11 @@ export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillList
                 <p className="text-[17px] font-bold text-[#0A2540] dark:text-white capitalize truncate mb-1">
                     {monthYear(bill.data_emissione)}
                 </p>
-                <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium font-mono tracking-tight mb-0.5">
+                <p className="text-[14px] text-slate-500 dark:text-slate-400 font-medium font-mono tracking-tight mb-0.5">
                     {billNumber}
                 </p>
-                <p className="text-[11px] text-slate-400 font-bold font-mono uppercase tracking-widest opacity-80">
+                <p className="text-[13px] text-slate-400 font-bold font-mono uppercase tracking-widest opacity-80 flex items-center gap-1.5">
+                    <Droplets size={13} className="text-[#1E5BFF] dark:text-[#93C5FD] shrink-0" fill="currentColor" fillOpacity={0.25} />
                     {bill.consumo || 0} mc
                 </p>
             </div>
@@ -48,17 +49,17 @@ export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillList
                     {formatEuro(Number(bill.importo || 0))}
                 </p>
                 {isSaldo && (
-                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                    <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
                         Saldo
                     </span>
                 )}
                 {isAcconto && (
-                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
+                    <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
                         Acconto
                     </span>
                 )}
                 {!isPaid && bill.expected_method === 'MP23' && (
-                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#93C5FD] text-[#0A2540] whitespace-nowrap">
+                    <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#93C5FD] text-[#0A2540] whitespace-nowrap">
                         Da pagare
                     </span>
                 )}

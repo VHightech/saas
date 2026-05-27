@@ -28,7 +28,7 @@ export function SupportoView({ firstName }: SupportoViewProps) {
             </div>
 
             {/* DESKTOP */}
-            <div className="hidden lg:block h-screen overflow-hidden bg-white dark:bg-[#0F1115]">
+            <div className="hidden lg:block h-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0F1115]">
                 <DesktopSidebar />
 
                 <main className="ml-20 h-full overflow-y-auto custom-scrollbar">

@@ -4,7 +4,6 @@ import React from 'react'
 import { Profile, Bill, UploadLog } from '@/types/dashboard'
 import { DashboardLayout } from '@/components/admin/dashboard-builder'
 import { MobileShell } from '@/components/dashboard/mobile/MobileShell'
-import { DesktopShell } from '@/components/dashboard/desktop/DesktopShell'
 import { BolletteView } from '@/components/dashboard/desktop/BolletteView'
 import { useDashboard } from '@/components/dashboard/dashboard-context'
 
