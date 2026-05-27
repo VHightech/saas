@@ -126,7 +126,8 @@ export function MobileBollettaDetail({
 
     const handleDownload = () => {
         // PDFs are served exclusively via the authenticated signed-URL route.
-        window.open(`/api/bills/${bill.id}/pdf`, '_blank')
+        // ?download=1 → server sets Content-Disposition: attachment (force download).
+        window.open(`/api/bills/${bill.id}/pdf?download=1`, '_blank')
     }
 
     return (

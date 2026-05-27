@@ -1074,12 +1074,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                                 <Eye size={13} />
                                             </button>
                                             <button
-                                                onClick={() => {
-                                                    const link = document.createElement('a')
-                                                    link.href = `/api/bills/${inv.id}/pdf`
-                                                    link.download = inv.nome_pdf || `bolletta_${inv.id}.pdf`
-                                                    link.click()
-                                                }}
+                                                onClick={() => window.open(`/api/bills/${inv.id}/pdf?download=1`, '_blank')}
                                                 className="h-7 w-7 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10 flex items-center justify-center transition-colors"
                                                 title="Scarica"
                                             >

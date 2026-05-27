@@ -49,11 +49,25 @@ export async function pdfExistsOnR2(key: string): Promise<boolean> {
     }
 }
 
-export async function getSignedPdfUrl(key: string, expiresInSeconds = 300): Promise<string> {
+export async function getSignedPdfUrl(
+    key: string,
+    expiresInSeconds = 300,
+    downloadFilename?: string,
+): Promise<string> {
     const client = getR2Client()
+    // When downloadFilename is set, instruct R2 to return the object with an
+    // attachment disposition so the browser downloads it (instead of inline
+    // preview). Sanitize the filename to avoid response-header injection.
+    const responseContentDisposition = downloadFilename
+        ? `attachment; filename="${downloadFilename.replace(/[\r\n"]/g, '')}"`
+        : undefined
     return getSignedUrl(
         client,
-        new GetObjectCommand({ Bucket: bucket, Key: key }),
+        new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            ...(responseContentDisposition ? { ResponseContentDisposition: responseContentDisposition } : {}),
+        }),
         { expiresIn: expiresInSeconds }
     )
 }

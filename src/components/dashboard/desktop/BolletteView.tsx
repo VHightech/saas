@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useLayoutEffect, useRef, useEffect } from 'react'
-import { FileText, CheckCircle2, AlertCircle, Search, Home, Building2, LineChart, BarChart3, Sun, Moon, Eye, CreditCard, Copy, Check, Droplets, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { FileText, CheckCircle2, AlertCircle, Search, Home, Building2, LineChart, BarChart3, Sun, Moon, Eye, CreditCard, Copy, Check, Droplets, X, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
@@ -461,9 +461,9 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                         <th className="px-6 py-4 font-bold w-[10%]">Emissione</th>
                                         <th className="px-6 py-4 font-bold w-[10%]">Scadenza</th>
                                         <th className="px-6 py-4 font-bold w-[10%]">Consumo</th>
-                                        <th className="px-6 py-4 font-bold w-[12%]">Acconto/Saldo</th>
+                                        <th className="px-6 py-4 font-bold w-[12%]">Tipologia</th>
                                         <th className="px-6 py-4 font-bold text-right w-[10%]">Importo</th>
-                                        <th className="px-6 py-4 font-bold text-right w-[16%]">Stato Pagamento</th>
+                                        <th className="px-6 py-4 font-bold text-right w-[16%]"><span className="sr-only">Stato Pagamento</span></th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-[15px]">
@@ -576,6 +576,13 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                                             title="Apri PDF"
                                                         >
                                                             <Eye size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); window.open(`/api/bills/${b.id}/pdf?download=1`, '_blank') }}
+                                                            className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/15 transition-colors shrink-0"
+                                                            title="Scarica PDF"
+                                                        >
+                                                            <Download size={14} />
                                                         </button>
                                                     </div>
                                                 </td>

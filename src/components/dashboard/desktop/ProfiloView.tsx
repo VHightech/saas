@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mail, FileText, Smartphone, Home as HomeIcon, Building2, ChevronRight, KeyRound } from 'lucide-react'
+import { Mail, FileText, Smartphone, Home as HomeIcon, Building2, ChevronRight, KeyRound, Download, ShieldCheck } from 'lucide-react'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
 import { MobileProfilo } from '@/components/dashboard/mobile/MobileProfilo'
 import { cn } from '@/lib/utils'
@@ -109,6 +109,18 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                                 title="Cambia password"
                                 desc="Aggiorna la password del tuo account"
                                 onClick={() => router.push('/profile/change-password')}
+                            />
+                            <ActionRow
+                                icon={<Download size={16} />}
+                                title="Scarica i miei dati"
+                                desc="Esporta i tuoi dati personali in formato JSON (GDPR art. 15/20)"
+                                onClick={() => window.open('/api/me/export', '_blank')}
+                            />
+                            <ActionRow
+                                icon={<ShieldCheck size={16} />}
+                                title="Privacy e i tuoi diritti"
+                                desc="Informativa e come esercitare rettifica, cancellazione e portabilità"
+                                onClick={() => router.push('/privacy')}
                             />
                         </div>
                     </div>

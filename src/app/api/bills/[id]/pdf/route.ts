@@ -14,6 +14,7 @@ interface BillRow {
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
     const billId = Number(id)
+    const wantsDownload = _request.nextUrl.searchParams.get('download') === '1'
 
     if (!Number.isFinite(billId) || billId <= 0) {
         return NextResponse.json({ error: 'Invalid bill id' }, { status: 400 })
@@ -89,7 +90,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             return NextResponse.json({ error: 'PDF non presente su R2' }, { status: 404 })
         }
 
-        const signed = await getSignedPdfUrl(r2Key, 300)
+        const downloadName = wantsDownload
+            ? (bill.nome_pdf || `bolletta_${bill.idboll ?? bill.id}.pdf`)
+            : undefined
+        const signed = await getSignedPdfUrl(r2Key, 300, downloadName)
         return NextResponse.redirect(signed, 302)
     } catch (e) {
         console.error(`[pdf] Failed to serve bill=${bill.id}`)

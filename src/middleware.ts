@@ -37,8 +37,6 @@ export async function middleware(request: NextRequest) {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
     const supabaseDomain = supabaseUrl ? new URL(supabaseUrl).hostname : ''
-    const r2PublicUrl = process.env.R2_PUBLIC_BASE_URL || ''
-    const r2Hostname = r2PublicUrl ? new URL(r2PublicUrl).hostname : ''
 
     const isDev = process.env.NODE_ENV !== 'production'
     // React Server Components currently require 'unsafe-inline' for style hydration.
@@ -49,7 +47,7 @@ export async function middleware(request: NextRequest) {
         `default-src 'self'`,
         `script-src 'self' 'unsafe-inline' ${scriptSrcExtras} challenges.cloudflare.com`,
         `style-src 'self' 'unsafe-inline'`,
-        `img-src 'self' data: blob: ${supabaseDomain} ${r2Hostname} challenges.cloudflare.com`,
+        `img-src 'self' data: blob: ${supabaseDomain} challenges.cloudflare.com`,
         `font-src 'self' data: fonts.gstatic.com`,
         `connect-src 'self' ${supabaseDomain} *.supabase.co challenges.cloudflare.com${isDev ? ' *.trycloudflare.com localhost:* 127.0.0.1:* ws://localhost:* ws://127.0.0.1:*' : ''}`,
         `frame-src 'self' challenges.cloudflare.com`,

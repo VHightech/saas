@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useEffect, useState } from 'react'
-import { Home, Mail, FileText, ChevronRight, Sun, Moon, LogOut, ChevronLeft, Building2, Smartphone, KeyRound, ChevronDown } from 'lucide-react'
+import { Home, Mail, FileText, ChevronRight, Sun, Moon, LogOut, ChevronLeft, Building2, Smartphone, KeyRound, ChevronDown, Download, ShieldCheck } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
@@ -110,19 +110,49 @@ export function MobileProfilo({ profile, stats, supplies = [], onBack, onLogout 
             {/* Sicurezza */}
             <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-1">Sicurezza e account</p>
-            <button
-                onClick={() => router.push('/profile/change-password')}
-                className="w-full flex items-center gap-3 px-5 py-4 rounded-[2rem] bg-white dark:bg-[#1A1D23] active:bg-slate-50 dark:active:bg-white/5 transition-colors"
-            >
-                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-300 flex items-center justify-center shrink-0">
-                    <KeyRound size={18} />
+                <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] overflow-hidden divide-y divide-slate-100 dark:divide-white/5">
+                    <button
+                        onClick={() => router.push('/profile/change-password')}
+                        className="w-full flex items-center gap-3 px-5 py-4 active:bg-slate-50 dark:active:bg-white/5 transition-colors"
+                    >
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-300 flex items-center justify-center shrink-0">
+                            <KeyRound size={18} />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-sm font-bold text-[#0A2540] dark:text-white">Cambia password</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Aggiorna la password del tuo account</p>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-300" />
+                    </button>
+                    <a
+                        href="/api/me/export"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center gap-3 px-5 py-4 active:bg-slate-50 dark:active:bg-white/5 transition-colors"
+                    >
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-300 flex items-center justify-center shrink-0">
+                            <Download size={18} />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-sm font-bold text-[#0A2540] dark:text-white">Scarica i miei dati</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Esporta i tuoi dati (GDPR art. 15/20)</p>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-300" />
+                    </a>
+                    <button
+                        onClick={() => router.push('/privacy')}
+                        className="w-full flex items-center gap-3 px-5 py-4 active:bg-slate-50 dark:active:bg-white/5 transition-colors"
+                    >
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-300 flex items-center justify-center shrink-0">
+                            <ShieldCheck size={18} />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-sm font-bold text-[#0A2540] dark:text-white">Privacy e i tuoi diritti</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Informativa, rettifica, cancellazione</p>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-300" />
+                    </button>
                 </div>
-                <div className="flex-1 text-left">
-                    <p className="text-sm font-bold text-[#0A2540] dark:text-white">Cambia password</p>
-                    <p className="text-[11px] text-slate-400 font-medium">Aggiorna la password del tuo account</p>
-                </div>
-                <ChevronRight size={18} className="text-slate-300" />
-            </button>
             </div>
 
             {/* Contratto */}
