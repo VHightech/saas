@@ -74,7 +74,7 @@ export default function LoginPage() {
         <div className="min-h-[100dvh] w-full flex bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
 
             {/* LEFT: FORM SECTION */}
-            <div className="w-full lg:w-[480px] flex flex-col justify-start lg:justify-center px-5 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-16 border-r border-slate-100 dark:border-white/10 relative z-20 bg-white dark:bg-[#0a0a0a] transition-colors duration-500 overflow-y-auto">
+            <div className="w-full lg:w-[480px] flex flex-col justify-start lg:justify-center px-5 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-16 lg:border-r lg:border-slate-100 dark:lg:border-white/10 relative z-20 bg-white dark:bg-[#0a0a0a] transition-colors duration-500 overflow-y-auto">
 
                 {/* Logo + Theme toggle */}
                 <div className="mb-6 sm:mb-8 lg:mb-12 pt-2 flex items-center justify-between gap-3">
@@ -134,10 +134,10 @@ export default function LoginPage() {
                                         placeholder="0"
                                         autoComplete="off"
                                         onFocus={(e) => e.target.select()}
-                                        className={`w-full aspect-square min-h-[48px] text-center text-lg sm:text-xl font-bold rounded-lg bg-slate-50 dark:bg-white/5 border focus:bg-white dark:focus:bg-black focus:outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 font-mono shadow-sm touch-manipulation ${
+                                        className={`w-full aspect-square min-h-[48px] text-center text-lg sm:text-2xl font-bold rounded-xl bg-slate-50 dark:bg-white/5 border focus:bg-white dark:focus:bg-black focus:outline-none transition-all duration-150 text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-white/15 font-mono shadow-sm focus:shadow-md touch-manipulation ${
                                             isError
-                                            ? 'border-red-500 ring-1 ring-red-500'
-                                            : 'border-slate-200 dark:border-white/10 focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white'
+                                            ? 'border-red-500 ring-2 ring-red-500/30'
+                                            : 'border-slate-200 dark:border-white/10 focus:border-[#1E5BFF] focus:ring-2 focus:ring-[#1E5BFF]/20 dark:focus:border-[#93C5FD] dark:focus:ring-[#93C5FD]/20'
                                         }`}
                                         value={code[index] || ''}
                                         onChange={(e) => {

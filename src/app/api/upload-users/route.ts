@@ -87,9 +87,14 @@ export async function POST(req: NextRequest) {
             const city = row['Comune'] || row['comune']
             const stadio = row['STADIO'] || row['stadio'] || row['Stadio']
             const statoContratto = row['STATO CONTRATTO'] || row['stato contratto'] || row['Stato Contratto'] || row['stato_contratto']
+            const emailRaw = row['email'] || row['Email'] || row['EMAIL'] || row['e-mail'] || row['E-mail']
+            const email = emailRaw ? String(emailRaw).trim().toLowerCase() : null
 
-            // 08: contratto annullato (esclusi dall'import)
-            if (statoContratto === '08') { skippedAnnullato++; continue }
+            // 08 = contratto annullato. We still upsert the supply so existing
+            // rows get the fresh status reflected, but we don't create a brand
+            // new profile just for an annullato contract.
+            const isAnnullato = statoContratto === '08'
+            if (isAnnullato) skippedAnnullato++
 
             if (!cif) { skippedNoCif++; continue }
 
@@ -109,13 +114,17 @@ export async function POST(req: NextRequest) {
 
             // Profile: dedup by codice_cliente (last wins). One profilo per cliente.
             // We store the Name and Fiscal Code (cfpi) as they are global to the user.
-            profilePayloads.set(String(clientCode).trim(), {
-                codice_cliente: String(clientCode).trim(),
-                name: nominativo,
-                cfpi: cf || piva,
-                is_shadow: true,
-                role: 'user'
-            })
+            // Skip profile creation for annullato-only rows; supplies are still upserted.
+            if (!isAnnullato) {
+                profilePayloads.set(String(clientCode).trim(), {
+                    codice_cliente: String(clientCode).trim(),
+                    name: nominativo,
+                    cfpi: cf || piva,
+                    email,
+                    is_shadow: true,
+                    role: 'user'
+                })
+            }
 
             // Supply: one row per cif (every fornitura must be persisted, even if the
             // customer has multiple). user_id stays null and gets attached afterwards
@@ -139,11 +148,19 @@ export async function POST(req: NextRequest) {
         let lastProgressFlush = 0
         for (const payload of profilePayloads.values()) {
             try {
-                // Find existing user by Codice Cliente OR CIF
-                // We want to avoid duplicates and only patch missing info
+                // Find existing user by Codice Cliente. We patch:
+                //  - codice_cliente if missing
+                //  - email when the row brings a new one (always for shadow profiles
+                //    still pending activation, and to fill in if previously missing).
+                //    Activated profiles (is_shadow=false) keep their auth-linked
+                //    email — we don't silently overwrite it from CSV.
+                //  - name / cfpi if currently empty
+                // Supply-level fields (stadio, stato_contratto) are not stored on
+                // the profile; the user_supplies upsert below already overwrites
+                // them so the "newest contract status" is kept fresh per fornitura.
                 const { data: existing, error: fetchError } = await supabase
                     .from('profiles')
-                    .select('id, codice_cliente')
+                    .select('id, codice_cliente, email, name, cfpi, is_shadow')
                     .eq('codice_cliente', payload.codice_cliente)
                     .maybeSingle()
 
@@ -152,7 +169,25 @@ export async function POST(req: NextRequest) {
                 if (existing) {
                     const updates: any = {}
                     if (!existing.codice_cliente) updates.codice_cliente = payload.codice_cliente
-                    
+                    if (!existing.name && payload.name) updates.name = payload.name
+                    if (!existing.cfpi && payload.cfpi) updates.cfpi = payload.cfpi
+
+                    if (payload.email) {
+                        const currentEmail = (existing.email || '').toLowerCase().trim()
+                        const incomingEmail = payload.email
+                        if (incomingEmail !== currentEmail) {
+                            if (!currentEmail || existing.is_shadow) {
+                                // Safe to refresh: no previous email, or user has not
+                                // activated yet (no auth.users record bound to it).
+                                updates.email = incomingEmail
+                            } else {
+                                errors.push(
+                                    `Email change for activated user ${payload.codice_cliente} ignored (CSV "${incomingEmail}" vs auth-linked "${currentEmail}"). Update auth.users separately.`
+                                )
+                            }
+                        }
+                    }
+
                     if (Object.keys(updates).length > 0) {
                         const { error } = await supabase
                             .from('profiles')

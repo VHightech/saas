@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { LayoutDashboard, FileText, User as UserIcon, LifeBuoy, LogOut } from 'lucide-react'
+import { LayoutDashboard, FileText, User as UserIcon, LifeBuoy, LogOut, Sun, Moon } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -17,7 +18,7 @@ interface NavEntry {
 const NAV: NavEntry[] = [
     {
         key: 'dashboard',
-        label: 'Dashboard',
+        label: 'Le tue bollette',
         icon: <LayoutDashboard size={18} />,
         href: '/profile',
         match: (p) => p === '/profile' || p === '/profile/',
@@ -43,6 +44,10 @@ export function DesktopSidebar() {
     const pathname = usePathname() || ''
     const supabase = createClient()
     const [expanded, setExpanded] = useState(false)
+    const { resolvedTheme, setTheme } = useTheme()
+    const [themeMounted, setThemeMounted] = useState(false)
+    useEffect(() => { setThemeMounted(true) }, [])
+    const isDark = themeMounted && resolvedTheme === 'dark'
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
@@ -112,6 +117,28 @@ export function DesktopSidebar() {
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">Servizio clienti</p>
                 <p className="text-[12px] font-bold text-[#1E5BFF] mt-1">800-123-456</p>
             </div>
+
+            {/* Theme toggle */}
+            <button
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                title={!expanded ? (isDark ? 'Modalità chiara' : 'Modalità scura') : undefined}
+                className="group/theme mx-3 mb-2 h-11 rounded-xl text-[13px] font-bold flex items-center px-4 transition-colors text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-[#0A2540] dark:hover:text-white shrink-0"
+            >
+                <span className={cn(
+                    "w-6 h-6 flex items-center justify-center shrink-0 transition-colors",
+                    isDark
+                        ? "group-hover/theme:text-amber-400"   // Sun → giallo caldo
+                        : "group-hover/theme:text-slate-900"   // Moon → blu/nero scuro
+                )}>
+                    {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                </span>
+                <span className={cn(
+                    "truncate whitespace-nowrap transition-all duration-300 ease-out text-left",
+                    expanded ? "w-40 opacity-100 translate-x-0 ml-3" : "w-0 opacity-0 -translate-x-4 pointer-events-none"
+                )}>
+                    {isDark ? 'Modalità chiara' : 'Modalità scura'}
+                </span>
+            </button>
 
             {/* Logout button */}
             <button

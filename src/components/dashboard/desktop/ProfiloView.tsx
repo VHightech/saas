@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mail, FileText, Smartphone, Home as HomeIcon, Building2, ChevronRight, KeyRound, Download, ShieldCheck } from 'lucide-react'
+import { Mail, FileText, Smartphone, Home as HomeIcon, Building2, ChevronRight, KeyRound, Download, ShieldCheck, ChevronDown } from 'lucide-react'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
 import { MobileProfilo } from '@/components/dashboard/mobile/MobileProfilo'
 import { cn } from '@/lib/utils'
@@ -31,6 +31,10 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
         const parts = (stats.fullName || stats.firstName || 'U').trim().split(/\s+/)
         return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || 'U'
     }, [stats.fullName, stats.firstName])
+
+    const [showAllSupplies, setShowAllSupplies] = useState(false)
+    const visibleSupplies = showAllSupplies ? supplies : supplies.slice(0, 3)
+    const hiddenCount = Math.max(0, supplies.length - 3)
 
     const memberSince = (profile as any)?.created_at
         ? new Date((profile as any).created_at).getFullYear()
@@ -101,50 +105,63 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                     </div>
 
                     {/* Actions */}
-                    <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
-                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sicurezza e account</h3>
-                        <div className="space-y-2">
-                            <ActionRow
-                                icon={<KeyRound size={16} />}
-                                title="Cambia password"
-                                desc="Aggiorna la password del tuo account"
-                                onClick={() => router.push('/profile/change-password')}
-                            />
-                            <ActionRow
-                                icon={<Download size={16} />}
-                                title="Scarica i miei dati"
-                                desc="Esporta i tuoi dati personali in formato JSON (GDPR art. 15/20)"
-                                onClick={() => window.open('/api/me/export', '_blank')}
-                            />
-                            <ActionRow
-                                icon={<ShieldCheck size={16} />}
-                                title="Privacy e i tuoi diritti"
-                                desc="Informativa e come esercitare rettifica, cancellazione e portabilità"
-                                onClick={() => router.push('/privacy')}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Contact + Supplies */}
-                    <div className="grid grid-cols-2 gap-5">
+                    {/* Sicurezza + Contatto + Forniture */}
+                    <div className="grid grid-cols-3 gap-5">
                         <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Dati di contatto</h3>
+                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sicurezza e account</h3>
                             <div className="space-y-2">
-                                <Row icon={<Mail size={14} />} label="Email" value={stats.email} />
-                                <Row icon={<Smartphone size={14} />} label="Telefono" value={stats.phone} />
-                                <Row icon={<FileText size={14} />} label="Codice Fiscale / P.IVA" value={stats.fiscalCode} mono />
+                                <ActionRow
+                                    icon={<KeyRound size={16} />}
+                                    title="Cambia password"
+                                    desc="Aggiorna la password del tuo account"
+                                    onClick={() => router.push('/profile/change-password')}
+                                />
+                                <ActionRow
+                                    icon={<Download size={16} />}
+                                    title="Scarica i miei dati"
+                                    desc="Esporta i tuoi dati personali (GDPR art. 15/20)"
+                                    onClick={() => window.open('/api/me/export', '_blank')}
+                                />
+                                <ActionRow
+                                    icon={<ShieldCheck size={16} />}
+                                    title="Privacy e i tuoi diritti"
+                                    desc="Informativa e come esercitare i tuoi diritti"
+                                    onClick={() => router.push('/privacy')}
+                                />
                             </div>
                         </div>
 
                         <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Le tue forniture</h3>
+                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Dati di contatto</h3>
+                            <div className="space-y-2">
+                                <Row icon={<Mail size={16} />} label="Email" value={stats.email} />
+                                <Row icon={<Smartphone size={16} />} label="Telefono" value={stats.phone} />
+                                <Row icon={<FileText size={16} />} label="Codice Fiscale / P.IVA" value={stats.fiscalCode} mono />
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Le tue forniture</h3>
+                                {hiddenCount > 0 && (
+                                    <button
+                                        onClick={() => setShowAllSupplies(v => !v)}
+                                        className="flex items-center gap-1.5 text-[12px] font-bold text-[#1E5BFF] hover:opacity-80 transition-opacity"
+                                    >
+                                        <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-lg bg-[#1E5BFF]/10 text-[#1E5BFF]">
+                                            {showAllSupplies ? 'Mostra meno' : `+${hiddenCount}`}
+                                        </span>
+                                        <ChevronDown size={14} className={cn('transition-transform', showAllSupplies && 'rotate-180')} />
+                                    </button>
+                                )}
+                            </div>
                             {supplies.length === 0 ? (
                                 <p className="text-[11px] text-slate-400 py-4">Nessuna fornitura</p>
                             ) : (
                                 <div className="space-y-2">
-                                    {supplies.map((s, i) => (
+                                    {visibleSupplies.map((s, i) => (
                                         <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5">
-                                            <div className="w-9 h-9 rounded-xl bg-[#1E5BFF]/10 text-[#1E5BFF] flex items-center justify-center shrink-0">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-300 flex items-center justify-center shrink-0">
                                                 {/^(uff|via roma|corso)/i.test(s.address || '') ? <Building2 size={16} /> : <HomeIcon size={16} />}
                                             </div>
                                             <div className="min-w-0 flex-1">
@@ -177,8 +194,8 @@ function Pill({ label, value }: { label: string; value: string }) {
 
 function Row({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value?: string; mono?: boolean }) {
     return (
-        <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5">
-            <div className="p-2 bg-white dark:bg-white/10 text-[#1E5BFF] rounded-lg shrink-0">{icon}</div>
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-300 flex items-center justify-center shrink-0">{icon}</div>
             <div className="min-w-0 flex-1">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{label}</p>
                 <p className={cn("text-[12px] font-bold text-slate-700 dark:text-slate-200 break-words", mono && "font-mono uppercase tracking-wide")}>

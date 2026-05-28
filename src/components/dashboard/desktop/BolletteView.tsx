@@ -274,29 +274,10 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                 <DesktopSidebar />
 
                 <main className="ml-20 h-screen overflow-hidden flex flex-col">
-                    <div className="max-w-[1440px] w-full mx-auto flex-1 flex flex-col p-6 space-y-5 overflow-hidden">
+                    <div className="max-w-[1440px] w-full mx-auto flex-1 flex flex-col p-6 space-y-7 overflow-hidden">
                         <div className="shrink-0 space-y-5">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h1 className="text-3xl font-bold text-[#0A2540] dark:text-white tracking-tight">Le tue bollette</h1>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                {/* Theme Toggle */}
-                                <button
-                                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                                    className="h-10 w-10 rounded-xl bg-white dark:bg-[#1A1D23] flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
-                                    title="Cambia tema"
-                                >
-                                    {themeMounted && theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                                </button>
-
-
-                            </div>
-                        </div>
-
                         {/* TOP ROW: OVERVIEW + FORNITURE + GRAPHS (Condensed) */}
-                        <div className="grid grid-cols-12 gap-5 mb-5 h-[200px]">
+                        <div className="grid grid-cols-12 gap-5 h-[215px]">
                             {/* Left Widget: Overview */}
                             <div className="col-span-12 lg:col-span-3 flex flex-col">
                                 <WaveHero className="p-4 flex flex-col justify-between h-full min-h-[110px]">
@@ -333,14 +314,24 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                 <div className="absolute top-3 right-3 z-10 flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg">
                                     <button
                                         onClick={() => setActiveGraph('spesa')}
-                                        className={cn("h-7 w-8 rounded-md transition-colors flex items-center justify-center", activeGraph === 'spesa' ? "bg-white text-[#1E5BFF] shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                                        className={cn(
+                                            "h-7 w-8 rounded-md transition-colors flex items-center justify-center",
+                                            activeGraph === 'spesa'
+                                                ? "bg-white dark:bg-white/15 text-[#1E5BFF] dark:text-[#93C5FD] shadow-sm"
+                                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                        )}
                                         title="Spesa"
                                     >
                                         <LineChart size={14} />
                                     </button>
                                     <button
                                         onClick={() => setActiveGraph('consumo')}
-                                        className={cn("h-7 w-8 rounded-md transition-colors flex items-center justify-center", activeGraph === 'consumo' ? "bg-white text-[#1E5BFF] shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                                        className={cn(
+                                            "h-7 w-8 rounded-md transition-colors flex items-center justify-center",
+                                            activeGraph === 'consumo'
+                                                ? "bg-white dark:bg-white/15 text-[#1E5BFF] dark:text-[#93C5FD] shadow-sm"
+                                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                        )}
                                         title="Consumo"
                                     >
                                         <BarChart3 size={14} />
@@ -376,10 +367,10 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                     <button
                                         onClick={() => setDateMenuOpen(o => !o)}
                                         className={cn(
-                                            "h-11 px-4 rounded-full text-[13px] font-bold flex items-center gap-2 transition-colors",
+                                            "h-11 px-4 rounded-full text-[13px] font-bold flex items-center gap-2 transition-all outline-none ring-2 ring-transparent",
                                             (dateFrom || dateTo)
-                                                ? "bg-[#1E5BFF]/10 text-[#1E5BFF] ring-1 ring-[#1E5BFF]/30"
-                                                : "bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15"
+                                                ? "bg-[#1E5BFF]/10 text-[#1E5BFF] ring-[#1E5BFF]/30"
+                                                : "bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15 hover:ring-[#93C5FD] focus-visible:ring-[#93C5FD]"
                                         )}
                                     >
                                         <Calendar size={15} />
@@ -440,8 +431,8 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                     )}
                                 </div>
 
-                                <div className="relative">
-                                    <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <div className="relative group">
+                                    <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-[#93C5FD] transition-colors" />
                                     <input
                                         value={search}
                                         onChange={e => setSearch(e.target.value)}
@@ -495,7 +486,9 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                                     <div className="flex items-center gap-3">
                                                         <div className={cn(
                                                             "w-11 h-11 rounded-xl flex items-center justify-center shrink-0",
-                                                            isPaid ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-[#1E5BFF]"
+                                                            isPaid
+                                                                ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                                                : "bg-blue-50 dark:bg-blue-500/15 text-[#1E5BFF] dark:text-[#93C5FD]"
                                                         )}>
                                                             {isPaid ? <CheckCircle2 size={20} /> : <FileText size={20} />}
                                                         </div>
@@ -1197,15 +1190,15 @@ function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supplyIndex, 
 
             {/* Search Input for Quick Filtering */}
             {supplies.length > 3 && (
-                <div className="mb-2 relative shrink-0 z-10">
+                <div className="mb-2 relative group shrink-0 z-10">
                     <input
                         type="text"
                         placeholder="Filtra forniture per indirizzo, ULM..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-8 pr-8 py-2 rounded-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 focus:outline-none focus:ring-1 focus:ring-[#1E5BFF] text-[13px] font-semibold text-slate-700 dark:text-slate-200 placeholder-slate-400 transition-all"
+                        className="h-9 w-full pl-9 pr-8 rounded-full bg-slate-100 dark:bg-white/10 text-[12px] text-slate-700 dark:text-slate-200 placeholder:text-slate-500 outline-none focus:ring-2 ring-[#1E5BFF]/20 transition-all"
                     />
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-[#93C5FD] transition-colors" />
                     {searchQuery && (
                         <button
                             onClick={() => setSearchQuery('')}
@@ -1333,12 +1326,12 @@ function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supplyIndex, 
                                 : (safeIndex === cardIdx ? 0 : 1)
                             const progress = Math.max(0, Math.min(1, 1 - distance))
 
-                            const activeStatusCls = 
-                                s.stadio === '03' ? 'text-emerald-300 bg-emerald-500/20 backdrop-blur-sm border border-emerald-500/30' :
-                                s.stadio === '04' ? 'text-amber-300 bg-amber-500/20 backdrop-blur-sm border border-amber-500/30' :
-                                s.stadio === '05' ? 'text-slate-300 bg-white/15 backdrop-blur-sm border border-white/25' :
-                                s.stadio === '08' ? 'text-rose-300 bg-rose-500/20 backdrop-blur-sm border border-rose-500/30' :
-                                'text-white bg-white/15 backdrop-blur-sm border border-white/25'
+                            const activeStatusCls =
+                                s.stadio === '03' ? 'text-emerald-50 bg-emerald-500/40 backdrop-blur-md border border-emerald-300/60 shadow-sm shadow-emerald-500/20' :
+                                s.stadio === '04' ? 'text-amber-50 bg-amber-500/40 backdrop-blur-md border border-amber-300/60 shadow-sm shadow-amber-500/20' :
+                                s.stadio === '05' ? 'text-white bg-white/25 backdrop-blur-md border border-white/40' :
+                                s.stadio === '08' ? 'text-rose-50 bg-rose-500/40 backdrop-blur-md border border-rose-300/60 shadow-sm shadow-rose-500/20' :
+                                'text-white bg-white/25 backdrop-blur-md border border-white/40'
 
                             return (
                                 <div key={s.id} className="shrink-0 w-full snap-center px-4">
@@ -1362,32 +1355,14 @@ function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supplyIndex, 
                                         />
 
                                         <div className="flex items-center justify-between gap-2 mb-1.5 z-10">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <div className="relative w-6 h-6 shrink-0">
-                                                    {/* Inactive Icon container */}
-                                                    <div 
-                                                        className="absolute inset-0 rounded-md flex items-center justify-center border bg-white dark:bg-white/10 text-slate-400 border-slate-200 dark:border-white/10 transition-opacity"
-                                                        style={{ opacity: 1 - progress }}
-                                                    >
-                                                        {/^(uff|via roma|corso)/i.test(s.address || '') ? <Building2 size={11} /> : <Home size={11} />}
-                                                    </div>
-                                                    {/* Active Icon container */}
-                                                    <div 
-                                                        className="absolute inset-0 rounded-md flex items-center justify-center border bg-white/20 text-white border-white/30 transition-opacity"
-                                                        style={{ opacity: progress }}
-                                                    >
-                                                        {/^(uff|via roma|corso)/i.test(s.address || '') ? <Building2 size={11} /> : <Home size={11} />}
-                                                    </div>
-                                                </div>
-                                                <span 
-                                                    className="text-[10px] font-bold uppercase tracking-[0.18em] truncate"
-                                                    style={{
-                                                        color: `color-mix(in srgb, #64748B ${(1 - progress) * 100}%, rgba(255,255,255,0.8) ${progress * 100}%)`
-                                                    }}
-                                                >
-                                                    Fornitura
-                                                </span>
-                                            </div>
+                                            <span
+                                                className="text-[10px] font-bold uppercase tracking-[0.18em] truncate"
+                                                style={{
+                                                    color: `color-mix(in srgb, #64748B ${(1 - progress) * 100}%, rgba(255,255,255,0.8) ${progress * 100}%)`
+                                                }}
+                                            >
+                                                Fornitura
+                                            </span>
 
                                             <div className="relative shrink-0 h-6 flex items-center">
                                                 {/* Inactive Status Badge */}
@@ -1408,20 +1383,27 @@ function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supplyIndex, 
                                                 </span>
                                             </div>
                                         </div>
-                                        <p
-                                            className="text-[14px] font-bold leading-snug mb-1.5 break-words whitespace-normal z-10"
+                                        <div
+                                            className="mb-1.5 z-10 leading-snug"
                                             style={{
                                                 color: `color-mix(in srgb, currentColor, #ffffff ${progress * 100}%)`
                                             }}
                                         >
-                                            {[s.address, s.city].filter(Boolean).join(', ') || 'Utenza'}
-                                        </p>
-                                        <div className="relative mt-auto z-10 h-6">
-                                            {/* Inactive CodeBadge */}
+                                            <p className="text-[14px] font-bold break-words whitespace-normal">
+                                                {s.address || 'Utenza'}
+                                            </p>
+                                            {s.city && (
+                                                <p className="text-[11px] font-medium opacity-70 truncate">
+                                                    {s.city}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="relative mt-auto z-10 h-7">
+                                            {/* Inactive ULM */}
                                             <div className="absolute inset-0" style={{ opacity: 1 - progress, pointerEvents: progress > 0.5 ? 'none' : 'auto' }}>
                                                 <CodeBadge value={s.codice_ulm || (s.cif ? String(s.cif).slice(-6) : s.ulm)} label="ULM" copyable light={false} />
                                             </div>
-                                            {/* Active CodeBadge */}
+                                            {/* Active ULM */}
                                             <div className="absolute inset-0" style={{ opacity: progress, pointerEvents: progress <= 0.5 ? 'none' : 'auto' }}>
                                                 <CodeBadge value={s.codice_ulm || (s.cif ? String(s.cif).slice(-6) : s.ulm)} label="ULM" copyable light={true} />
                                             </div>
@@ -1493,13 +1475,19 @@ function CodeBadge({ value, label, copyable, mono = true, light = false }: { val
     return (
         <div className="group/badge relative inline-flex items-center gap-1.5">
             <Wrapper
-                {...(copyable ? { onClick: copy, title: `Copia ${value}` } : {})}
+                {...(copyable ? {
+                    onClick: copy,
+                    // Prevent the parent carousel's pointer-drag handler from
+                    // swallowing the click on this badge.
+                    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+                    title: `Copia ${value}`,
+                } : {})}
                 className={cn(
                     'relative inline-flex items-center h-7 px-3 rounded-full max-w-full transition-all duration-300',
                     light
                         ? cn(
-                            'bg-white/20 border border-white/25',
-                            copyable && 'cursor-pointer hover:bg-white/30 active:scale-[0.98]',
+                            'bg-white/10 backdrop-blur-md border border-white/10',
+                            copyable && 'cursor-pointer hover:bg-white/20 active:scale-[0.98]',
                             copied && 'border-emerald-400/50 bg-emerald-500/20'
                           )
                         : cn(
@@ -1536,8 +1524,11 @@ function CodeBadge({ value, label, copyable, mono = true, light = false }: { val
                 </div>
             </Wrapper>
             {copyable && (
-                <div
+                <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); copy(e as any) }}
+                    aria-label={`Copia ${value}`}
                     className={cn(
                         "w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer origin-left",
                         copied
@@ -1550,7 +1541,7 @@ function CodeBadge({ value, label, copyable, mono = true, light = false }: { val
                               )
                     )}>
                     {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={10} strokeWidth={2.5} />}
-                </div>
+                </button>
             )}
         </div>
     )
