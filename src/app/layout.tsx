@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
@@ -11,6 +11,12 @@ const inter = Inter({
   display: "swap",
   variable: "--font-sans",
   weight: ["400", "500", "600", "700", "800", "900"],
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-outfit",
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -35,7 +41,7 @@ export default async function RootLayout({
 }>) {
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${outfit.variable}`}>
       <body className={`${inter.className} antialiased`}>
         <ThemeProvider
           attribute="class"

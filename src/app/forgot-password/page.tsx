@@ -82,16 +82,16 @@ export default function ForgotPasswordPage() {
         <div className="min-h-screen flex bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
 
             {/* LEFT: FORM SECTION */}
-            <div className="w-full lg:w-[480px] flex flex-col justify-center p-8 lg:p-16 border-r border-slate-100 dark:border-white/10 relative z-20 bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
+            <div className="w-full lg:w-[480px] flex flex-col justify-center p-8 lg:p-16 lg:border-r lg:border-slate-100 dark:lg:border-white/10 relative z-20 bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
 
                 {/* Logo + Theme toggle */}
                 <div className="mb-12 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center shrink-0">
                             <img src="/acq_favicon.ico" alt="Acquambiente" width={40} height={40} className="w-full h-full object-contain" />
                         </div>
                         <div className="leading-tight">
-                            <p className="text-[15px] font-extrabold text-[#0A2540] dark:text-white whitespace-nowrap">Acquambiente</p>
+                            <p className="text-[15px] sm:text-[17px] font-extrabold text-[#0A2540] dark:text-white whitespace-nowrap">Acquambiente</p>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">Marche</p>
                         </div>
                     </div>
@@ -99,6 +99,15 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 <div className="mb-8">
+                    {step === 1 && (
+                        <a
+                            href="/login"
+                            aria-label="Torna al login"
+                            className="inline-flex items-center justify-center w-10 h-10 mb-4 -ml-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        >
+                            <ArrowLeft size={20} />
+                        </a>
+                    )}
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">Recupero Password</h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium">
                         {step === 1 && "Inserisci i tuoi dati per recuperare l'accesso."}
@@ -135,10 +144,10 @@ export default function ForgotPasswordPage() {
                                             maxLength={1}
                                             placeholder="0"
                                             onFocus={(e) => e.target.select()}
-                                            className={`w-12 h-14 text-center text-xl font-bold rounded-lg bg-slate-50 dark:bg-white/5 border focus:bg-white dark:focus:bg-black focus:outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-mono shadow-sm ${
-                                                isError 
-                                                ? 'border-red-500 ring-1 ring-red-500' 
-                                                : 'border-slate-200 dark:border-white/10 focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white'
+                                            className={`w-full aspect-square min-h-[48px] text-center text-lg sm:text-2xl font-bold rounded-xl bg-slate-50 dark:bg-white/5 border focus:bg-white dark:focus:bg-black focus:outline-none transition-all duration-150 text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-white/15 font-mono shadow-sm focus:shadow-md touch-manipulation ${
+                                                isError
+                                                ? 'border-red-500 ring-2 ring-red-500/30'
+                                                : 'border-slate-200 dark:border-white/10 focus:border-[#1E5BFF] focus:ring-2 focus:ring-[#1E5BFF]/20 dark:focus:border-[#93C5FD] dark:focus:ring-[#93C5FD]/20'
                                             }`}
                                             value={identifier[index] || ''}
                                             onChange={(e) => {
@@ -262,12 +271,6 @@ export default function ForgotPasswordPage() {
                             Vai al Login
                         </button>
                     </div>
-                )}
-
-                {step === 1 && (
-                    <a href="/login" className="flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400 hover:text-black dark:hover:text-white font-bold transition-colors pt-6 mt-auto">
-                        <ArrowLeft size={16} /> Torna al Login
-                    </a>
                 )}
 
                 <div className="mt-auto pt-10 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
