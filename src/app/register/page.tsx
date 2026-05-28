@@ -481,7 +481,7 @@ export default function RegisterPage() {
 
                 <div className="mt-auto pt-10 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
                     <span>© 2026 Portale Acquambiente</span>
-                    <a href="#" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
+                    <a href="/privacy" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
             </div>
 

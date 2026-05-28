@@ -1,7 +1,7 @@
 'use client'
 
 import { login, initiateFirstAccess } from '@/app/login/actions'
-import { ArrowRight, Sparkles, TrendingUp, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Droplets, Home, FileText, BarChart3 } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
@@ -76,24 +76,23 @@ export default function LoginPage() {
             {/* LEFT: FORM SECTION */}
             <div className="w-full lg:w-[480px] flex flex-col justify-start lg:justify-center px-5 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-16 border-r border-slate-100 dark:border-white/10 relative z-20 bg-white dark:bg-[#0a0a0a] transition-colors duration-500 overflow-y-auto">
 
-                {/* Top Right Actions */}
-                <div className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-10 lg:right-10 z-30">
-                    <ModeToggle />
-                </div>
-
-                {/* Logo */}
-                <div className="mb-6 sm:mb-8 lg:mb-12 pt-2">
-                    <span className="font-black text-xl sm:text-2xl tracking-tighter text-black dark:text-white flex items-center gap-3">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black shadow-sm overflow-hidden p-1">
-                            <img src="/acq_logo.jpg" alt="Logo" className="w-full h-full object-contain" />
+                {/* Logo + Theme toggle */}
+                <div className="mb-6 sm:mb-8 lg:mb-12 pt-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center shrink-0">
+                            <img src="/acq_favicon.ico" alt="Acquambiente" width={40} height={40} className="w-full h-full object-contain" />
                         </div>
-                        Portale Acquambiente
-                    </span>
+                        <div className="leading-tight">
+                            <p className="text-[15px] sm:text-[17px] font-extrabold text-[#0A2540] dark:text-white whitespace-nowrap">Acquambiente</p>
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">Marche</p>
+                        </div>
+                    </div>
+                    <ModeToggle />
                 </div>
 
                 <div className="mb-5 sm:mb-8">
                     <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-2 sm:mb-3 tracking-tight">
-                        {view === 'login' ? 'Accesso Utenti' : 'Attivazione Account'}
+                        {view === 'login' ? 'Area Riservata' : 'Attivazione Account'}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium text-sm sm:text-base">
                         {view === 'login'
@@ -127,6 +126,7 @@ export default function LoginPage() {
                                     <input
                                         key={index}
                                         id={`otp-${index}`}
+                                        aria-label={`Cifra ${index + 1} del Codice Cliente`}
                                         type="text"
                                         inputMode="numeric"
                                         pattern="[0-9]*"
@@ -182,11 +182,13 @@ export default function LoginPage() {
 
                     {view === 'login' && (
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Password</label>
+                            <label htmlFor="password" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Password</label>
                             <input
+                                id="password"
                                 name="password"
                                 type="password"
                                 placeholder="••••••••"
+                                aria-label="Password"
                                 required
                                 className="w-full px-4 py-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-black focus:outline-none focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 text-slate-900 dark:text-white font-medium text-base"
                             />
@@ -207,7 +209,10 @@ export default function LoginPage() {
                                 options={{ theme: 'auto', size: 'flexible' }}
                                 onSuccess={(token) => {
                                     setCaptchaToken(token)
-                                    setError(null)
+                                    // Clear only the "complete the captcha" prompt — keep
+                                    // real server errors visible (the captcha auto-resets
+                                    // after submit and would otherwise wipe them).
+                                    setError(prev => (prev && prev.toLowerCase().includes('captcha')) ? null : prev)
                                 }}
                                 onExpire={() => setCaptchaToken(null)}
                                 onError={() => setCaptchaToken(null)}
@@ -247,78 +252,120 @@ export default function LoginPage() {
 
                 <div className="mt-auto pt-8 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
                     <span>© 2026 Portale Acquambiente</span>
-                    <a href="#" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
+                    <a href="/privacy" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
             </div>
 
             {/* RIGHT: VISUAL SECTION (desktop only) */}
-            <div className="hidden lg:flex flex-1 bg-slate-50 dark:bg-[#111] relative overflow-hidden items-center justify-center p-12 transition-colors duration-500">
-                {/* Decorative Circles */}
-                <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] rounded-full border border-slate-200/50 dark:border-white/5 opacity-50 dark:opacity-20" />
-                <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full border border-slate-200/50 dark:border-white/5 opacity-50 dark:opacity-20" />
+            <div
+                className="hidden lg:flex flex-1 relative overflow-hidden items-center justify-center p-16 text-white animate-gradient-shift"
+                style={{ background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)' }}
+            >
+                {/* Animated waves + glow */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute -top-20 -left-20 w-96 h-96 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
+                    <div className="absolute -bottom-20 -right-20 w-96 h-96 rounded-full bg-white/10 blur-3xl animate-wave-pulse" style={{ animationDelay: '2.5s' }} />
+                    <div className="absolute bottom-0 left-0 w-full h-64 overflow-hidden">
+                        <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-wave-slide reverse opacity-15" style={{ animationDuration: '25s' }}>
+                            <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
+                            </svg>
+                            <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
+                            </svg>
+                        </div>
+                        <div className="absolute bottom-0 left-0 w-[200%] h-full flex animate-wave-slide opacity-25" style={{ animationDuration: '18s' }}>
+                            <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
+                            </svg>
+                            <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                                <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
 
-                {/* Content Container */}
-                <div className="max-w-2xl w-full flex flex-col gap-12 relative z-10">
+                {/* Content */}
+                <div className="relative z-10 max-w-xl w-full flex flex-col gap-10">
 
-                    {/* Floating Cards Mockup */}
+                    {/* Floating dashboard mockup — faithful to the real app */}
                     <div className="relative group">
                         {/* Back Card */}
-                        <div className="absolute top-4 -right-4 w-full h-full bg-slate-200 dark:bg-white/5 rounded-3xl -rotate-2 scale-95 transition-transform duration-700 group-hover:rotate-0 group-hover:scale-100 group-hover:bg-slate-300 dark:group-hover:bg-white/10" />
+                        <div className="absolute top-4 -right-4 w-full h-full bg-white/10 rounded-[2rem] -rotate-2 scale-95 transition-transform duration-700 group-hover:rotate-0 group-hover:scale-100" />
 
-                        {/* Main Interaction Card */}
-                        <div className="bg-white dark:bg-[#1e1e1e] rounded-3xl shadow-2xl shadow-slate-200 dark:shadow-black/50 border border-slate-100 dark:border-white/10 p-8 relative flex flex-col gap-6 w-full rotate-1 transition-transform duration-700 group-hover:rotate-0">
+                        {/* Main Card — mimics dashboard surface */}
+                        <div className="bg-[#F8FAFC] dark:bg-[#0F1115] rounded-[2rem] shadow-2xl shadow-black/20 p-4 relative flex flex-col gap-3 w-full rotate-1 transition-transform duration-700 group-hover:rotate-0">
 
-                            {/* Fake UI Header */}
-                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-black">
-                                        <TrendingUp size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="h-2.5 w-24 bg-slate-900 dark:bg-white rounded-full mb-1.5 opacity-80" />
-                                        <div className="h-2 w-16 bg-slate-200 dark:bg-white/20 rounded-full" />
+                            {/* Top row: KPI + Fornitura + Graph */}
+                            <div className="grid grid-cols-3 gap-3">
+                                {/* Ultima bolletta KPI */}
+                                <div className="rounded-2xl p-3 text-white relative overflow-hidden flex flex-col justify-between" style={{ background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)' }}>
+                                    <div className="h-1.5 w-12 bg-white/30 rounded-full mb-2" />
+                                    <div className="h-3.5 w-16 bg-white/80 rounded-md" />
+                                    <div className="flex gap-1 mt-2">
+                                        <div className="h-3 w-14 bg-white/20 rounded" />
                                     </div>
                                 </div>
-                                <div className="px-3 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full text-xs font-bold font-mono">
-                                    +24.5%
-                                </div>
-                            </div>
-
-                            {/* Fake UI Content */}
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-white/5 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                            <ShieldCheck size={16} />
-                                        </div>
-                                        <div className="h-2 w-32 bg-slate-300 dark:bg-white/10 rounded-full" />
+                                {/* Fornitura */}
+                                <div className="rounded-2xl p-3 text-white relative overflow-hidden flex flex-col justify-between" style={{ background: 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)' }}>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="w-4 h-4 rounded bg-white/20 flex items-center justify-center"><Home size={9} /></div>
+                                        <div className="h-2.5 w-8 rounded-full bg-emerald-500/30 border border-emerald-400/30" />
                                     </div>
-                                    <div className="h-2 w-12 bg-slate-300 dark:bg-white/10 rounded-full" />
-                                </div>
-                                <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-white/5 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                                            <Sparkles size={16} />
-                                        </div>
-                                        <div className="h-2 w-24 bg-slate-300 dark:bg-white/10 rounded-full" />
+                                    <div className="space-y-1">
+                                        <div className="h-1.5 w-full bg-white/40 rounded-full" />
+                                        <div className="h-1.5 w-3/4 bg-white/40 rounded-full" />
                                     </div>
-                                    <div className="h-2 w-12 bg-slate-300 dark:bg-white/10 rounded-full" />
+                                    <div className="h-3 w-12 bg-white/20 rounded mt-1" />
+                                </div>
+                                {/* Graph */}
+                                <div className="rounded-2xl p-3 bg-white dark:bg-[#1A1D23] flex flex-col">
+                                    <div className="flex items-center gap-1 mb-2">
+                                        <BarChart3 size={10} className="text-[#1E5BFF]" />
+                                        <div className="h-1.5 w-10 bg-slate-200 dark:bg-white/10 rounded-full" />
+                                    </div>
+                                    <div className="flex-1 flex items-end justify-between gap-1 min-h-[44px]">
+                                        {[45, 70, 50, 90, 65, 80].map((h, i) => (
+                                            <div key={i} className="w-full rounded-t-sm" style={{ height: `${h}%`, background: 'linear-gradient(to top, #1E5BFF, #60A5FA)' }} />
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Fake Graph */}
-                            <div className="h-24 bg-slate-50 dark:bg-white/5 rounded-xl flex items-end justify-between p-4 gap-2">
-                                {[40, 70, 45, 90, 60, 80, 50, 95].map((h, i) => (
-                                    <div key={i} className="w-full bg-slate-800 dark:bg-slate-400 rounded-t-sm opacity-80 hover:opacity-100 hover:bg-black dark:hover:bg-white transition-all" style={{ height: `${h}%` }} />
-                                ))}
+                            {/* Table */}
+                            <div className="bg-white dark:bg-[#1A1D23] rounded-2xl p-3">
+                                <div className="h-2 w-16 bg-slate-200 dark:bg-white/10 rounded-full mb-3" />
+                                <div className="space-y-1.5">
+                                    {[
+                                        { w: 'w-20', sc: 'bg-orange-100 dark:bg-orange-500/20', amt: 'w-10' },
+                                        { w: 'w-16', sc: 'bg-blue-100 dark:bg-blue-500/20', amt: 'w-12' },
+                                        { w: 'w-24', sc: 'bg-blue-100 dark:bg-blue-500/20', amt: 'w-8' },
+                                    ].map((b, i) => (
+                                        <div key={i} className="flex items-center gap-2 py-1.5 border-b border-slate-50 dark:border-white/5 last:border-0">
+                                            <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-[#1E5BFF] shrink-0">
+                                                <FileText size={11} />
+                                            </div>
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <div className={`h-1.5 ${b.w} bg-slate-300 dark:bg-white/15 rounded-full`} />
+                                                <div className="flex items-center gap-1">
+                                                    <Droplets size={8} className="text-[#1E5BFF]" fill="currentColor" fillOpacity={0.25} />
+                                                    <div className="h-1.5 w-8 bg-slate-200 dark:bg-white/10 rounded-full" />
+                                                </div>
+                                            </div>
+                                            <div className={`h-3 w-10 rounded-full ${b.sc}`} />
+                                            <div className={`h-1.5 ${b.amt} bg-slate-300 dark:bg-white/15 rounded-full`} />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
 
+                    {/* Tagline */}
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">Archivio Bollette Digitale</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-lg leading-relaxed">
-                            Consulta, scarica e gestisci tutte le tue utenze di luce, gas e acqua in un&apos;unica area riservata.
+                        <h2 className="text-3xl font-extrabold tracking-tight mb-3">I tuoi consumi a portata di mano</h2>
+                        <p className="text-blue-50/80 text-lg leading-relaxed">
+                            Bollette, pagamenti e andamento dei consumi idrici, tutto in un&apos;unica area riservata.
                         </p>
                     </div>
 

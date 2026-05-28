@@ -4,7 +4,7 @@ import { useEffect, useState, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 interface AdminPageHeroProps {
-    title: string
+    title: ReactNode
     subtitle?: string
     actions?: ReactNode
     topActions?: ReactNode

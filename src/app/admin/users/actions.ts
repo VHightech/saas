@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { requireAdmin, requireSuperadmin } from '@/lib/auth-checks'
 
 export async function deleteUser(userId: string) {
-    const authCheck = await requireAdmin()
+    const authCheck = await requireSuperadmin()
     if (authCheck.error) {
         return { error: authCheck.error }
     }
@@ -161,7 +161,7 @@ export async function resetUserPassword(userId: string) {
 }
 
 export async function deleteSupply(cif: string, userId?: string) {
-    const authCheck = await requireAdmin()
+    const authCheck = await requireSuperadmin()
     if (authCheck.error) return { error: authCheck.error }
 
     const supabaseAdmin = createClient(

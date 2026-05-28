@@ -32,7 +32,7 @@ export function WaveHero({ children, className }: WaveHeroProps) {
                         <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
                             <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
                         </svg>
-                        <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                        <svg className="w-1/2 h-full -ml-[1px]" viewBox="0 0 1440 320" preserveAspectRatio="none">
                             <path fill="#ffffff" d="M0,160 C240,160 480,60 720,160 C960,260 1200,160 1440,160 L1440,320 L0,320 Z" />
                         </svg>
                     </div>
@@ -40,7 +40,7 @@ export function WaveHero({ children, className }: WaveHeroProps) {
                         <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
                             <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
                         </svg>
-                        <svg className="w-1/2 h-full" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                        <svg className="w-1/2 h-full -ml-[1px]" viewBox="0 0 1440 320" preserveAspectRatio="none">
                             <path fill="#ffffff" d="M0,200 C360,200 480,100 720,200 C960,300 1080,200 1440,200 L1440,320 L0,320 Z" />
                         </svg>
                     </div>

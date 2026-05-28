@@ -81,6 +81,10 @@ export async function login(formData: FormData) {
 const GENERIC_OK_MESSAGE =
     "Se il Codice Cliente è registrato e non ancora attivato, riceverai un'email con il link per completare l'attivazione. Controlla anche la cartella spam."
 
+// Numero assistenza mostrato quando l'utenza esiste ma non ha un'email a sistema.
+// TODO: sostituire con il numero reale dell'assistenza Acquambiente.
+const ASSISTANCE_PHONE = '800 000 000'
+
 export async function initiateFirstAccess(codiceCliente: string, captchaToken?: string) {
     const { headers } = await import('next/headers')
     const headersList = await headers()
@@ -179,10 +183,29 @@ export async function initiateFirstAccess(codiceCliente: string, captchaToken?: 
         return { error: 'Errore di sistema. Riprova più tardi.' }
     }
 
-    // Uniform response from this point on — codice unknown / no email / already
-    // activated all collapse to the same generic message so an attacker cannot
-    // distinguish state by reading the server response.
-    if (!profile || !profile.email || profile.is_shadow !== true) {
+    // Utenza esistente ma SENZA email a sistema: non possiamo inviare il link di
+    // attivazione, quindi indirizziamo l'utente all'assistenza. NB: questo esito
+    // è volutamente distinto dal messaggio generico (scelta di prodotto) — rivela
+    // che il codice esiste ma non ha email. Mitigazione: rate-limit per codice/IP
+    // + captcha già applicati sopra.
+    if (profile && !profile.email) {
+        await logAuthEvent({
+            eventType: 'first_access',
+            codiceCliente: cleanCode,
+            ip,
+            userAgent,
+            outcome: 'blocked',
+            reason: 'no_email_on_file',
+        })
+        return {
+            needsAssistance: true,
+            error: `Non è stato possibile completare la richiesta. Per assistenza contatta il numero ${ASSISTANCE_PHONE}.`,
+        }
+    }
+
+    // Uniform response — codice sconosciuto o già attivato collassano nello stesso
+    // messaggio generico, così un attaccante non può distinguere lo stato.
+    if (!profile || profile.is_shadow !== true) {
         await logAuthEvent({
             eventType: 'first_access',
             codiceCliente: cleanCode,
@@ -190,11 +213,7 @@ export async function initiateFirstAccess(codiceCliente: string, captchaToken?: 
             ip,
             userAgent,
             outcome: 'blocked',
-            reason: !profile
-                ? 'codice_not_found'
-                : !profile.email
-                    ? 'no_email_on_file'
-                    : 'already_activated',
+            reason: !profile ? 'codice_not_found' : 'already_activated',
         })
         return { success: true, message: GENERIC_OK_MESSAGE }
     }

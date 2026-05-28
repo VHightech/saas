@@ -77,13 +77,23 @@ export default function ChangePasswordPage() {
                         onChange={v => setForm({ ...form, confirmPassword: v })}
                     />
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-3.5 px-6 rounded-xl bg-blue-600 text-white font-semibold shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : 'Aggiorna Password'}
-                    </button>
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => router.push('/profile')}
+                            disabled={loading}
+                            className="flex-1 py-3.5 px-6 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-white/[0.1] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Annulla
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="flex-1 py-3.5 px-6 rounded-xl bg-blue-600 text-white font-semibold shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loading ? <Loader2 className="animate-spin" size={20} /> : 'Aggiorna'}
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

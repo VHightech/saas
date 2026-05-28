@@ -97,20 +97,19 @@ export function AdminLayoutShell({ children, userName, userRole }: AdminLayoutSh
                     <div className="relative z-10 flex flex-col h-full">
                         <div className="h-16 flex items-center px-3 shrink-0 mb-6 border-b border-white/5">
                             <div className="flex items-center min-w-0">
-                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-white/10">
-                                    <img 
-                                        src="/acq_favicon.ico" 
-                                        alt="Logo" 
-                                        className="w-6 h-6 object-contain"
+                                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                                    <img
+                                        src="/acq_favicon.ico"
+                                        alt="Logo"
+                                        className="w-10 h-10 object-contain"
                                     />
                                 </div>
                                 <div className={cn(
-                                    "transition-all duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] overflow-hidden",
+                                    "leading-tight transition-all duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] overflow-hidden",
                                     collapsed ? "max-w-0 opacity-0 ml-0" : "flex-1 max-w-[180px] opacity-100 ml-3"
                                 )}>
-                                    <span className="text-[14px] font-bold tracking-tight whitespace-nowrap text-white truncate block">
-                                        Acquambiente Marche SRL
-                                    </span>
+                                    <p className="text-[15px] font-extrabold tracking-tight whitespace-nowrap text-white">Acquambiente</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">Marche</p>
                                 </div>
                             </div>
                         </div>
@@ -190,17 +189,17 @@ export function AdminLayoutShell({ children, userName, userRole }: AdminLayoutSh
 
 
                             {userMenuOpen && (
-                                <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#14181F] border border-white/10 rounded-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+                                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#14181F] border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden shadow-lg animate-in slide-in-from-bottom-2 duration-200">
                                     <button
                                         onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-[12px] text-white/70 hover:bg-white/5 transition-colors border-b border-white/5"
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-[12px] text-slate-700 dark:text-white/70 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border-b border-slate-100 dark:border-white/5"
                                     >
                                         {isDark ? <Sun size={14} /> : <Moon size={14} />}
                                         Cambia Tema
                                     </button>
                                     <button
                                         onClick={async () => { await logout() }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-[12px] text-rose-400 hover:bg-white/5 transition-colors"
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-[12px] text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-white/5 transition-colors"
                                     >
                                         <LogOut size={14} />
                                         Esci
