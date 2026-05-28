@@ -269,16 +269,16 @@ export async function POST(req: NextRequest) {
                 let pathTo7zip = sevenBin.path7za
 
                 if (!fs.existsSync(pathTo7zip)) {
-                    const manualPath = path.join(process.cwd(), 'node_modules', '7zip-bin', 'win', 'x64', '7za.exe')
+                    const manualPath = path.join(/*turbopackIgnore: true*/ process.cwd(), 'node_modules', '7zip-bin', 'win', 'x64', '7za.exe')
                     if (fs.existsSync(manualPath)) {
                         pathTo7zip = manualPath
                     } else {
-                        const manualPathUp = path.join(process.cwd(), '..', 'node_modules', '7zip-bin', 'win', 'x64', '7za.exe')
+                        const manualPathUp = path.join(/*turbopackIgnore: true*/ process.cwd(), '..', 'node_modules', '7zip-bin', 'win', 'x64', '7za.exe')
                         if (fs.existsSync(manualPathUp)) pathTo7zip = manualPathUp
                     }
                 }
 
-                const tempDir = path.join(process.cwd(), 'tmp')
+                const tempDir = path.join(/*turbopackIgnore: true*/ process.cwd(), 'tmp')
                 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir)
 
                 // Use original filename to prevent duplicates in tmp folder as per user request
@@ -446,7 +446,7 @@ export async function POST(req: NextRequest) {
                     // B. Storage backend: prefer Cloudflare R2; fall back to local FS only if unconfigured.
                     const storageSubDir = 'invoices/acq'
                     const useR2 = isR2Configured()
-                    const localInvoicesDir = path.join(process.cwd(), 'public', storageSubDir)
+                    const localInvoicesDir = path.join(/*turbopackIgnore: true*/ process.cwd(), 'public', storageSubDir)
                     if (!useR2 && !fs.existsSync(localInvoicesDir)) {
                         fs.mkdirSync(localInvoicesDir, { recursive: true })
                     }
@@ -554,8 +554,8 @@ export async function POST(req: NextRequest) {
                     const path = require('path')
                     const originalName = archiveFile.name
                     const safeName = originalName.replace(/[^a-z0-9.]/gi, '_')
-                    const archivePath = path.join(process.cwd(), 'tmp', safeName)
-                    const extractPath = path.join(process.cwd(), 'tmp', `extract_${safeName.replace(/\./g, '_')}`)
+                    const archivePath = path.join(/*turbopackIgnore: true*/ process.cwd(), 'tmp', safeName)
+                    const extractPath = path.join(/*turbopackIgnore: true*/ process.cwd(), 'tmp', `extract_${safeName.replace(/\./g, '_')}`)
 
                     if (fs.existsSync(archivePath)) {
                         fs.unlinkSync(archivePath)
