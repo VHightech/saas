@@ -6,6 +6,7 @@ import { BarChart3, LifeBuoy, CheckCircle2, Files, FileText, LogOut, Droplets, L
 import { BillListItem } from './BillListItem'
 import { cn } from '@/lib/utils'
 import { formatEuro, monthYear } from '@/lib/format'
+import { buildBillChartData } from '@/lib/bill-chart'
 import type { Profile, Bill } from '@/types/dashboard'
 
 interface MobileHomeProps {
@@ -118,48 +119,12 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
     }, [bills, currentSupply])
 
     const chartData = useMemo(() => {
-        const SLOT_COUNT = 6
-        const MIN_PLACEHOLDERS = 2
-        const MAX_REAL = SLOT_COUNT - MIN_PLACEHOLDERS
-        const placeholderHeights = [55, 72, 48, 65, 58, 70]
-        const monthLabel = (d: Date) =>
-            d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '')
-
         const supplyUlm = currentSupply?.ulm
+        // No ulm (registered supply with no bills) → empty; "all" → every bill.
         const supplyBills = supplyUlm
             ? (supplyUlm === 'all' ? bills : bills.filter((b: any) => b.ulm === supplyUlm))
             : []
-
-        const recent = [...supplyBills]
-            .sort((a: any, b: any) => new Date(a.data_emissione).getTime() - new Date(b.data_emissione).getTime())
-            .slice(-MAX_REAL)
-
-        const padCount = SLOT_COUNT - recent.length
-        const anchor = recent.length > 0 ? new Date((recent[0] as any).data_emissione) : new Date()
-        const ymKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-
-        const slots: Array<{ key: string; value: number | null; label: string; ym: string; bill?: any }> = []
-        for (let i = padCount; i > 0; i--) {
-            const d = new Date(anchor.getFullYear(), anchor.getMonth() - i, 1)
-            slots.push({ key: `placeholder-${ymKey(d)}`, value: null, label: monthLabel(d), ym: ymKey(d) })
-        }
-        recent.forEach((b: any, i) => {
-            const d = new Date(b.data_emissione)
-            slots.push({
-                key: `bill-slot-${i}-${b.id ?? 'x'}`,
-                value: parseFloat(String(b.consumo || 0).replace(',', '.')) || 0,
-                label: monthLabel(d),
-                ym: ymKey(d),
-                bill: b
-            })
-        })
-
-        const max = Math.max(...recent.map((b: any) => parseFloat(String(b.consumo || 0).replace(',', '.')) || 0), 1)
-        // Index of the last slot that actually has a bill (-1 if none)
-        const lastRealIndex = slots.reduce((acc, s, i) => (s as any).bill ? i : acc, -1)
-        const lastBill = recent.length > 0 ? recent[recent.length - 1] : null
-
-        return { slots, max, lastRealIndex, placeholderHeights, lastBill }
+        return buildBillChartData(supplyBills)
     }, [bills, currentSupply])
 
     useEffect(() => {
