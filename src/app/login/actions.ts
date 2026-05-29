@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { verifyTurnstileToken } from '@/lib/captcha'
 import { logAuthEvent, bumpAndCheckRateLimit } from '@/lib/auth-events'
+import { resolveEmailFromIdentifier, SAFE_IDENTIFIER } from '@/lib/profile-lookup'
 
 export async function login(formData: FormData) {
     const supabase = await createClient()
@@ -18,32 +19,15 @@ export async function login(formData: FormData) {
         return { error: 'Credenziali non valide.' }
     }
 
-    // Basic sanity check to prevent PostgREST operator abuse: identifiers are emails,
-    // usernames, CIF or codice_cliente — all alphanumerical with limited punctuation.
-    const safeIdentifierPattern = /^[a-zA-Z0-9._@+\-]+$/
-    if (!safeIdentifierPattern.test(identifier)) {
+    // Basic sanity check to prevent PostgREST operator abuse (§1.1).
+    if (!SAFE_IDENTIFIER.test(identifier)) {
         return { error: 'Credenziali non valide.' }
     }
 
-    let emailToUse = identifier
-    const isEmail = identifier.includes('@')
-
-    if (!isEmail) {
-        const { createAdminClient } = await import('@/lib/supabase/admin')
-        const adminClient = createAdminClient()
-
-        // 1. Try Lookup by Codice Cliente (6 digits)
-        if (identifier.length === 6 && /^\d+$/.test(identifier)) {
-            const { data } = await adminClient
-                .from('profiles')
-                .select('email')
-                .eq('codice_cliente', identifier)
-                .maybeSingle()
-            if (data?.email) {
-                emailToUse = data.email
-            }
-        }
-    }
+    // Resolve identifier (email | cif | codice_cliente | username) → account email
+    // via the shared resolver. Unresolved keeps the raw value so signIn fails with
+    // the same generic error (anti-enumeration §1.10).
+    const emailToUse = (await resolveEmailFromIdentifier(identifier)) ?? identifier
 
     const { data, error } = await supabase.auth.signInWithPassword({
         email: emailToUse,
@@ -58,12 +42,14 @@ export async function login(formData: FormData) {
         return { error: 'Credenziali non valide.' }
     }
 
-    // We must fetch the role from the 'profiles' table because app_metadata might not be synced
+    // Fetch role from profiles (app_metadata may not be synced). Filter on the
+    // canonical auth_user_id pointer — not profiles.id, which is a separate UUID
+    // for shadow-created users.
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', data.user.id)
-        .single()
+        .eq('auth_user_id', data.user.id)
+        .maybeSingle()
 
     const userRole = profile?.role || 'user'
 
