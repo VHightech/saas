@@ -21,7 +21,11 @@ export type AdminCheckFailure = {
 
 export type AdminCheckResult = AdminCheckSuccess | AdminCheckFailure
 
-export async function requireAdmin(): Promise<AdminCheckResult> {
+type Role = NonNullable<ProfileRow['role']>
+
+// Single fetch+check seam. Returns the session user + their profile if the role
+// is in `allowed`; otherwise a typed failure. Deny-by-default (§1.3).
+async function requireRole(allowed: readonly Role[], forbiddenMsg: string): Promise<AdminCheckResult> {
     const supabase = await createClient()
 
     const {
@@ -39,34 +43,19 @@ export async function requireAdmin(): Promise<AdminCheckResult> {
         .eq('auth_user_id', user.id)
         .maybeSingle<ProfileRow>()
 
-    if (profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'superadmin') {
+    if (profile?.role && (allowed as readonly (string | null)[]).includes(profile.role)) {
         return { user, profile }
     }
 
-    return { error: 'Forbidden: Admin access required', status: 403 }
+    return { error: forbiddenMsg, status: 403 }
 }
 
-export async function requireSuperadmin(): Promise<AdminCheckResult> {
-    const supabase = await createClient()
+/** Allow admin, super_admin, superadmin. */
+export function requireAdmin(): Promise<AdminCheckResult> {
+    return requireRole(['admin', 'super_admin', 'superadmin'], 'Forbidden: Admin access required')
+}
 
-    const {
-        data: { user },
-        error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-        return { error: 'Unauthorized', status: 401 }
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('auth_user_id', user.id)
-        .maybeSingle<ProfileRow>()
-
-    if (profile?.role === 'super_admin' || profile?.role === 'superadmin') {
-        return { user, profile }
-    }
-
-    return { error: 'Forbidden: Superadmin access required', status: 403 }
+/** Allow super_admin, superadmin only. */
+export function requireSuperadmin(): Promise<AdminCheckResult> {
+    return requireRole(['super_admin', 'superadmin'], 'Forbidden: Superadmin access required')
 }
