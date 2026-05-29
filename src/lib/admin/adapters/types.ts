@@ -22,9 +22,13 @@ export interface ParseResult {
 
 export interface ImportAdapter {
     /**
-     * Parse raw file content (CSV) into normalized bills. Bills are returned with
-     * `user_id: null`; ownership resolution (CIF/codice_cliente → profile) happens
-     * downstream in the import route, not in the adapter.
+     * Parses a buffer (CSV/XML/Excel) into normalized Bill objects.
+     * @param buffer File content
+     * @param options Dictionary of lookup maps (e.g. CIF -> UserID) to help resolution
      */
-    parse(fileContent: string): Promise<ParseResult>
+    parse(
+        fileContent: string,
+        cifMap: Map<string, string>,
+        cfpiMap: Map<string, string>
+    ): Promise<ParseResult>
 }

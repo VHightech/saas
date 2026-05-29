@@ -49,13 +49,20 @@ export default async function ProfilePage() {
         phone: profile.phone || '-',
     }
 
+    // Default Layout for Users
+    const defaultLayout = {
+        left: ['user_widget', 'consumption_chart', 'expenses_chart'] as any[],
+        right: ['recent_bills'] as any[],
+    }
+
     return (
         <DashboardProvider>
-            <DashboardRenderer
-                profile={profile as any}
-                bills={bills as any}
-                supplies={supplies as any}
+            <DashboardRenderer 
+                profile={profile as any} 
+                bills={bills as any} 
+                supplies={supplies as any} 
                 stats={stats}
+                layout={defaultLayout as any}
             />
         </DashboardProvider>
     )

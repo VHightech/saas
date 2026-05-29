@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getSignedPdfUrl, isR2Configured, pdfExistsOnR2 } from '@/lib/r2'
 
 interface BillRow {
@@ -28,7 +28,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     // Service-role client: admins need to fetch PDFs that are not theirs, but we enforce
     // authorization manually below (owner OR admin/super_admin).
-    const supabaseAdmin = createAdminClient()
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
     // Two parametrised lookups — no PostgREST operator interpolation.
     let bill: BillRow | null = null

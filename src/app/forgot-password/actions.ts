@@ -1,9 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { resolveEmailFromIdentifier } from '@/lib/profile-lookup'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+
+const SAFE_IDENTIFIER = /^[a-zA-Z0-9._@+\-]+$/
 
 // Maschera un'email reale: "mario.rossi@x.it" -> "ma***@x.it".
 function maskEmail(email: string): string {
@@ -18,6 +19,39 @@ function maskEmail(email: string): string {
 function fakeMaskedEmail(identifier: string): string {
     const h = createHash('sha256').update(identifier.trim().toLowerCase()).digest('hex')
     return `${h.substring(0, 2)}***@***`
+}
+
+function createAdminClient() {
+    return createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+            },
+        }
+    )
+}
+
+async function resolveEmailFromIdentifier(identifier: string): Promise<string | null> {
+    const clean = identifier.trim()
+    if (!SAFE_IDENTIFIER.test(clean)) return null
+
+    if (clean.includes('@')) return clean
+
+    const supabaseAdmin = createAdminClient()
+
+    for (const column of ['cif', 'codice_cliente', 'username'] as const) {
+        const { data } = await supabaseAdmin
+            .from('profiles')
+            .select('email')
+            .eq(column, clean)
+            .maybeSingle()
+        if (data?.email) return data.email.trim()
+    }
+
+    return null
 }
 
 // STEP 1: Lookup User — risposta uniforme (sempre success+maskedEmail) così un

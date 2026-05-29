@@ -1,12 +1,17 @@
+
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
+
+// Use Service Role to bypass RLS for Admin Uploads
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
 import { requireAdmin } from '@/lib/auth-checks'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createImportProgress } from '@/lib/admin/import-progress'
 
 export async function POST(req: NextRequest) {
-    // Service-role client, per request (admin-gated below) — never a module singleton.
-    const supabase = createAdminClient()
     const authCheck = await requireAdmin()
     if (authCheck.error) {
         return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
@@ -39,18 +44,25 @@ export async function POST(req: NextRequest) {
 
         // Persist progress in import_logs so the GlobalProgressBar can poll and
         // resume after a page reload. r2_path = importId (provided by the client).
-        // throttleMs: 0 — this route already paces updates by row count.
-        const progress = createImportProgress(supabase, importId, {
-            kind: 'users',
-            archiveName: file.name,
-            throttleMs: 0,
-        })
         if (importId) {
-            await progress.init(records.length, 'Parsing CSV...')
+            await supabase.from('import_logs').upsert({
+                r2_path: importId,
+                kind: 'users',
+                archive_name: file.name,
+                status: 'processing',
+                total_files: records.length,
+                processed_files: 0,
+                current_file: 'Parsing CSV...'
+            }, { onConflict: 'r2_path' })
         }
 
-        const updateProgress = (processed: number, currentFile: string) =>
-            progress.update(currentFile, processed, records.length)
+        const updateProgress = async (processed: number, currentFile: string) => {
+            if (!importId) return
+            await supabase
+                .from('import_logs')
+                .update({ processed_files: processed, current_file: currentFile })
+                .eq('r2_path', importId)
+        }
 
         let successCount = 0
         let errorCount = 0

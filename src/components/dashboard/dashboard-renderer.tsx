@@ -17,6 +17,7 @@ interface UserSupply {
 }
 
 interface DashboardRendererProps {
+    layout: Record<string, unknown>
     profile: Profile
     bills: Bill[]
     supplies?: UserSupply[]
