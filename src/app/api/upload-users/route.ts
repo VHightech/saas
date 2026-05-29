@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parse } from 'csv-parse/sync'
 import { requireAdmin } from '@/lib/auth-checks'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createImportProgress } from '@/lib/admin/import-progress'
 
 export async function POST(req: NextRequest) {
     // Service-role client, per request (admin-gated below) — never a module singleton.
@@ -38,25 +39,18 @@ export async function POST(req: NextRequest) {
 
         // Persist progress in import_logs so the GlobalProgressBar can poll and
         // resume after a page reload. r2_path = importId (provided by the client).
+        // throttleMs: 0 — this route already paces updates by row count.
+        const progress = createImportProgress(supabase, importId, {
+            kind: 'users',
+            archiveName: file.name,
+            throttleMs: 0,
+        })
         if (importId) {
-            await supabase.from('import_logs').upsert({
-                r2_path: importId,
-                kind: 'users',
-                archive_name: file.name,
-                status: 'processing',
-                total_files: records.length,
-                processed_files: 0,
-                current_file: 'Parsing CSV...'
-            }, { onConflict: 'r2_path' })
+            await progress.init(records.length, 'Parsing CSV...')
         }
 
-        const updateProgress = async (processed: number, currentFile: string) => {
-            if (!importId) return
-            await supabase
-                .from('import_logs')
-                .update({ processed_files: processed, current_file: currentFile })
-                .eq('r2_path', importId)
-        }
+        const updateProgress = (processed: number, currentFile: string) =>
+            progress.update(currentFile, processed, records.length)
 
         let successCount = 0
         let errorCount = 0
