@@ -1,17 +1,11 @@
-
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
-
-// Use Service Role to bypass RLS for Admin Uploads
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 import { requireAdmin } from '@/lib/auth-checks'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(req: NextRequest) {
+    // Service-role client, per request (admin-gated below) — never a module singleton.
+    const supabase = createAdminClient()
     const authCheck = await requireAdmin()
     if (authCheck.error) {
         return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })

@@ -1,9 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAdmin, requireSuperadmin } from '@/lib/auth-checks'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function deleteUser(userId: string) {
     const authCheck = await requireSuperadmin()
@@ -11,16 +11,7 @@ export async function deleteUser(userId: string) {
         return { error: authCheck.error }
     }
 
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        }
-    )
+    const supabaseAdmin = createAdminClient()
 
     if (authCheck.user?.id === userId) {
         return { error: 'Non puoi eliminare il tuo stesso account.' }
@@ -64,16 +55,7 @@ export async function updateUser(userId: string, data: {
         return { error: authCheck.error }
     }
 
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        }
-    )
+    const supabaseAdmin = createAdminClient()
 
     // 1. Update Auth if email is present (Best effort, might fail if Shadow user)
     if (data.email) {
@@ -115,16 +97,7 @@ export async function resetUserPassword(userId: string) {
         return { error: authCheck.error }
     }
 
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        }
-    )
+    const supabaseAdmin = createAdminClient()
 
     // 1. Get user email
     const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
@@ -164,16 +137,7 @@ export async function deleteSupply(cif: string, userId?: string) {
     const authCheck = await requireSuperadmin()
     if (authCheck.error) return { error: authCheck.error }
 
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        }
-    )
+    const supabaseAdmin = createAdminClient()
 
     const { error } = await supabaseAdmin
         .from('user_supplies')

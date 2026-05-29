@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
 import { StandardCsvAdapter } from '@/lib/admin/adapters/standard-csv'
 import { buildInvoiceKey, isR2Configured, pdfExistsOnR2, uploadPdfToR2 } from '@/lib/r2'
-
-// Use Service Role to bypass RLS for Admin Uploads
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 import { requireAdmin } from '@/lib/auth-checks'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // Simple in-memory rate limiting map (Admin specific)
 const uploadRateLimit = new Map<string, { count: number, lastReset: number }>()
@@ -18,6 +11,8 @@ const RATE_LIMIT_WINDOW = 10 * 60 * 1000 // 10 minutes
 const MAX_UPLOADS_PER_WINDOW = 5
 
 export async function POST(req: NextRequest) {
+    // Service-role client, per request (admin-gated below) — never a module singleton.
+    const supabase = createAdminClient()
     try {
         const authCheck = await requireAdmin()
         if (authCheck.error) {

@@ -3,11 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Resend } from 'resend'
 import { render } from '@react-email/render'
 import SecurityAlertEmail from '@/components/emails/security-alert'
-
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 
 // Initialize Resend
@@ -16,17 +15,8 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 export async function register(formData: FormData) {
     const supabase = await createClient()
 
-    // Create Admin Client for privileged operations (bypassing public API restrictions)
-    const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        }
-    )
+    // Admin client for privileged pre-session lookups on shadow profiles (§1.2 auth-flow exception).
+    const supabaseAdmin = createAdminClient()
 
     const email = (formData.get('email') as string)?.trim()
     const password = formData.get('password') as string

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createHash } from 'crypto'
 
 const SAFE_IDENTIFIER = /^[a-zA-Z0-9._@+\-]+$/
@@ -19,19 +19,6 @@ function maskEmail(email: string): string {
 function fakeMaskedEmail(identifier: string): string {
     const h = createHash('sha256').update(identifier.trim().toLowerCase()).digest('hex')
     return `${h.substring(0, 2)}***@***`
-}
-
-function createAdminClient() {
-    return createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false,
-            },
-        }
-    )
 }
 
 async function resolveEmailFromIdentifier(identifier: string): Promise<string | null> {
