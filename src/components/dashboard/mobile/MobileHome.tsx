@@ -5,6 +5,7 @@ import React from 'react'
 import { BarChart3, LifeBuoy, CheckCircle2, Files, FileText, LogOut, Droplets, Layers } from 'lucide-react'
 import { BillListItem } from './BillListItem'
 import { cn } from '@/lib/utils'
+import { formatEuro, monthYear } from '@/lib/format'
 import type { Profile, Bill } from '@/types/dashboard'
 
 interface MobileHomeProps {
@@ -101,12 +102,6 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
         return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || 'U'
     }, [stats.fullName, stats.firstName])
 
-    const monthYear = (date: string) => {
-        const d = new Date(date)
-        return d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
-    }
-
-    const formatEuro = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
 
     const sortedBills = useMemo(() => {
         const supplyUlm = currentSupply?.ulm

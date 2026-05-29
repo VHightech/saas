@@ -1,9 +1,12 @@
 'use client'
 
 import { useMemo, useState, useLayoutEffect, useRef, useEffect } from 'react'
-import { FileText, CheckCircle2, AlertCircle, Search, Home, Building2, LineChart, BarChart3, Sun, Moon, Eye, CreditCard, Copy, Check, Droplets, X, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react'
+import { FileText, CheckCircle2, AlertCircle, Search, Home, Building2, LineChart, BarChart3, Sun, Moon, Eye, CreditCard, Droplets, X, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
+import { formatEuro as formatEuroBase, monthYear } from '@/lib/format'
+import { getContractStatus, STATUS_SOFT_CLASS, STATUS_GLASS_CLASS } from '@/lib/contract-status'
+import { CodeBadge } from '@/components/ui/CodeBadge'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
 import { WaveHero } from '@/components/dashboard/desktop/WaveHero'
 import { MobileBollette } from '@/components/dashboard/mobile/MobileBollette'
@@ -18,16 +21,6 @@ interface BolletteViewProps {
 }
 
 type StatusFilter = 'all' | 'paid' | 'unpaid'
-
-function getSupplyStatus(stadio?: string | null): { label: string; dot: string; glow: string } {
-    switch (stadio) {
-        case '03': return { label: 'Attivo', dot: 'bg-emerald-500', glow: 'shadow-[0_0_8px_rgba(16,185,129,0.6)]' }
-        case '04': return { label: 'In Lavorazione', dot: 'bg-amber-500', glow: 'shadow-[0_0_8px_rgba(245,158,11,0.6)]' }
-        case '05': return { label: 'Chiuso', dot: 'bg-slate-400', glow: 'shadow-[0_0_8px_rgba(148,163,184,0.5)]' }
-        case '08': return { label: 'Annullato', dot: 'bg-rose-500', glow: 'shadow-[0_0_8px_rgba(244,63,94,0.6)]' }
-        default: return { label: stadio || '—', dot: 'bg-slate-300', glow: '' }
-    }
-}
 
 export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], profile }: BolletteViewProps) {
     const bills = useMemo(() => rawBills.map((b: any) => ({
@@ -135,9 +128,8 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
 
     const totalPages = Math.ceil(filtered.length / itemsPerPage)
 
-    const monthYear = (date: string) =>
-        new Date(date).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
-    const formatEuro = (n: number) => `€${n.toFixed(2).replace('.', ',')}`
+    // Desktop bollette uses the prefix Euro convention ("€175,89").
+    const formatEuro = (n: number) => formatEuroBase(n, 'prefix')
 
     // 6-month series (mobile-style)
     const chartData = useMemo(() => {
@@ -1313,25 +1305,15 @@ function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supplyIndex, 
                         })()}
                         
                         {(searchQuery ? filteredSupplies : supplies).map((s: any, idx: number) => {
-                            const status = getSupplyStatus(s.stadio)
-                            const statusBadge: Record<string, string> = {
-                                '03': 'text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-500/10',
-                                '04': 'text-amber-700 bg-amber-100 dark:text-amber-300 dark:bg-amber-500/10',
-                                '05': 'text-slate-700 bg-slate-200 dark:text-slate-300 dark:bg-white/10',
-                                '08': 'text-rose-700 bg-rose-100 dark:text-rose-300 dark:bg-rose-500/10',
-                            }
+                            const status = getContractStatus(s.stadio)
                             const cardIdx = searchQuery ? idx : idx + 1
                             const distance = clientWidth > 0
                                 ? Math.abs(scrollLeft - cardIdx * clientWidth) / clientWidth
                                 : (safeIndex === cardIdx ? 0 : 1)
                             const progress = Math.max(0, Math.min(1, 1 - distance))
 
-                            const activeStatusCls =
-                                s.stadio === '03' ? 'text-emerald-50 bg-emerald-500/40 backdrop-blur-md border border-emerald-300/60 shadow-sm shadow-emerald-500/20' :
-                                s.stadio === '04' ? 'text-amber-50 bg-amber-500/40 backdrop-blur-md border border-amber-300/60 shadow-sm shadow-amber-500/20' :
-                                s.stadio === '05' ? 'text-white bg-white/25 backdrop-blur-md border border-white/40' :
-                                s.stadio === '08' ? 'text-rose-50 bg-rose-500/40 backdrop-blur-md border border-rose-300/60 shadow-sm shadow-rose-500/20' :
-                                'text-white bg-white/25 backdrop-blur-md border border-white/40'
+                            const inactiveStatusCls = STATUS_SOFT_CLASS[status.color]
+                            const activeStatusCls = STATUS_GLASS_CLASS[status.color]
 
                             return (
                                 <div key={s.id} className="shrink-0 w-full snap-center px-4">
@@ -1367,7 +1349,7 @@ function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supplyIndex, 
                                             <div className="relative shrink-0 h-6 flex items-center">
                                                 {/* Inactive Status Badge */}
                                                 <span
-                                                    className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap cursor-default transition-opacity", statusBadge[s.stadio as string] || 'text-slate-700 bg-slate-200 dark:text-slate-300 dark:bg-white/10')}
+                                                    className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap cursor-default transition-opacity", inactiveStatusCls)}
                                                     style={{ opacity: 1 - progress }}
                                                     title={`Contratto ${status.label}`}
                                                 >
@@ -1456,92 +1438,6 @@ function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supplyIndex, 
                         />
                     ))}
                 </div>
-            )}
-        </div>
-    )
-}
-
-function CodeBadge({ value, label, copyable, mono = true, light = false }: { value: string; label?: string; copyable?: boolean; mono?: boolean; light?: boolean }) {
-    const [copied, setCopied] = useState(false)
-    const copy = async (e: React.MouseEvent) => {
-        e.stopPropagation()
-        if (!copyable || !value) return
-        try { await navigator.clipboard.writeText(value) } catch {}
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-    }
-    const Wrapper: any = copyable ? 'button' : 'span'
-
-    return (
-        <div className="group/badge relative inline-flex items-center gap-1.5">
-            <Wrapper
-                {...(copyable ? {
-                    onClick: copy,
-                    // Prevent the parent carousel's pointer-drag handler from
-                    // swallowing the click on this badge.
-                    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
-                    title: `Copia ${value}`,
-                } : {})}
-                className={cn(
-                    'relative inline-flex items-center h-7 px-3 rounded-full max-w-full transition-all duration-300',
-                    light
-                        ? cn(
-                            'bg-white/10 backdrop-blur-md border border-white/10',
-                            copyable && 'cursor-pointer hover:bg-white/20 active:scale-[0.98]',
-                            copied && 'border-emerald-400/50 bg-emerald-500/20'
-                          )
-                        : cn(
-                            'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10',
-                            copyable && 'cursor-pointer hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98]',
-                            copied && 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10'
-                          )
-                )}
-            >
-                <div className="flex items-center gap-2 min-w-0">
-                    {label && (
-                        <span className={cn(
-                            "text-[8px] font-bold uppercase tracking-wider transition-colors duration-300 shrink-0",
-                            copied
-                                ? (light ? "text-emerald-300/80" : "text-emerald-500/70")
-                                : (light ? "text-white/70" : "text-slate-400 dark:text-slate-500")
-                        )}>
-                            {label}
-                        </span>
-                    )}
-                    <span className={cn(
-                        "text-[11px] font-bold truncate transition-all duration-300 tabular-nums",
-                        mono && "font-mono",
-                        copyable && (light
-                            ? "group-hover/badge:text-white group-hover/badge:underline group-hover/badge:decoration-white underline-offset-2"
-                            : "group-hover/badge:text-emerald-600 dark:group-hover/badge:text-emerald-400 group-hover/badge:underline group-hover/badge:decoration-emerald-500 underline-offset-2"
-                        ),
-                        copied
-                            ? (light ? "text-emerald-300" : "text-emerald-700 dark:text-emerald-400")
-                            : (light ? "text-white" : "text-slate-700 dark:text-slate-200")
-                    )}>
-                        {copied ? 'Copiato!' : value}
-                    </span>
-                </div>
-            </Wrapper>
-            {copyable && (
-                <button
-                    type="button"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); copy(e as any) }}
-                    aria-label={`Copia ${value}`}
-                    className={cn(
-                        "w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer origin-left",
-                        copied
-                            ? "opacity-100 scale-100 translate-x-0 bg-emerald-600 text-white"
-                            : cn(
-                                "opacity-0 -translate-x-2 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:translate-x-0 group-hover/badge:pointer-events-auto text-white",
-                                light
-                                    ? "bg-white text-emerald-800 hover:bg-white/90"
-                                    : "bg-slate-900 dark:bg-white dark:text-[#1A1F2A] hover:bg-slate-800 dark:hover:bg-white/90"
-                              )
-                    )}>
-                    {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={10} strokeWidth={2.5} />}
-                </button>
             )}
         </div>
     )

@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
     Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X,
-    Printer, Download, Check, Pencil, Edit2, Key, Copy,
+    Printer, Download, Check, Pencil, Edit2, Key,
     TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
 } from 'lucide-react'
 import { resetUserPassword, deleteUser } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
+import { CodeBadge } from '@/components/ui/CodeBadge'
+import { getContractStatus } from '@/lib/contract-status'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -35,20 +37,6 @@ function initialsOf(name: string) {
     return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || 'U'
 }
 
-function formatEuro(n: number | null | undefined) {
-    if (n === null || n === undefined) return '0,00 €'
-    return `${(Number(n) || 0).toFixed(2).replace('.', ',')} €`
-}
-
-function getContractStatus(status: string) {
-    switch (status) {
-        case '03': return { label: 'Attivo', color: 'emerald', theme: 'bg-emerald-500 text-white border-emerald-600' }
-        case '04': return { label: 'In Lavorazione', color: 'amber', theme: 'bg-amber-500 text-white border-amber-600' }
-        case '05': return { label: 'Chiuso', color: 'slate', theme: 'bg-slate-500 text-white border-slate-600' }
-        case '08': return { label: 'Annullato', color: 'rose', theme: 'bg-rose-500 text-white border-rose-600' }
-        default: return { label: status || '—', color: 'slate', theme: 'bg-slate-400 text-white border-slate-500' }
-    }
-}
 
 export default function AdminUsersPage() {
     const router = useRouter()
@@ -1457,68 +1445,6 @@ function FilterChip({ label, badge, active, onClear }: { label: string; badge?: 
                 </div>
             )}
         </button>
-    )
-}
-
-function CodeBadge({ value, label, copyable, mono = true }: { value: string; label?: string; copyable?: boolean; mono?: boolean }) {
-    const [copied, setCopied] = useState(false)
-    const copy = async (e: React.MouseEvent) => {
-        e.stopPropagation()
-        if (!copyable || !value) return
-        try { await navigator.clipboard.writeText(value) } catch { }
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-    }
-    const Wrapper: any = copyable ? 'button' : 'span'
-
-    return (
-        <div className="group/badge relative inline-flex items-center gap-1.5">
-            <Wrapper
-                {...(copyable ? { onClick: copy, title: `Copia ${value}` } : {})}
-                className={cn(
-                    'relative inline-flex items-center h-7 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 px-3 rounded-full max-w-full transition-all duration-300',
-                    copyable && 'cursor-pointer hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98]',
-                    copied && 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10'
-                )}
-            >
-                <div className="flex items-center gap-2 min-w-0">
-                    {label && (
-                        <span className={cn(
-                            "text-[8px] font-bold uppercase tracking-wider transition-colors duration-300 shrink-0",
-                            copied ? "text-emerald-500/70" : "text-slate-400 dark:text-slate-500"
-                        )}>
-                            {label}
-                        </span>
-                    )}
-                    <span className={cn(
-                        "text-[11px] font-bold truncate transition-colors duration-300 tabular-nums",
-                        mono && "font-mono",
-                        copied
-                            ? "text-emerald-700 dark:text-emerald-400"
-                            : "text-slate-700 dark:text-slate-200 group-hover/badge:text-emerald-600 dark:group-hover/badge:text-emerald-400 group-hover/badge:underline decoration-emerald-500 underline-offset-2"
-                    )}>
-                        {copied ? 'Copiato!' : value}
-                    </span>
-                </div>
-            </Wrapper>
-
-            {/* External Icon - revealed on hover */}
-            {copyable && (
-                <div 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        copy(e as any);
-                    }}
-                    className={cn(
-                        "w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer origin-left",
-                        copied
-                            ? "opacity-100 scale-100 translate-x-0 bg-emerald-600 text-white"
-                            : "opacity-0 -translate-x-2 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:translate-x-0 group-hover/badge:pointer-events-auto bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] hover:bg-slate-800 dark:hover:bg-white/90"
-                    )}>
-                    {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={10} strokeWidth={2.5} />}
-                </div>
-            )}
-        </div>
     )
 }
 
