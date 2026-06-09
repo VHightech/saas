@@ -37,6 +37,7 @@ Due esigenze strutturali emerse:
 | D4 | **PEC** salvata (`profiles.pec`) e **mostrata** in admin | Serve per contattare i clienti |
 | D5 | Approccio **②**: si **elimina `cfpi`** da `profiles` (non si tiene come campo specchio) | Modello pulito, scelta dell'utente |
 | D6 | `cfpi` viene rimosso **solo da `profiles`**; resta su `bills` e `user_supplies` come chiave tecnica di matching | Eliminarlo da lì toccherebbe l'import bollette + `mass_link` → blast radius molto più ampio, fuori scope |
+| D7 | **Nessun fallback** sui vecchi nomi colonna: il parser legge solo l'header nuovo | Il file avrà sempre questo formato; i fallback aggiungono solo complessità inutile |
 
 ## 3. Schema (nuova migration)
 
@@ -53,20 +54,22 @@ Due esigenze strutturali emerse:
 
 ## 4. Parser & mappatura import ([upload-users/route.ts](../../src/app/api/upload-users/route.ts))
 
-Riconoscere i **nuovi** nomi colonna **mantenendo i vecchi** come fallback (retro-compatibilità con i file storici):
+Il file avrà **sempre** questo formato: **nessun fallback** sui vecchi nomi colonna (decisione D7). Le chiavi vengono lette esattamente come da header concordato (trim degli spazi). Mapping diretto:
 
-| Colonna file (nuova) | Fallback storici | Target |
-|---|---|---|
-| `CIF` | `cif` | `user_supplies.cif` (+ `codice_cliente` = primi 6 del CIF) |
-| `RagioneSociale` | `Ragione Sociale`, `nominativo`, `denominazione` | `profiles.name` |
-| `CodiceFiscale` | `Codice Fiscale`, `codice fiscale` | `profiles.codice_fiscale` |
-| `PartitaIva` | `Partita Iva`, `partita iva` | `profiles.partita_iva` |
-| `Mail` | `email`, `Email`, `EMAIL`, `e-mail` | `profiles.email` |
-| `PEC` | `pec`, `Pec` | `profiles.pec` |
-| `indirizzo` | `indirizzo utenza`, `inidrizzo utenza` | `user_supplies.address` |
-| `comune` | `Comune` | `user_supplies.city` |
-| `stadio` | `STADIO`, `Stadio` | `user_supplies.stadio` |
-| `statoContratto` | `STATO CONTRATTO`, `Stato Contratto`, `stato_contratto` | `user_supplies.stato_contratto` |
+| Colonna file | Target |
+|---|---|
+| `CIF` | `user_supplies.cif` (+ `codice_cliente` = primi 6 del CIF) |
+| `RagioneSociale` | `profiles.name` |
+| `CodiceFiscale` | `profiles.codice_fiscale` |
+| `PartitaIva` | `profiles.partita_iva` |
+| `Mail` | `profiles.email` |
+| `PEC` | `profiles.pec` |
+| `indirizzo` | `user_supplies.address` |
+| `comune` | `user_supplies.city` |
+| `stadio` | `user_supplies.stadio` |
+| `statoContratto` | `user_supplies.stato_contratto` |
+
+> Il parser attuale pieno di fallback (`row['cif'] || row['CIF'] || …`) va **semplificato**: si leggono solo le colonne dell'header concordato.
 
 - `codice_cliente` non è più nell'header → si deriva sempre dai primi 6 del CIF (comportamento già presente come fallback).
 - Payload profilo: `{ codice_cliente, name, codice_fiscale, partita_iva, email, pec, is_shadow: true, role: 'user' }`.
@@ -126,9 +129,8 @@ Riconoscere i **nuovi** nomi colonna **mantenendo i vecchi** come fallback (retr
 3. **Refresh** anagrafica: cambiando RagioneSociale/CF/P.IVA nel file, il profilo esistente viene aggiornato (campo vuoto non cancella).
 4. **Registrazione**: azienda che digita la **P.IVA** e privato che digita il **CF** → entrambi superano la verifica identità.
 5. **PagoPA**: `debtorFiscalCode` risolve correttamente dai nuovi campi.
-6. **Vecchio formato** ancora importabile (fallback nomi colonna).
-7. **Backfill** migration idempotente: ri-eseguibile senza danni; i `cfpi` esistenti finiscono nella colonna giusta per formato.
-8. Build verde + nessuna regressione nelle flow di login/forgot-password.
+6. **Backfill** migration idempotente: ri-eseguibile senza danni; i `cfpi` esistenti finiscono nella colonna giusta per formato.
+7. Build verde + nessuna regressione nelle flow di login/forgot-password.
 
 ## 11. Fuori scope
 
