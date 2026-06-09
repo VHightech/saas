@@ -41,7 +41,7 @@ export async function register(formData: FormData) {
     // We only allow registration if the user's data is already pre-loaded (e.g. from CSV import)
     const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
-        .select('id, codice_cliente, name, email, cfpi')
+        .select('id, codice_cliente, name, email, codice_fiscale, partita_iva')
         .eq('codice_cliente', clientCode)
         .maybeSingle()
 
@@ -52,8 +52,9 @@ export async function register(formData: FormData) {
     let name = '';
 
     if (existingProfile) {
-        // Validate against CFPI (Fiscal Code / VAT)
-        isValid = (existingProfile.cfpi && existingProfile.cfpi.toUpperCase() === fiscalCode)
+        const cf = existingProfile.codice_fiscale?.toUpperCase()
+        const piva = existingProfile.partita_iva?.toUpperCase()
+        isValid = (!!cf && cf === fiscalCode) || (!!piva && piva === fiscalCode)
         if (isValid) {
             name = existingProfile.name || fullNameInput;
         }
@@ -152,7 +153,7 @@ export async function register(formData: FormData) {
         .update({
             name: name,
             email: email,
-            cfpi: fiscalCode,
+            ...(/^\d{11}$/.test(fiscalCode) ? { partita_iva: fiscalCode } : { codice_fiscale: fiscalCode }),
             role: 'user',
             is_shadow: false,
         })
