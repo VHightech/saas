@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
         const text = await file.text()
 
-        // Header expectations: cif;nominativo;Codice Fiscale;Partita Iva;indirizzo utenza;Comune
+        // Header: CIF;RagioneSociale;CodiceFiscale;PartitaIva;stadio;statoContratto;Mail;PEC;indirizzo;comune
         const records = parse(text, {
             columns: true,
             delimiter: ';',
@@ -68,9 +68,8 @@ export async function POST(req: NextRequest) {
         let errorCount = 0
         const errors: string[] = []
 
-        // We build two maps:
-        //   profilePayloads — one row per unique codice_cliente (a customer can have many forniture)
-        //   supplyPayloads  — one row per unique cif (each cif = one fornitura/utenza)
+        // profilePayloads — una riga per codice_cliente (un cliente ha N forniture)
+        // supplyPayloads  — una riga per cif (ogni cif = una fornitura)
         const profilePayloads = new Map<string, any>()
         const supplyPayloads = new Map<string, any>()
 
@@ -78,64 +77,58 @@ export async function POST(req: NextRequest) {
         let skippedNoCif = 0
         let skippedShortCif = 0
 
-        for (const row of records as any[]) {
-            const cif = row['cif'] || row['CIF']
-            const nominativo = row['nominativo'] || row['Nominativo'] || row['Ragione Sociale'] || row['denominazione']
-            const cf = row['Codice Fiscale'] || row['codice fiscale']
-            const piva = row['Partita Iva'] || row['partita iva']
-            const address = row['indirizzo utenza'] || row['inidrizzo utenza']
-            const city = row['Comune'] || row['comune']
-            const stadio = row['STADIO'] || row['stadio'] || row['Stadio']
-            const statoContratto = row['STATO CONTRATTO'] || row['stato contratto'] || row['Stato Contratto'] || row['stato_contratto']
-            const emailRaw = row['email'] || row['Email'] || row['EMAIL'] || row['e-mail'] || row['E-mail']
-            const email = emailRaw ? String(emailRaw).trim().toLowerCase() : null
+        const clean = (v: unknown) => (v == null ? null : String(v).trim() || null)
 
-            // 08 = contratto annullato. We still upsert the supply so existing
-            // rows get the fresh status reflected, but we don't create a brand
-            // new profile just for an annullato contract.
+        for (const row of records as any[]) {
+            const cif = clean(row['CIF'])
+            const name = clean(row['RagioneSociale'])
+            const codiceFiscale = clean(row['CodiceFiscale'])
+            const partitaIva = clean(row['PartitaIva'])
+            const stadio = clean(row['stadio'])
+            const statoContratto = clean(row['statoContratto'])
+            const pec = clean(row['PEC'])?.toLowerCase() ?? null
+            const emailRaw = clean(row['Mail'])
+            const email = emailRaw ? emailRaw.toLowerCase() : null
+            const address = clean(row['indirizzo'])
+            const city = clean(row['comune'])
+
+            // 08 = contratto annullato: aggiorniamo la fornitura ma non creiamo
+            // un profilo nuovo solo per un contratto annullato.
             const isAnnullato = statoContratto === '08'
             if (isAnnullato) skippedAnnullato++
 
             if (!cif) { skippedNoCif++; continue }
 
-            let clientCode = row['codice_cliente'] || row['Codice Cliente'] || row['CodiceCliente']
-            const cleanCif = String(cif).trim()
-
-            if (!clientCode && cleanCif.length >= 6) {
-                clientCode = cleanCif.substring(0, 6)
-            }
-
+            // Nessun codice_cliente nell'header → si deriva dai primi 6 del CIF.
+            let clientCode: string | null = null
+            if (cif.length >= 6) clientCode = cif.substring(0, 6)
             if (!clientCode) {
                 skippedShortCif++
-                errors.push(`Excluded: No Codice Cliente and CIF too short: ${cleanCif}`)
+                errors.push(`Excluded: CIF troppo corto: ${cif}`)
                 errorCount++
                 continue
             }
 
-            // Profile: dedup by codice_cliente (last wins). One profilo per cliente.
-            // We store the Name and Fiscal Code (cfpi) as they are global to the user.
-            // Skip profile creation for annullato-only rows; supplies are still upserted.
             if (!isAnnullato) {
-                profilePayloads.set(String(clientCode).trim(), {
-                    codice_cliente: String(clientCode).trim(),
-                    name: nominativo,
-                    cfpi: cf || piva,
+                profilePayloads.set(clientCode, {
+                    codice_cliente: clientCode,
+                    name,
+                    codice_fiscale: codiceFiscale,
+                    partita_iva: partitaIva,
                     email,
+                    pec,
                     is_shadow: true,
-                    role: 'user'
+                    role: 'user',
                 })
             }
 
-            // Supply: one row per cif (every fornitura must be persisted, even if the
-            // customer has multiple). user_id stays null and gets attached afterwards
-            // by mass_link_orphaned_data().
-            supplyPayloads.set(cleanCif, {
-                codice_cliente: String(clientCode).trim(),
-                cif: cleanCif,
-                address: address,
-                city: city,
-                stadio: stadio,
-                stato_contratto: statoContratto
+            supplyPayloads.set(cif, {
+                codice_cliente: clientCode,
+                cif,
+                address,
+                city,
+                stadio,
+                stato_contratto: statoContratto,
             })
         }
 
@@ -148,19 +141,9 @@ export async function POST(req: NextRequest) {
         let lastProgressFlush = 0
         for (const payload of profilePayloads.values()) {
             try {
-                // Find existing user by Codice Cliente. We patch:
-                //  - codice_cliente if missing
-                //  - email when the row brings a new one (always for shadow profiles
-                //    still pending activation, and to fill in if previously missing).
-                //    Activated profiles (is_shadow=false) keep their auth-linked
-                //    email — we don't silently overwrite it from CSV.
-                //  - name / cfpi if currently empty
-                // Supply-level fields (stadio, stato_contratto) are not stored on
-                // the profile; the user_supplies upsert below already overwrites
-                // them so the "newest contract status" is kept fresh per fornitura.
                 const { data: existing, error: fetchError } = await supabase
                     .from('profiles')
-                    .select('id, codice_cliente, email, name, cfpi, is_shadow')
+                    .select('id, codice_cliente, email, name, codice_fiscale, partita_iva, pec, is_shadow')
                     .eq('codice_cliente', payload.codice_cliente)
                     .maybeSingle()
 
@@ -169,20 +152,23 @@ export async function POST(req: NextRequest) {
                 if (existing) {
                     const updates: any = {}
                     if (!existing.codice_cliente) updates.codice_cliente = payload.codice_cliente
-                    if (!existing.name && payload.name) updates.name = payload.name
-                    if (!existing.cfpi && payload.cfpi) updates.cfpi = payload.cfpi
 
+                    // "Il file vince": sovrascrivi se il file porta un valore non vuoto e diverso.
+                    // Un valore vuoto nel file NON cancella il dato a sistema.
+                    for (const field of ['name', 'codice_fiscale', 'partita_iva', 'pec'] as const) {
+                        const incoming = payload[field]
+                        if (incoming && incoming !== existing[field]) updates[field] = incoming
+                    }
+
+                    // Email: shadow o vuota → aggiorna; utente attivo con mail diversa → SOLO segnalazione.
                     if (payload.email) {
                         const currentEmail = (existing.email || '').toLowerCase().trim()
-                        const incomingEmail = payload.email
-                        if (incomingEmail !== currentEmail) {
+                        if (payload.email !== currentEmail) {
                             if (!currentEmail || existing.is_shadow) {
-                                // Safe to refresh: no previous email, or user has not
-                                // activated yet (no auth.users record bound to it).
-                                updates.email = incomingEmail
+                                updates.email = payload.email
                             } else {
                                 errors.push(
-                                    `Email change for activated user ${payload.codice_cliente} ignored (CSV "${incomingEmail}" vs auth-linked "${currentEmail}"). Update auth.users separately.`
+                                    `Email cambiata per utente attivo ${payload.codice_cliente}: ignorata (la mail di login non si aggiorna da CSV).`
                                 )
                             }
                         }
@@ -193,34 +179,23 @@ export async function POST(req: NextRequest) {
                             .from('profiles')
                             .update(updates)
                             .eq('id', existing.id)
-
                         if (error) throw error
                     }
                     successCount++
                 } else {
-                    // Start: Insert new Shadow User
-                    // We must generate a random UUID because profiles.id is likely PK
-                    // And logically, shadow users have a random ID until they register (and claim the profile)
-                    // Note: This relies on profiles.id NOT being a strict FK to auth.users, or having a fallback.
-
-                    const { error } = await supabase
-                        .from('profiles')
-                        .insert(payload) // Supabase should auto-gen ID if configured, else we might need `crypto.randomUUID()`
-
+                    const { error } = await supabase.from('profiles').insert(payload)
                     if (error) throw error
                     successCount++
                 }
             } catch (err: any) {
-                console.error(`[API] Profile Error for ${payload.codice_cliente}:`, err)
+                console.error(`[API] Profile Error for ${payload.codice_cliente}:`, err?.message)
                 errors.push(`Err ${payload.codice_cliente}: ${err.message}`)
                 errorCount++
             }
 
             processedSoFar++
-            // Throttle: flush progress every 50 records to avoid hammering DB
             if (processedSoFar - lastProgressFlush >= 50) {
                 lastProgressFlush = processedSoFar
-                // Use total records count (not just profile dedup count) so the bar reflects CSV reality
                 const reportProcessed = Math.round((processedSoFar / profilePayloads.size) * records.length * 0.85)
                 await updateProgress(reportProcessed, `Profili ${processedSoFar}/${profilePayloads.size}`)
             }
