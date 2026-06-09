@@ -20,7 +20,9 @@ interface UserProfile {
     id: string
     fullName: string
     email: string
-    cfpi: string
+    codiceFiscale: string
+    partitaIva: string
+    pec: string
     clientCode: string
     isShadow: boolean
     unpaidAmount?: number
@@ -237,7 +239,8 @@ export default function AdminUsersPage() {
             const updates = {
                 name: rowDrafts.fullName,
                 email: rowDrafts.email,
-                cfpi: rowDrafts.cfpi,
+                codice_fiscale: rowDrafts.codiceFiscale,
+                partita_iva: rowDrafts.partitaIva,
                 codice_cliente: rowDrafts.clientCode
             }
             const { error } = await supabase.from('profiles').update(updates).eq('id', editingUserId)
@@ -323,7 +326,8 @@ export default function AdminUsersPage() {
         const dbColumn: Record<string, string> = {
             fullName: 'name',
             email: 'email',
-            cfpi: 'cfpi',
+            codiceFiscale: 'codice_fiscale',
+            partitaIva: 'partita_iva',
             clientCode: 'codice_cliente'
         }
         const col = dbColumn[field as string]
@@ -353,13 +357,15 @@ export default function AdminUsersPage() {
         const selectedUsers = users.filter(u => selected.has(u.id))
         if (selectedUsers.length === 0) return
 
-        const headers = ['Nome', 'Email', 'CF/PIVA', 'Codice Cliente', 'Indirizzo', 'Città']
+        const headers = ['Nome', 'Email', 'CF', 'P.IVA', 'PEC', 'Codice Cliente', 'Indirizzo', 'Città']
         const csvContent = [
             headers.join(','),
             ...selectedUsers.map(u => [
                 `"${u.fullName}"`,
                 `"${u.email}"`,
-                `"${u.cfpi}"`,
+                `"${u.codiceFiscale}"`,
+                `"${u.partitaIva}"`,
+                `"${u.pec}"`,
                 `"${u.clientCode}"`,
                 `"${u.address}"`,
                 `"${u.city}"`
@@ -650,7 +656,7 @@ export default function AdminUsersPage() {
                                         </div>
                                         <div class="pill">
                                             <span class="pill-label">Fiscale</span>
-                                            <span class="pill-value mono">${u.cfpi || u.cif || '—'}</span>
+                                            <span class="pill-value mono">${u.codiceFiscale || u.partitaIva || u.cif || '—'}</span>
                                         </div>
                                         <div class="pill">
                                             <span class="pill-label">Email</span>
@@ -1078,9 +1084,16 @@ export default function AdminUsersPage() {
                                                     <>
                                                         <input
                                                             className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                            value={rowDrafts.cfpi || ''}
-                                                            onChange={e => setRowDrafts({ ...rowDrafts, cfpi: e.target.value })}
-                                                            placeholder="C.F. o P.IVA"
+                                                            value={rowDrafts.codiceFiscale || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, codiceFiscale: e.target.value })}
+                                                            placeholder="Codice Fiscale"
+                                                            onClick={e => e.stopPropagation()}
+                                                        />
+                                                        <input
+                                                            className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                            value={rowDrafts.partitaIva || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, partitaIva: e.target.value })}
+                                                            placeholder="P.IVA"
                                                             onClick={e => e.stopPropagation()}
                                                         />
                                                         <input
@@ -1093,9 +1106,14 @@ export default function AdminUsersPage() {
                                                     </>
                                                 ) : (
                                                     <div className="flex flex-col gap-2">
-                                                        {(u.cif || u.cfpi) && (
+                                                        {u.codiceFiscale && (
                                                             <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.cif || u.cfpi} label={u.cif ? 'CIF' : (/^\d{11}$/.test(u.cfpi) ? 'P.IVA' : 'CF')} copyable />
+                                                                <CodeBadge value={u.codiceFiscale} label="CF" copyable />
+                                                            </div>
+                                                        )}
+                                                        {u.partitaIva && (
+                                                            <div className="h-6 flex items-center">
+                                                                <CodeBadge value={u.partitaIva} label="P.IVA" copyable />
                                                             </div>
                                                         )}
                                                         {u.email && (
@@ -1103,7 +1121,7 @@ export default function AdminUsersPage() {
                                                                 <CodeBadge value={u.email} label="EMAIL" copyable />
                                                             </div>
                                                         )}
-                                                        {!u.cif && !u.cfpi && !u.email && (
+                                                        {!u.codiceFiscale && !u.partitaIva && !u.email && (
                                                             <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
                                                         )}
                                                     </div>
@@ -1327,7 +1345,9 @@ function adapt(p: any): UserProfile {
         id: p.id,
         fullName: p.name || 'Utente non registrato',
         email: p.email || '',
-        cfpi: p.cfpi || '',
+        codiceFiscale: p.codice_fiscale || '',
+        partitaIva: p.partita_iva || '',
+        pec: p.pec || '',
         clientCode: p.codice_cliente || '',
         isShadow: p.is_shadow || !p.email || !p.name,
         billsCount: typeof p.bills_count === 'number' ? p.bills_count : (Array.isArray(p.bills) ? p.bills.length : 0),
