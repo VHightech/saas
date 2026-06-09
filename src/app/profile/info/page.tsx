@@ -22,7 +22,7 @@ export default async function ProfiloInfoPage() {
         fullName: profile.name || 'Cliente Acquambiente',
         firstName: (profile.name || '').split(' ')[0] || 'Cliente',
         clientCode: profile.codice_cliente || '-',
-        fiscalCode: profile.cfpi || profile.cif || '-',
+        fiscalCode: (profile as any).codice_fiscale || (profile as any).partita_iva || profile.cif || '-',
         address: profile.address || '-',
         email: profile.email || '-',
         phone: (profile as any).phone || '-',
