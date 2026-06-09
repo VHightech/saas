@@ -16,6 +16,7 @@ import { MiniSpendChart } from '@/components/admin/users/MiniSpendChart'
 import { InvoiceRangeCalendar } from '@/components/admin/users/InvoiceRangeCalendar'
 import { formatEuro } from '@/lib/format'
 import { getContractStatus, STATUS_TINT_CLASS } from '@/lib/contract-status'
+import { paymentMethodLabel, formatPaymentMethod } from '@/lib/payment-methods'
 import { cn } from '@/lib/utils'
 
 interface Profile {
@@ -23,7 +24,9 @@ interface Profile {
     name: string | null
     email: string | null
     phone: string | null
-    cfpi: string | null
+    codice_fiscale: string | null
+    partita_iva: string | null
+    pec: string | null
     cif: string | null
     address: string | null
     city: string | null
@@ -121,7 +124,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
     const [isEditing, setIsEditing] = useState(false)
     const [userData, setUserData] = useState({
-        name: '', email: '', phone: '', address: '', city: '', fiscalCode: '', cif: ''
+        name: '', email: '', phone: '', address: '', city: '', codiceFiscale: '', partitaIva: '', pec: '', cif: ''
     })
 
     useEffect(() => {
@@ -132,7 +135,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 phone: profile.phone || '',
                 address: profile.address || '',
                 city: profile.city || '',
-                fiscalCode: profile.cfpi || '',
+                codiceFiscale: profile.codice_fiscale || '',
+                partitaIva: profile.partita_iva || '',
+                pec: profile.pec || '',
                 cif: profile.cif || ''
             })
         }
@@ -143,8 +148,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         toast.promise(
             updateUser(id, {
                 name: userData.name, email: userData.email, phone: userData.phone,
-                address: userData.address, city: userData.city,
-                cfpi: userData.fiscalCode, cif: userData.cif
+                codice_fiscale: userData.codiceFiscale, partita_iva: userData.partitaIva,
+                pec: userData.pec
             }),
             {
                 loading: 'Salvataggio in corso...',
@@ -405,7 +410,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                     { key: 'name', label: 'Nome' },
                                     { key: 'email', label: 'Email' },
                                     { key: 'phone', label: 'Telefono' },
-                                    { key: 'fiscalCode', label: 'CF / P.IVA' },
+                                    { key: 'codiceFiscale', label: 'Codice Fiscale' },
+                                    { key: 'partitaIva', label: 'P.IVA' },
+                                    { key: 'pec', label: 'PEC' },
                                     { key: 'address', label: 'Indirizzo' },
                                     { key: 'city', label: 'Città' },
                                 ].map(f => (
@@ -667,8 +674,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                                 </div>
                                             ) : '—'}
                                         </div>
-                                        <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">
-                                            {inv.expected_method || '—'}
+                                        <div className="min-w-0" title={formatPaymentMethod(inv.expected_method)}>
+                                            {inv.expected_method ? (
+                                                <>
+                                                    <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+                                                        {inv.expected_method}
+                                                    </span>
+                                                    {paymentMethodLabel(inv.expected_method) && (
+                                                        <span className="block text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate">
+                                                            {paymentMethodLabel(inv.expected_method)}
+                                                        </span>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">—</span>
+                                            )}
                                         </div>
                                         <div className="text-[13px] font-semibold text-slate-700 dark:text-slate-200 text-right tabular-nums flex items-center justify-end gap-1.5">
                                             <Droplets size={14} className="text-sky-400 fill-sky-400/30" strokeWidth={2.5} />
@@ -747,8 +767,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                 {profile.codice_cliente && (
                                     <CodeBadge value={profile.codice_cliente} label="CODICE CLIENTE" copyable />
                                 )}
-                                {profile.cfpi && (
-                                    <CodeBadge value={profile.cfpi} label={/^\d{11}$/.test(profile.cfpi) ? 'P.IVA' : 'CF'} copyable />
+                                {profile.codice_fiscale && (
+                                    <CodeBadge value={profile.codice_fiscale} label="CF" copyable />
+                                )}
+                                {profile.partita_iva && (
+                                    <CodeBadge value={profile.partita_iva} label="P.IVA" copyable />
+                                )}
+                                {profile.pec && (
+                                    <CodeBadge value={profile.pec} label="PEC" copyable mono={false} />
                                 )}
                                 {profile.email && (
                                     <CodeBadge value={profile.email} label="EMAIL" copyable mono={false} />
