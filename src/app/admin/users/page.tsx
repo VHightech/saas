@@ -241,6 +241,7 @@ export default function AdminUsersPage() {
                 email: rowDrafts.email,
                 codice_fiscale: rowDrafts.codiceFiscale,
                 partita_iva: rowDrafts.partitaIva,
+                pec: rowDrafts.pec,
                 codice_cliente: rowDrafts.clientCode
             }
             const { error } = await supabase.from('profiles').update(updates).eq('id', editingUserId)
@@ -1098,6 +1099,13 @@ export default function AdminUsersPage() {
                                                         />
                                                         <input
                                                             className="h-6 px-2 text-[11px] border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                            value={rowDrafts.pec || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, pec: e.target.value })}
+                                                            placeholder="PEC"
+                                                            onClick={e => e.stopPropagation()}
+                                                        />
+                                                        <input
+                                                            className="h-6 px-2 text-[11px] border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
                                                             value={rowDrafts.email || ''}
                                                             onChange={e => setRowDrafts({ ...rowDrafts, email: e.target.value })}
                                                             placeholder="Email"
@@ -1116,12 +1124,17 @@ export default function AdminUsersPage() {
                                                                 <CodeBadge value={u.partitaIva} label="P.IVA" copyable />
                                                             </div>
                                                         )}
-                                                        {u.email && (
+                                                        {u.pec && (
                                                             <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.email} label="EMAIL" copyable />
+                                                                <CodeBadge value={u.pec} label="PEC" copyable mono={false} />
                                                             </div>
                                                         )}
-                                                        {!u.codiceFiscale && !u.partitaIva && !u.email && (
+                                                        {u.email && (
+                                                            <div className="h-6 flex items-center">
+                                                                <CodeBadge value={u.email} label="EMAIL" copyable mono={false} />
+                                                            </div>
+                                                        )}
+                                                        {!u.codiceFiscale && !u.partitaIva && !u.pec && !u.email && (
                                                             <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
                                                         )}
                                                     </div>
