@@ -141,27 +141,118 @@ Atteso: `piva_filled` ≈ `piva_count` e `cf_filled` ≈ `cf_count` dal Task 0 S
 
 - [ ] **Step 4: Ricrea `search_users` senza `cfpi`**
 
-Partendo dalla definizione catturata in **Task 0 Step 2**, applicare queste sostituzioni testuali e rieseguire `DROP FUNCTION public.search_users(...) ; CREATE FUNCTION ...`:
-1. Nella `RETURNS TABLE (...)`: sostituire la riga `cfpi text,` con:
-   ```
-   codice_fiscale text,
-   partita_iva    text,
-   pec            text,
-   ```
-2. Nella CTE `base` (dentro `format($q$ … $q$)`), nella `SELECT p.…`: sostituire `p.cfpi` con `p.codice_fiscale, p.partita_iva, p.pec`.
-3. Nel `concat_ws(' ', … p.cfpi, …)` della ricerca full-text: sostituire `p.cfpi` con `p.codice_fiscale, p.partita_iva, p.pec`.
-4. Nella `SELECT … FROM counted`: sostituire `cfpi,` con `codice_fiscale, partita_iva, pec,` (stesso ordine della RETURNS TABLE).
-5. Lasciare invariato tutto il resto (security check, sort, filtri, `USING`, ecc.).
+Definizione live catturata in Task 0 (autoritativa). Eseguire `DROP FUNCTION` + `CREATE` con `cfpi` sostituito da `codice_fiscale, partita_iva, pec`:
 
-> ⚠️ Se la definizione live referenzia `p.stadio`/`p.stato_contratto` da `profiles` ma quelle colonne non esistono più (vedi Task 0 Step 1), **non correggerlo qui**: è un problema pre-esistente fuori scope. Replicare la definizione live così com'è, cambiando solo le righe `cfpi`. Annotare la cosa nel PR.
-
-- [ ] **Step 5: Replica i GRANT di colonna**
-
-In base all'output di **Task 0 Step 4**, per ogni `(grantee, privilege)` che `cfpi` aveva, emettere lo stesso grant sulle nuove colonne. Esempio se `authenticated` aveva `UPDATE` su `cfpi`:
 ```sql
-grant update (codice_fiscale, partita_iva, pec) on public.profiles to authenticated;
+drop function if exists public.search_users(text, integer, integer, text, text, text, text);
+
+create or replace function public.search_users(search_term text, _limit integer default 10, _offset integer default 0, _status_filter text default 'all'::text, _shadow_filter text default 'all'::text, _sort_by text default 'created_at'::text, _sort_order text default 'desc'::text)
+ returns table(id uuid, email text, name text, codice_fiscale text, partita_iva text, pec text, codice_cliente text, created_at timestamp with time zone, is_shadow boolean, bills_count integer, user_supplies_count integer, user_supplies jsonb, total_count bigint)
+ language plpgsql
+ security definer
+ set search_path to 'public', 'pg_temp'
+as $function$
+declare
+    search_tokens text[];
+    sort_col      text;
+    sort_dir      text;
+begin
+    if not exists (
+        select 1 from public.profiles
+        where profiles.id = auth.uid()
+          and profiles.role in ('admin', 'super_admin', 'superadmin')
+    ) then
+        raise exception 'Access Denied: Admin privileges required.';
+    end if;
+
+    sort_col := case lower(_sort_by)
+        when 'name'                then 'name'
+        when 'bills_count'         then 'bills_count'
+        when 'user_supplies_count' then 'user_supplies_count'
+        else 'created_at'
+    end;
+    sort_dir := case lower(_sort_order)
+        when 'asc' then 'asc'
+        else 'desc'
+    end;
+
+    search_tokens := string_to_array(trim(coalesce(search_term, '')), ' ');
+
+    return query execute format($q$
+        with base_users as (
+            select
+                p.id, p.email, p.name, p.codice_fiscale, p.partita_iva, p.pec, p.codice_cliente,
+                p.created_at, p.is_shadow,
+                p.bills_count,
+                p.user_supplies_count
+            from public.profiles p
+            where p.role not in ('admin', 'super_admin', 'superadmin')
+              and ($1 = 'all'
+                   or ($1 = 'active' and coalesce(p.is_shadow, false) = false)
+                   or ($1 = 'shadow' and coalesce(p.is_shadow, false) = true))
+               and (
+                    coalesce(array_length($2, 1), 0) = 0
+                 or (
+                    select bool_and(
+                        concat_ws(' ',
+                            p.name, p.email, p.codice_fiscale, p.partita_iva, p.pec, p.codice_cliente
+                        ) ilike '%%' || token || '%%'
+                        or exists (
+                            select 1 from public.user_supplies s
+                            where s.codice_cliente = p.codice_cliente
+                              and (s.cif ilike '%%' || token || '%%' or s.address ilike '%%' || token || '%%')
+                        )
+                        or exists (
+                            select 1 from public.bills b
+                            where b.codice_cliente = p.codice_cliente
+                              and (b.idboll::text ilike '%%' || token || '%%')
+                        )
+                    )
+                    from unnest($2) as token
+                    where token <> ''
+                 )
+              )
+        ),
+        user_with_supplies as (
+            select
+                u.*,
+                coalesce(
+                    (select jsonb_agg(jsonb_build_object(
+                        'cif', s.cif,
+                        'address', s.address,
+                        'city', s.city
+                    ))
+                     from public.user_supplies s
+                     where s.codice_cliente = u.codice_cliente),
+                    '[]'::jsonb
+                ) as user_supplies
+            from base_users u
+        ),
+        counted as (
+            select *, (select count(*) from base_users)::bigint as total_count
+            from user_with_supplies
+        )
+        select id, email, name, codice_fiscale, partita_iva, pec, codice_cliente,
+               created_at, is_shadow,
+               bills_count, user_supplies_count, user_supplies, total_count
+        from counted
+        order by %I %s nulls last, id desc
+        limit $3 offset $4
+    $q$, sort_col, sort_dir)
+    using _shadow_filter, search_tokens, _limit, _offset;
+end;
+$function$;
 ```
-(Se `cfpi` non aveva GRANT espliciti di colonna, saltare questo step.)
+
+- [ ] **Step 5: GRANT di colonna (allineati a quelli reali di `cfpi`)**
+
+Task 0 ha rilevato: `cfpi` ha SELECT/INSERT per `anon`+`authenticated`, UPDATE **solo** per `service_role`/`postgres`. Replico lo stesso pattern (l'edit admin passa dalla Server Action service_role; gli utenti `authenticated` NON possono aggiornare questi campi lato client — invariante di sicurezza mantenuta):
+
+```sql
+grant select (codice_fiscale, partita_iva, pec) on public.profiles to anon, authenticated, service_role;
+grant insert (codice_fiscale, partita_iva, pec) on public.profiles to anon, authenticated, service_role;
+grant update (codice_fiscale, partita_iva, pec) on public.profiles to service_role;
+```
 
 - [ ] **Step 6: Drop `cfpi`**
 
@@ -507,7 +598,7 @@ git commit -m "feat(export): include codice_fiscale/partita_iva/pec in GDPR expo
 
 - [ ] **Step 1: Aggiorna la firma (righe 53-61)**
 
-Sostituire:
+`cif`/`address`/`city` **non esistono** su `profiles` (Task 0) → vanno rimossi (la loro presenza rompeva ogni update admin). Sostituire:
 ```ts
 export async function updateUser(userId: string, data: {
     name?: string
@@ -528,9 +619,6 @@ export async function updateUser(userId: string, data: {
     codice_fiscale?: string
     partita_iva?: string
     pec?: string
-    cif?: string
-    address?: string
-    city?: string
 }) {
 ```
 
@@ -548,7 +636,7 @@ Sostituire:
             city: data.city
         })
 ```
-con:
+con (solo colonne realmente esistenti su `profiles`):
 ```ts
         .update({
             name: data.name,
@@ -556,10 +644,7 @@ con:
             phone: data.phone,
             codice_fiscale: data.codice_fiscale,
             partita_iva: data.partita_iva,
-            pec: data.pec,
-            cif: data.cif,
-            address: data.address,
-            city: data.city
+            pec: data.pec
         })
 ```
 
@@ -642,15 +727,16 @@ Sostituire:
                 cfpi: userData.fiscalCode, cif: userData.cif
             }),
 ```
-con:
+con (niente più `address`/`city`/`cif`: non sono colonne di `profiles`):
 ```ts
             updateUser(id, {
                 name: userData.name, email: userData.email, phone: userData.phone,
-                address: userData.address, city: userData.city,
                 codice_fiscale: userData.codiceFiscale, partita_iva: userData.partitaIva,
-                pec: userData.pec, cif: userData.cif
+                pec: userData.pec
             }),
 ```
+
+> Le righe `address`/`city`/`cif` del form profilo erano vestigiali (quei dati stanno su `user_supplies`, già gestite nella sezione Forniture). Lasciare invariati `userData.address/city/cif` e il loro rendering: semplicemente non passarli più a `updateUser`. Display: `profile.address`/`profile.city` nella card non renderizzano (campi assenti) — comportamento già attuale, fuori scope.
 
 - [ ] **Step 5: Display nell'Account Details Card (righe 764-766)**
 
