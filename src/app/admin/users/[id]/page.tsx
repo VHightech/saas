@@ -124,7 +124,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
     const [isEditing, setIsEditing] = useState(false)
     const [userData, setUserData] = useState({
-        name: '', email: '', phone: '', address: '', city: '', codiceFiscale: '', partitaIva: '', pec: '', cif: ''
+        name: '', email: '', phone: '', codiceFiscale: '', partitaIva: '', pec: ''
     })
 
     useEffect(() => {
@@ -133,12 +133,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 name: profile.name || '',
                 email: profile.email || '',
                 phone: profile.phone || '',
-                address: profile.address || '',
-                city: profile.city || '',
                 codiceFiscale: profile.codice_fiscale || '',
                 partitaIva: profile.partita_iva || '',
-                pec: profile.pec || '',
-                cif: profile.cif || ''
+                pec: profile.pec || ''
             })
         }
     }, [profile])
@@ -413,8 +410,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                     { key: 'codiceFiscale', label: 'Codice Fiscale' },
                                     { key: 'partitaIva', label: 'P.IVA' },
                                     { key: 'pec', label: 'PEC' },
-                                    { key: 'address', label: 'Indirizzo' },
-                                    { key: 'city', label: 'Città' },
                                 ].map(f => (
                                     <div key={f.key} className="flex flex-col gap-1">
                                         <label className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{f.label}</label>
@@ -781,12 +776,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                 )}
                                 {profile.phone && (
                                     <CodeBadge value={profile.phone} label="TEL" copyable />
-                                )}
-                                {profile.address && (
-                                    <CodeBadge value={profile.address} label="IND" copyable mono={false} />
-                                )}
-                                {profile.city && (
-                                    <CodeBadge value={profile.city} label="CIT" copyable mono={false} />
                                 )}
                             </div>
                         </div>
