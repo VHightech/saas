@@ -839,7 +839,7 @@ export default function AdminUsersPage() {
                         <div className="flex items-center gap-2 shrink-0 flex-wrap px-6 py-2 bg-white dark:bg-[#0F1115]">
                             <div className="relative group">
                                 <FilterChip
-                                    label={`Utenza${statusFilter !== 'all' ? `: ${statusFilter === 'active' ? 'Registrato' : 'Fantasma'}` : ''}`}
+                                    label={`Utenza${statusFilter !== 'all' ? `: ${statusFilter === 'active' ? 'Registrato' : 'Non registrato'}` : ''}`}
                                     active={statusFilter !== 'all'}
                                     onClear={() => { setStatusFilter('all'); setCurrentPage(1) }}
                                 />
@@ -853,7 +853,7 @@ export default function AdminUsersPage() {
                                                 statusFilter === s ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"
                                             )}
                                         >
-                                            {s === 'all' ? 'Tutte le utenze' : s === 'active' ? 'Registrato' : 'Fantasma'}
+                                            {s === 'all' ? 'Tutte le utenze' : s === 'active' ? 'Registrato' : 'Non registrato'}
                                         </button>
                                     ))}
                                 </div>
