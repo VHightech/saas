@@ -29,7 +29,7 @@ export async function initiatePagoPAPayment(billId: number, amount: number) {
     // RLS-enforced lookup: a user sees only their own bills (admins see all).
     const { data: bill, error: billError } = await supabase
         .from('bills')
-        .select('id, user_id, importo, cfpi, codice_cliente, profiles:user_id(email, cfpi, name)')
+        .select('id, user_id, importo, cfpi, codice_cliente, profiles:user_id(email, codice_fiscale, partita_iva, name)')
         .eq('id', billId)
         .maybeSingle()
 
@@ -48,7 +48,7 @@ export async function initiatePagoPAPayment(billId: number, amount: number) {
 
     const profile = Array.isArray(bill.profiles) ? bill.profiles[0] : bill.profiles
     const debtorEmail = profile?.email || user.email
-    const debtorFiscalCode = profile?.cfpi || bill.cfpi
+    const debtorFiscalCode = profile?.codice_fiscale || profile?.partita_iva || bill.cfpi
     if (!debtorEmail || !debtorFiscalCode) {
         return { error: 'Dati di fatturazione mancanti. Aggiorna il profilo.' }
     }

@@ -54,3 +54,7 @@ output.txt
 diagnosis.log
 cloudflare.log
 tunnel*.log
+
+# Customer data exports (PII: CF, P.IVA, email, PEC) — never commit
+*contratti*.csv
+docs/*.csv

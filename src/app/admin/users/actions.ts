@@ -54,10 +54,9 @@ export async function updateUser(userId: string, data: {
     name?: string
     email?: string
     phone?: string
-    cfpi?: string
-    cif?: string
-    address?: string
-    city?: string
+    codice_fiscale?: string
+    partita_iva?: string
+    pec?: string
 }) {
     const authCheck = await requireAdmin()
     if (authCheck.error) {
@@ -92,10 +91,9 @@ export async function updateUser(userId: string, data: {
             name: data.name,
             email: data.email,
             phone: data.phone,
-            cfpi: data.cfpi,
-            cif: data.cif,
-            address: data.address,
-            city: data.city
+            codice_fiscale: data.codice_fiscale,
+            partita_iva: data.partita_iva,
+            pec: data.pec
         })
         .eq('id', userId)
 

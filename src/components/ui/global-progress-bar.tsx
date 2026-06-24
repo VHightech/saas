@@ -1,12 +1,12 @@
 'use client'
 
 import { useAdminUpload } from '@/components/providers/admin-upload-provider'
-import { Loader2, CheckCircle2, AlertCircle, X, Users, Database } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, X, Users, Database, RefreshCw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 export function GlobalProgressBar() {
-    const { isUploading, progress, status, kind, result, error, dismissResult } = useAdminUpload()
+    const { isUploading, progress, status, kind, result, error, canRetry, retryUpload, dismissResult, batchIndex, batchTotal } = useAdminUpload()
 
     if (!isUploading && !result && !error) return null
 
@@ -46,6 +46,11 @@ export function GlobalProgressBar() {
                         <span className="text-white/60 dark:text-[#1A1F2A]/50 font-medium uppercase tracking-wider text-[9px]">
                             {labelKind}
                         </span>
+                        {batchTotal > 1 && (
+                            <span className="text-[9px] font-bold text-sky-300 dark:text-sky-600 bg-sky-500/15 px-1.5 py-0.5 rounded tabular-nums">
+                                {batchIndex}/{batchTotal}
+                            </span>
+                        )}
                         <span className="text-white dark:text-[#1A1F2A] font-bold ml-1 bg-white/10 dark:bg-[#1A1F2A]/10 px-1.5 py-0.5 rounded text-[11px] min-w-[44px] text-center tabular-nums">
                             {isUploading ? `${Math.round(progress)}%` : (result ? 'OK' : 'ERR')}
                         </span>
@@ -82,12 +87,14 @@ export function GlobalProgressBar() {
                         )}
                     </div>
 
-                    {/* Right: dismiss when error */}
-                    {error && !isUploading && (
+                    {/* Right: resume from checkpoint when the failed upload is retryable */}
+                    {error && !isUploading && canRetry && (
                         <button
-                            onClick={dismissResult}
-                            className="px-3 flex items-center text-[10px] uppercase font-bold tracking-wider hover:bg-white/5 dark:hover:bg-[#1A1F2A]/10 transition-colors text-white/70 dark:text-[#1A1F2A]/70"
+                            onClick={retryUpload}
+                            className="px-3 flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider bg-sky-500/20 hover:bg-sky-500/30 dark:bg-sky-500 dark:hover:bg-sky-600 transition-colors text-sky-300 dark:text-white"
+                            title="Riprende l'upload dal punto in cui si è interrotto"
                         >
+                            <RefreshCw size={12} />
                             Riprova
                         </button>
                     )}

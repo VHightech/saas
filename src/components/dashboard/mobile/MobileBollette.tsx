@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, FileText, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatEuro, monthYear } from '@/lib/format'
 import type { Bill } from '@/types/dashboard'
 import { BillSummaryCard } from './BillSummaryCard'
 import { BillListItem } from './BillListItem'
@@ -68,12 +69,6 @@ export function MobileBollette({ bills, supplies = [], onSelectBill, onBack }: M
         return groups
     }, [bills, filter])
 
-    const monthYear = (date: string) => {
-        const d = new Date(date)
-        return d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
-    }
-    
-    const formatEuro = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
 
     return (
         <div className="fixed inset-0 z-40 bg-[#F8FAFC] dark:bg-[#0F1115] flex flex-col pb-[env(safe-area-inset-bottom)]">

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "sonner"
+import { ThemedToaster } from "@/components/themed-toaster"
 import React from "react"
 
 
@@ -50,7 +50,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           {children}
-          <Toaster richColors position="top-center" />
+          <ThemedToaster />
         </ThemeProvider>
       </body>
     </html>

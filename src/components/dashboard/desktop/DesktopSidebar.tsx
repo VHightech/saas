@@ -115,7 +115,7 @@ export function DesktopSidebar() {
             )}>
                 <p className="text-[11px] font-bold text-[#0A2540] dark:text-white mb-1">Serve aiuto?</p>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">Servizio clienti</p>
-                <p className="text-[12px] font-bold text-[#1E5BFF] mt-1">800-123-456</p>
+                <a href="tel:800069718" className="text-[12px] font-bold text-[#1E5BFF] mt-1 block">800.069.718</a>
             </div>
 
             {/* Theme toggle */}

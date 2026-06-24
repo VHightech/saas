@@ -83,7 +83,7 @@ const GENERIC_OK_MESSAGE =
 
 // Numero assistenza mostrato quando l'utenza esiste ma non ha un'email a sistema.
 // TODO: sostituire con il numero reale dell'assistenza Acquambiente.
-const ASSISTANCE_PHONE = '800 000 000'
+const ASSISTANCE_PHONE = '800069718'
 
 export async function initiateFirstAccess(codiceCliente: string, captchaToken?: string) {
     const { headers } = await import('next/headers')

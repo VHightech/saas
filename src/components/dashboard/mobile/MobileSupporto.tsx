@@ -87,9 +87,12 @@ const TOPICS: Topic[] = [
 
 function isOpenNow() {
     const now = new Date()
-    const day = now.getDay()
+    const day = now.getDay() // 0 = domenica … 6 = sabato
     const hour = now.getHours()
-    return day >= 1 && day <= 5 && hour >= 8 && hour < 20
+    const isWeekday = day >= 1 && day <= 5
+    const morning = hour >= 8 && hour < 14
+    const afternoon = (day === 2 || day === 4) && hour >= 16 && hour < 18 // mar e gio
+    return isWeekday && (morning || afternoon)
 }
 
 export function MobileSupporto({ firstName, onBack }: MobileSupportoProps) {
@@ -168,7 +171,7 @@ export function MobileSupporto({ firstName, onBack }: MobileSupportoProps) {
                             </p>
                         </div>
                         <h3 className="text-2xl font-bold tracking-tight">{SERVICE_NUMBER}</h3>
-                        <p className="text-[11px] font-medium opacity-70 mt-0.5">Numero verde gratuito · Lun–Ven 8–20</p>
+                        <p className="text-[11px] font-medium opacity-70 mt-0.5">Numero verde gratuito · Lun–Ven 8–14 · Mar/Gio anche 16–18</p>
                     </div>
                     <div className="w-14 h-14 rounded-full bg-[#0A2540] flex items-center justify-center shrink-0">
                         <Phone size={24} className="text-[#93C5FD]" strokeWidth={2.5} />

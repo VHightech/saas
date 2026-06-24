@@ -56,7 +56,7 @@ export function SupportoView({ firstName }: SupportoViewProps) {
 
                     {/* Quick contact grid */}
                     <div className="grid grid-cols-3 gap-5">
-                        <ContactCard icon={<Phone size={18} />} label="Servizio Clienti" value={SERVICE_NUMBER} sub="Lun-Ven 8:30-13:00 / 14:00-17:00" href={telHref(SERVICE_NUMBER)} accent="#1E5BFF" />
+                        <ContactCard icon={<Phone size={18} />} label="Servizio Clienti" value={SERVICE_NUMBER} sub="Lun-Ven 8-14 · Mar/Gio anche 16-18" href={telHref(SERVICE_NUMBER)} accent="#1E5BFF" />
                         <ContactCard icon={<Mail size={18} />} label="Email" value={SUPPORT_EMAIL} sub="Risposta entro 24h" href={`mailto:${SUPPORT_EMAIL}`} accent="#10b981" />
                         <ContactCard icon={<FileText size={18} />} label="PEC" value={SUPPORT_PEC} sub="Per comunicazioni ufficiali" href={`mailto:${SUPPORT_PEC}`} accent="#7c3aed" />
                     </div>

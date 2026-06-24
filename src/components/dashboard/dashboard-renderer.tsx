@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { Profile, Bill, UploadLog } from '@/types/dashboard'
-import { DashboardLayout } from '@/components/admin/dashboard-builder'
 import { MobileShell } from '@/components/dashboard/mobile/MobileShell'
 import { BolletteView } from '@/components/dashboard/desktop/BolletteView'
 import { useDashboard } from '@/components/dashboard/dashboard-context'
@@ -18,7 +17,7 @@ interface UserSupply {
 }
 
 interface DashboardRendererProps {
-    layout: DashboardLayout
+    layout: Record<string, unknown>
     profile: Profile
     bills: Bill[]
     supplies?: UserSupply[]

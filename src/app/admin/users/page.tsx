@@ -4,12 +4,15 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
     Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X,
-    Printer, Download, Check, Pencil, Edit2, Key, Copy,
+    Printer, Download, Check, Pencil, Edit2, Key,
     TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
 } from 'lucide-react'
 import { resetUserPassword, deleteUser } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
+import { CodeBadge } from '@/components/ui/CodeBadge'
+import { Checkbox, SelectionAction, FilterChip, MultiBadge } from '@/components/admin/users/list-widgets'
+import { getContractStatus } from '@/lib/contract-status'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -17,7 +20,9 @@ interface UserProfile {
     id: string
     fullName: string
     email: string
-    cfpi: string
+    codiceFiscale: string
+    partitaIva: string
+    pec: string
     clientCode: string
     isShadow: boolean
     unpaidAmount?: number
@@ -35,20 +40,6 @@ function initialsOf(name: string) {
     return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || 'U'
 }
 
-function formatEuro(n: number | null | undefined) {
-    if (n === null || n === undefined) return '0,00 €'
-    return `${(Number(n) || 0).toFixed(2).replace('.', ',')} €`
-}
-
-function getContractStatus(status: string) {
-    switch (status) {
-        case '03': return { label: 'Attivo', color: 'emerald', theme: 'bg-emerald-500 text-white border-emerald-600' }
-        case '04': return { label: 'In Lavorazione', color: 'amber', theme: 'bg-amber-500 text-white border-amber-600' }
-        case '05': return { label: 'Chiuso', color: 'slate', theme: 'bg-slate-500 text-white border-slate-600' }
-        case '08': return { label: 'Annullato', color: 'rose', theme: 'bg-rose-500 text-white border-rose-600' }
-        default: return { label: status || '—', color: 'slate', theme: 'bg-slate-400 text-white border-slate-500' }
-    }
-}
 
 export default function AdminUsersPage() {
     const router = useRouter()
@@ -248,7 +239,9 @@ export default function AdminUsersPage() {
             const updates = {
                 name: rowDrafts.fullName,
                 email: rowDrafts.email,
-                cfpi: rowDrafts.cfpi,
+                codice_fiscale: rowDrafts.codiceFiscale,
+                partita_iva: rowDrafts.partitaIva,
+                pec: rowDrafts.pec,
                 codice_cliente: rowDrafts.clientCode
             }
             const { error } = await supabase.from('profiles').update(updates).eq('id', editingUserId)
@@ -334,7 +327,8 @@ export default function AdminUsersPage() {
         const dbColumn: Record<string, string> = {
             fullName: 'name',
             email: 'email',
-            cfpi: 'cfpi',
+            codiceFiscale: 'codice_fiscale',
+            partitaIva: 'partita_iva',
             clientCode: 'codice_cliente'
         }
         const col = dbColumn[field as string]
@@ -364,13 +358,15 @@ export default function AdminUsersPage() {
         const selectedUsers = users.filter(u => selected.has(u.id))
         if (selectedUsers.length === 0) return
 
-        const headers = ['Nome', 'Email', 'CF/PIVA', 'Codice Cliente', 'Indirizzo', 'Città']
+        const headers = ['Nome', 'Email', 'CF', 'P.IVA', 'PEC', 'Codice Cliente', 'Indirizzo', 'Città']
         const csvContent = [
             headers.join(','),
             ...selectedUsers.map(u => [
                 `"${u.fullName}"`,
                 `"${u.email}"`,
-                `"${u.cfpi}"`,
+                `"${u.codiceFiscale}"`,
+                `"${u.partitaIva}"`,
+                `"${u.pec}"`,
                 `"${u.clientCode}"`,
                 `"${u.address}"`,
                 `"${u.city}"`
@@ -661,7 +657,7 @@ export default function AdminUsersPage() {
                                         </div>
                                         <div class="pill">
                                             <span class="pill-label">Fiscale</span>
-                                            <span class="pill-value mono">${u.cfpi || u.cif || '—'}</span>
+                                            <span class="pill-value mono">${u.codiceFiscale || u.partitaIva || u.cif || '—'}</span>
                                         </div>
                                         <div class="pill">
                                             <span class="pill-label">Email</span>
@@ -843,7 +839,7 @@ export default function AdminUsersPage() {
                         <div className="flex items-center gap-2 shrink-0 flex-wrap px-6 py-2 bg-white dark:bg-[#0F1115]">
                             <div className="relative group">
                                 <FilterChip
-                                    label={`Utenza${statusFilter !== 'all' ? `: ${statusFilter === 'active' ? 'Registrato' : 'Fantasma'}` : ''}`}
+                                    label={`Utenza${statusFilter !== 'all' ? `: ${statusFilter === 'active' ? 'Registrato' : 'Non registrato'}` : ''}`}
                                     active={statusFilter !== 'all'}
                                     onClear={() => { setStatusFilter('all'); setCurrentPage(1) }}
                                 />
@@ -857,7 +853,7 @@ export default function AdminUsersPage() {
                                                 statusFilter === s ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"
                                             )}
                                         >
-                                            {s === 'all' ? 'Tutte le utenze' : s === 'active' ? 'Registrato' : 'Fantasma'}
+                                            {s === 'all' ? 'Tutte le utenze' : s === 'active' ? 'Registrato' : 'Non registrato'}
                                         </button>
                                     ))}
                                 </div>
@@ -1089,9 +1085,23 @@ export default function AdminUsersPage() {
                                                     <>
                                                         <input
                                                             className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                            value={rowDrafts.cfpi || ''}
-                                                            onChange={e => setRowDrafts({ ...rowDrafts, cfpi: e.target.value })}
-                                                            placeholder="C.F. o P.IVA"
+                                                            value={rowDrafts.codiceFiscale || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, codiceFiscale: e.target.value })}
+                                                            placeholder="Codice Fiscale"
+                                                            onClick={e => e.stopPropagation()}
+                                                        />
+                                                        <input
+                                                            className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                            value={rowDrafts.partitaIva || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, partitaIva: e.target.value })}
+                                                            placeholder="P.IVA"
+                                                            onClick={e => e.stopPropagation()}
+                                                        />
+                                                        <input
+                                                            className="h-6 px-2 text-[11px] border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
+                                                            value={rowDrafts.pec || ''}
+                                                            onChange={e => setRowDrafts({ ...rowDrafts, pec: e.target.value })}
+                                                            placeholder="PEC"
                                                             onClick={e => e.stopPropagation()}
                                                         />
                                                         <input
@@ -1104,17 +1114,27 @@ export default function AdminUsersPage() {
                                                     </>
                                                 ) : (
                                                     <div className="flex flex-col gap-2">
-                                                        {(u.cif || u.cfpi) && (
+                                                        {u.codiceFiscale && (
                                                             <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.cif || u.cfpi} label={u.cif ? 'CIF' : (/^\d{11}$/.test(u.cfpi) ? 'P.IVA' : 'CF')} copyable />
+                                                                <CodeBadge value={u.codiceFiscale} label="CF" copyable />
+                                                            </div>
+                                                        )}
+                                                        {u.partitaIva && (
+                                                            <div className="h-6 flex items-center">
+                                                                <CodeBadge value={u.partitaIva} label="P.IVA" copyable />
+                                                            </div>
+                                                        )}
+                                                        {u.pec && (
+                                                            <div className="h-6 flex items-center">
+                                                                <CodeBadge value={u.pec} label="PEC" copyable mono={false} />
                                                             </div>
                                                         )}
                                                         {u.email && (
                                                             <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.email} label="EMAIL" copyable />
+                                                                <CodeBadge value={u.email} label="EMAIL" copyable mono={false} />
                                                             </div>
                                                         )}
-                                                        {!u.cif && !u.cfpi && !u.email && (
+                                                        {!u.codiceFiscale && !u.partitaIva && !u.pec && !u.email && (
                                                             <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
                                                         )}
                                                     </div>
@@ -1338,7 +1358,9 @@ function adapt(p: any): UserProfile {
         id: p.id,
         fullName: p.name || 'Utente non registrato',
         email: p.email || '',
-        cfpi: p.cfpi || '',
+        codiceFiscale: p.codice_fiscale || '',
+        partitaIva: p.partita_iva || '',
+        pec: p.pec || '',
         clientCode: p.codice_cliente || '',
         isShadow: p.is_shadow || !p.email || !p.name,
         billsCount: typeof p.bills_count === 'number' ? p.bills_count : (Array.isArray(p.bills) ? p.bills.length : 0),
@@ -1369,175 +1391,4 @@ interface BillStats {
     totalConsumo: number
     last: any
 }
-
-function DetailMetric({ value, label, icon: Icon, colorClass }: { value: string; label: string; icon?: any; colorClass?: string }) {
-    return (
-        <div className="flex flex-col p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5">
-            <div className="flex items-center justify-between mb-2">
-                {Icon && <Icon size={14} className="text-slate-400" />}
-            </div>
-            <div className={cn("text-[15px] font-bold tracking-tight text-slate-900 dark:text-white leading-none", colorClass)}>
-                {value}
-            </div>
-            <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 mt-2">
-                {label}
-            </div>
-        </div>
-    )
-}
-
-
-function Checkbox({ checked, indeterminate, onChange }: { checked: boolean; indeterminate?: boolean; onChange: () => void }) {
-    return (
-        <button
-            onClick={(e) => { e.stopPropagation(); onChange() }}
-            className={cn(
-                'w-4 h-4 rounded border flex items-center justify-center transition-colors',
-                checked || indeterminate
-                    ? 'bg-[#0A2540] dark:bg-white border-[#0A2540] dark:border-white text-white dark:text-[#0A2540]'
-                    : 'bg-white dark:bg-white/5 border-slate-300 dark:border-white/30 hover:border-slate-400'
-            )}
-        >
-            {indeterminate ? (
-                <span className="w-2 h-0.5 bg-white" />
-            ) : checked ? (
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-            ) : null}
-        </button>
-    )
-}
-
-
-
-
-
-
-
-function SelectionAction({ icon, label, onClick }: { icon: React.ReactNode; label?: string | null; onClick?: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            className="h-10 px-3 hover:bg-white/5 dark:hover:bg-slate-100 flex items-center gap-1.5 text-[12px] text-white/80 dark:text-[#1A1F2A]/80 hover:text-white dark:hover:text-[#1A1F2A] transition-colors whitespace-nowrap"
-        >
-            {icon}
-            {label}
-        </button>
-    )
-}
-
-function FilterChip({ label, badge, active, onClear }: { label: string; badge?: number | null; active?: boolean; onClear?: () => void }) {
-    return (
-        <button
-            className={cn(
-                'h-9 px-4 rounded-full text-[13px] font-medium flex items-center gap-2 transition-all duration-200 group/f',
-                active
-                    ? 'bg-black text-white border-transparent'
-                    : 'bg-white dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-white/40'
-            )}
-        >
-            <span className="flex items-center gap-1.5">
-                {label}
-            </span>
-            <ChevronDown
-                size={14}
-                className={cn(
-                    'transition-transform duration-200',
-                    active ? 'text-white/60' : 'text-slate-400'
-                )}
-            />
-            {active && onClear && (
-                <div
-                    role="button"
-                    onClick={(e) => { e.stopPropagation(); onClear() }}
-                    className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:bg-rose-500 hover:border-rose-500 -mr-1 transition-all duration-200"
-                >
-                    <X size={10} strokeWidth={3} />
-                </div>
-            )}
-        </button>
-    )
-}
-
-function CodeBadge({ value, label, copyable, mono = true }: { value: string; label?: string; copyable?: boolean; mono?: boolean }) {
-    const [copied, setCopied] = useState(false)
-    const copy = async (e: React.MouseEvent) => {
-        e.stopPropagation()
-        if (!copyable || !value) return
-        try { await navigator.clipboard.writeText(value) } catch { }
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-    }
-    const Wrapper: any = copyable ? 'button' : 'span'
-
-    return (
-        <div className="group/badge relative inline-flex items-center gap-1.5">
-            <Wrapper
-                {...(copyable ? { onClick: copy, title: `Copia ${value}` } : {})}
-                className={cn(
-                    'relative inline-flex items-center h-7 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 px-3 rounded-full max-w-full transition-all duration-300',
-                    copyable && 'cursor-pointer hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98]',
-                    copied && 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10'
-                )}
-            >
-                <div className="flex items-center gap-2 min-w-0">
-                    {label && (
-                        <span className={cn(
-                            "text-[8px] font-bold uppercase tracking-wider transition-colors duration-300 shrink-0",
-                            copied ? "text-emerald-500/70" : "text-slate-400 dark:text-slate-500"
-                        )}>
-                            {label}
-                        </span>
-                    )}
-                    <span className={cn(
-                        "text-[11px] font-bold truncate transition-colors duration-300 tabular-nums",
-                        mono && "font-mono",
-                        copied
-                            ? "text-emerald-700 dark:text-emerald-400"
-                            : "text-slate-700 dark:text-slate-200 group-hover/badge:text-emerald-600 dark:group-hover/badge:text-emerald-400 group-hover/badge:underline decoration-emerald-500 underline-offset-2"
-                    )}>
-                        {copied ? 'Copiato!' : value}
-                    </span>
-                </div>
-            </Wrapper>
-
-            {/* External Icon - revealed on hover */}
-            {copyable && (
-                <div 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        copy(e as any);
-                    }}
-                    className={cn(
-                        "w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer origin-left",
-                        copied
-                            ? "opacity-100 scale-100 translate-x-0 bg-emerald-600 text-white"
-                            : "opacity-0 -translate-x-2 pointer-events-none group-hover/badge:opacity-100 group-hover/badge:translate-x-0 group-hover/badge:pointer-events-auto bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] hover:bg-slate-800 dark:hover:bg-white/90"
-                    )}>
-                    {copied ? <Check size={10} strokeWidth={3} /> : <Copy size={10} strokeWidth={2.5} />}
-                </div>
-            )}
-        </div>
-    )
-}
-
-function MultiBadge({ count }: { count: number }) {
-    return (
-        <div className="group/multi relative inline-flex items-center h-7 pl-3 pr-1 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 transition-all duration-300 hover:border-indigo-500/30 hover:bg-slate-50 dark:hover:bg-white/[0.08]">
-            <span className="text-[8px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2 transition-colors group-hover/multi:text-slate-600 dark:group-hover/multi:text-slate-300">
-                Forniture Multiple
-            </span>
-            <div className="h-5 px-1.5 min-w-[20px] rounded-full bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-[#1A1F2A] text-[11px] font-mono tabular-nums transition-transform group-hover/multi:scale-110">
-                {count}
-            </div>
-        </div>
-    )
-}
-
-
-
-
-
-
 

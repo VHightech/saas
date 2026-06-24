@@ -126,7 +126,7 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                                     icon={<ShieldCheck size={16} />}
                                     title="Privacy e i tuoi diritti"
                                     desc="Informativa e come esercitare i tuoi diritti"
-                                    onClick={() => router.push('/privacy')}
+                                    onClick={() => window.open('https://www.acquambientemarche.it/privacy-policy/', '_blank', 'noopener,noreferrer')}
                                 />
                             </div>
                         </div>
