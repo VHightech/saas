@@ -251,8 +251,8 @@ export default function LoginPage() {
                 </form>
 
                 <div className="mt-auto pt-8 text-xs text-slate-400 dark:text-slate-600 font-medium flex justify-between">
-                    <span>© 2026 Portale Acquambiente</span>
-                    <a href="/privacy" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
+                    <span>© 2026 Acquambiente Marche srl</span>
+                    <a href="https://www.acquambientemarche.it/privacy-policy/" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600 dark:hover:text-slate-300">Privacy Policy</a>
                 </div>
             </div>
 

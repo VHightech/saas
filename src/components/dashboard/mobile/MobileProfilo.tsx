@@ -140,7 +140,7 @@ export function MobileProfilo({ profile, stats, supplies = [], onBack, onLogout 
                         <ChevronRight size={18} className="text-slate-300" />
                     </a>
                     <button
-                        onClick={() => router.push('/privacy')}
+                        onClick={() => window.open('https://www.acquambientemarche.it/privacy-policy/', '_blank', 'noopener,noreferrer')}
                         className="w-full flex items-center gap-3 px-5 py-4 active:bg-slate-50 dark:active:bg-white/5 transition-colors"
                     >
                         <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-300 flex items-center justify-center shrink-0">

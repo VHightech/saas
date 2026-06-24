@@ -51,10 +51,10 @@ export const STATUS_GLASS_CLASS: Record<ContractStatusColor, string> = {
 
 /** Tint pill (admin detail: subtle bg + colored text + matching border). */
 export const STATUS_TINT_CLASS: Record<ContractStatusColor, string> = {
-    emerald: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-    amber: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-    slate: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
-    rose: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
+    emerald: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+    amber: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+    slate: 'bg-slate-500/15 text-slate-600 dark:text-slate-200 border-slate-400/30',
+    rose: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
 }
 
 /** Status dot + glow (compact indicators). */

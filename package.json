@@ -7,7 +7,13 @@
     "dev:tunnel": "concurrently \"npm run dev\" \"npx cloudflared tunnel --url http://localhost:3000\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "r2:last": "tsx scripts/r2-last-upload.ts",
+    "r2:fix": "tsx scripts/r2-upload-missing.ts",
+    "r2:check": "tsx scripts/r2-check-names.ts",
+    "r2:sign": "tsx scripts/r2-sign.ts",
+    "r2:compress": "tsx scripts/r2-compress.ts",
+    "backfill": "tsx scripts/backfill-from-csv.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, DeleteObjectsCommand, type ListObjectsV2CommandOutput } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const endpoint = process.env.R2_ACCOUNT_ENDPOINT
@@ -31,12 +31,29 @@ export function isR2Configured(): boolean {
 
 export async function uploadPdfToR2(key: string, body: Buffer, contentType = 'application/pdf'): Promise<void> {
     const client = getR2Client()
-    await client.send(new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-    }))
+    // R2 occasionally returns transient errors under concurrent bulk uploads.
+    // Retry a few times with exponential backoff so a hiccup doesn't leave a
+    // file permanently unlinked (the cause of scattered "Errori" in big imports).
+    const maxAttempts = 4
+    let lastError: unknown
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await client.send(new PutObjectCommand({
+                Bucket: bucket,
+                Key: key,
+                Body: body,
+                ContentType: contentType,
+            }))
+            return
+        } catch (err) {
+            lastError = err
+            if (attempt < maxAttempts) {
+                const backoffMs = 250 * 2 ** (attempt - 1) // 250, 500, 1000ms
+                await new Promise((resolve) => setTimeout(resolve, backoffMs))
+            }
+        }
+    }
+    throw lastError
 }
 
 export async function pdfExistsOnR2(key: string): Promise<boolean> {
@@ -70,6 +87,35 @@ export async function getSignedPdfUrl(
         }),
         { expiresIn: expiresInSeconds }
     )
+}
+
+/**
+ * List every object key under a prefix in a single paginated pass and return
+ * them as a Set. Used to resume interrupted uploads cheaply: one bucket listing
+ * instead of a HeadObject round-trip per file lets the upload skip everything
+ * already stored.
+ */
+export async function listKeysWithPrefix(prefix: string): Promise<Set<string>> {
+    const client = getR2Client()
+    const keys = new Set<string>()
+    const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`
+    let continuationToken: string | undefined = undefined
+
+    do {
+        const res: ListObjectsV2CommandOutput = await client.send(
+            new ListObjectsV2Command({
+                Bucket: bucket,
+                Prefix: normalizedPrefix,
+                ContinuationToken: continuationToken,
+            })
+        )
+        res.Contents?.forEach((o) => {
+            if (o.Key) keys.add(o.Key)
+        })
+        continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined
+    } while (continuationToken)
+
+    return keys
 }
 
 export async function deleteBatchFromR2(batchPrefix: string): Promise<number> {

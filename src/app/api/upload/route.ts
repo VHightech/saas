@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
 import { StandardCsvAdapter } from '@/lib/admin/adapters/standard-csv'
-import { buildInvoiceKey, isR2Configured, pdfExistsOnR2, uploadPdfToR2 } from '@/lib/r2'
+import { buildInvoiceKey, isR2Configured, listKeysWithPrefix, pdfExistsOnR2, uploadPdfToR2 } from '@/lib/r2'
 
 // Use Service Role to bypass RLS for Admin Uploads
 const supabase = createClient(
@@ -15,7 +15,7 @@ import { requireAdmin } from '@/lib/auth-checks'
 // Simple in-memory rate limiting map (Admin specific)
 const uploadRateLimit = new Map<string, { count: number, lastReset: number }>()
 const RATE_LIMIT_WINDOW = 10 * 60 * 1000 // 10 minutes
-const MAX_UPLOADS_PER_WINDOW = 5
+const MAX_UPLOADS_PER_WINDOW = 30
 
 export async function POST(req: NextRequest) {
     try {
@@ -24,9 +24,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: authCheck.error }, { status: authCheck.status })
         }
 
-        // 0. Basic Rate Limiting check (per Admin user)
+        // 0. Basic Rate Limiting check (per Admin user). Preview/analysis calls
+        //    (preview=true) do NOT count — only real imports consume the quota.
         const userId = authCheck.user?.id
-        if (userId) {
+        const isPreviewRequest = req.nextUrl.searchParams.get('preview') === 'true'
+        if (userId && !isPreviewRequest) {
             const now = Date.now()
             const userLimit = uploadRateLimit.get(userId) || { count: 0, lastReset: now }
 
@@ -37,7 +39,7 @@ export async function POST(req: NextRequest) {
 
             if (userLimit.count >= MAX_UPLOADS_PER_WINDOW) {
                 return NextResponse.json({
-                    error: 'Troppi tentativi di upload rilevati. Per sicurezza, attendi 10 minuti prima del prossimo invio.'
+                    error: 'Troppi tentativi di upload rilevati. Per sicurezza, attendi qualche minuto prima del prossimo invio.'
                 }, { status: 429 })
             }
 
@@ -357,7 +359,8 @@ export async function POST(req: NextRequest) {
                         if (dbMap.has(lowerName)) {
                             matchSet.add(lowerName)
                             const url = dbMap.get(lowerName)
-                            if (url && url.startsWith('/invoices/')) {
+                            // Any non-empty pdf_url means this bill is already linked.
+                            if (url && url.trim().length > 0) {
                                 alreadyLinkedSet.add(lowerName)
                             }
                         }
@@ -455,6 +458,15 @@ export async function POST(req: NextRequest) {
 
                     console.log(`[Upload] Found ${existingPdfMap.size} bills already linked in DB.`)
 
+                    // Resume support: a single bucket listing lets a retry skip
+                    // every PDF already uploaded under this importId in a prior
+                    // (interrupted) attempt — far cheaper than a HeadObject per
+                    // file. Falls back to per-file HEAD when no prefix is known.
+                    const existingR2Keys = (useR2 && importId) ? await listKeysWithPrefix(importId) : null
+                    if (existingR2Keys) {
+                        console.log(`[Upload] Resume: ${existingR2Keys.size} objects already in R2 under ${importId}/`)
+                    }
+
                     // 3. Upload Non-Duplicates in Parallel
                     // Local FS is fast, but let's keep concurrency controlled to avoid blocking event loop too much
                     const CONCURRENCY = 10
@@ -473,9 +485,12 @@ export async function POST(req: NextRequest) {
                             }
                             const lowerFilename = filename.toLowerCase()
 
-                            // Check DB first — pdf_url now stores an R2 object key like "invoices/acq/<name>".
+                            // Skip anything already linked. pdf_url stores an R2 object
+                            // key — historically "invoices/acq/<name>", now "<batchId>/<name>".
+                            // Treat ANY non-empty pdf_url as done, so re-uploading the same
+                            // ZIP only processes the files that are actually still missing.
                             const existingUrl = existingPdfMap.get(lowerFilename)
-                            if (existingUrl && (existingUrl.startsWith('invoices/') || existingUrl.startsWith('/invoices/'))) {
+                            if (existingUrl && existingUrl.trim().length > 0) {
                                 pdfsSkipped++
                                 if (processedTotal % 50 === 0) {
                                     await updateProgress(`Skipped (Already Linked): ${filename}`, processedTotal, totalFiles)
@@ -488,7 +503,8 @@ export async function POST(req: NextRequest) {
 
                             try {
                                 if (useR2) {
-                                    if (await pdfExistsOnR2(r2Key)) {
+                                    const alreadyOnR2 = existingR2Keys ? existingR2Keys.has(r2Key) : await pdfExistsOnR2(r2Key)
+                                    if (alreadyOnR2) {
                                         needsUpload = false
                                     }
                                     if (needsUpload) {
@@ -581,7 +597,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             preview: previewMode,
-            processed: processedTotal,
+            // In preview the insert loop is skipped, so processedTotal is 0 — show
+            // the parsed CSV row count instead so "Record CSV" isn't misleadingly 0.
+            processed: previewMode ? parsedBills.length : processedTotal,
             newUsers: newProfiles,
             matchedByCif: matchedCifIds.size,
             matchedByCfpi: 0,

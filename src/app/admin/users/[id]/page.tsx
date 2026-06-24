@@ -83,6 +83,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     const [bills, setBills] = useState<Bill[]>([])
     const [supplySearch, setSupplySearch] = useState('')
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
+    const [suppliesActionsOpen, setSuppliesActionsOpen] = useState(false)
 
     const supabase = createClient()
 
@@ -231,6 +232,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         return Array.from(set).sort()
     }, [bills, userSupplies])
 
+    // How many bills belong to each fornitura (ULM), for the counter badges.
+    const billCountByUlm = useMemo(() => {
+        const counts: Record<string, number> = {}
+        bills.forEach(b => { if (b.ulm) counts[b.ulm] = (counts[b.ulm] || 0) + 1 })
+        return counts
+    }, [bills])
+
     const filteredUniqueUlms = useMemo(() => {
         if (!supplySearch) return uniqueUlms
         const q = supplySearch.toLowerCase()
@@ -308,51 +316,55 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                     </button>
                 }
                 topActions={
-                    <div className="flex items-center gap-2.5">
-                        {isEditing ? (
-                            <div className="flex items-center rounded-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+                    <div className="flex flex-col items-end gap-2.5">
+                        {/* Row 1: Modifica + Reset Pwd (same line as the Indietro button) */}
+                        <div className="flex items-center gap-2.5">
+                            {isEditing ? (
+                                <div className="flex items-center rounded-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+                                    <button
+                                        onClick={handleSave}
+                                        className="flex items-center gap-2 pl-2 pr-4 h-full hover:bg-slate-50 dark:hover:bg-white/10 transition-colors active:opacity-80"
+                                    >
+                                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                            <Check size={11} strokeWidth={3} />
+                                        </div>
+                                        <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 tracking-tight">Salva</span>
+                                    </button>
+                                    <div className="w-px h-4 bg-slate-200 dark:bg-white/10" />
+                                    <button
+                                        onClick={() => setIsEditing(false)}
+                                        className="group/x w-10 h-full flex items-center justify-center transition-all active:opacity-80"
+                                        title="Annulla"
+                                    >
+                                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 group-hover/x:bg-rose-500 group-hover/x:text-white transition-all duration-300">
+                                            <X size={14} strokeWidth={2.5} className="group-hover/x:rotate-90 transition-transform duration-300" />
+                                        </div>
+                                    </button>
+                                </div>
+                            ) : (
                                 <button
-                                    onClick={handleSave}
-                                    className="flex items-center gap-2 pl-2 pr-4 h-full hover:bg-slate-50 dark:hover:bg-white/10 transition-colors active:opacity-80"
+                                    onClick={() => setIsEditing(true)}
+                                    className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                                 >
-                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                                        <Check size={11} strokeWidth={3} />
+                                    <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
+                                        <Edit2 size={11} strokeWidth={3} />
                                     </div>
-                                    <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 tracking-tight">Salva</span>
+                                    <span className="text-[12px] font-semibold tracking-tight">Modifica</span>
                                 </button>
-                                <div className="w-px h-4 bg-slate-200 dark:bg-white/10" />
-                                <button
-                                    onClick={() => setIsEditing(false)}
-                                    className="group/x w-10 h-full flex items-center justify-center transition-all active:opacity-80"
-                                    title="Annulla"
-                                >
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 group-hover/x:bg-rose-500 group-hover/x:text-white transition-all duration-300">
-                                        <X size={14} strokeWidth={2.5} className="group-hover/x:rotate-90 transition-transform duration-300" />
-                                    </div>
-                                </button>
-                            </div>
-                        ) : (
+                            )}
+
                             <button
-                                onClick={() => setIsEditing(true)}
+                                onClick={handleResetPwd}
                                 className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                             >
-                                <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
-                                    <Edit2 size={11} strokeWidth={3} />
+                                <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform group-hover:rotate-12">
+                                    <Key size={11} strokeWidth={3} />
                                 </div>
-                                <span className="text-[12px] font-semibold tracking-tight">Modifica</span>
+                                <span className="text-[12px] font-semibold tracking-tight">Reset Pwd</span>
                             </button>
-                        )}
+                        </div>
 
-                        <button
-                            onClick={handleResetPwd}
-                            className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
-                        >
-                            <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform group-hover:rotate-12">
-                                <Key size={11} strokeWidth={3} />
-                            </div>
-                            <span className="text-[12px] font-semibold tracking-tight">Reset Pwd</span>
-                        </button>
-
+                        {/* Row 2: Elimina Profilo (super admin only), under the row above */}
                         {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
                             <button
                                 onClick={handleDeleteUser}
@@ -566,7 +578,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                             )}
                         >
                             <span>Tutte le forniture</span>
-                            {selectedUlm === 'all' && <Check size={12} />}
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                {selectedUlm === 'all' && (
+                                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                                        <Check size={11} strokeWidth={3} />
+                                    </span>
+                                )}
+                                <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-white/10" title={`${bills.length} bollette totali`}>
+                                    <span className="text-[13px] font-medium tabular-nums text-slate-700 dark:text-slate-200">{bills.length}</span>
+                                    <span className="text-[9px] font-medium uppercase tracking-tight text-slate-400">boll</span>
+                                </span>
+                            </div>
                         </button>
                         
                         <div className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/30 dark:bg-white/[0.01]">
@@ -594,7 +616,20 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                             <span className="text-[10px] text-slate-400 truncate font-normal">{supply.address}</span>
                                         )}
                                     </div>
-                                    {selectedUlm === ulm && <Check size={12} className="shrink-0 ml-2" />}
+                                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                                        {selectedUlm === ulm && (
+                                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                                                <Check size={11} strokeWidth={3} />
+                                            </span>
+                                        )}
+                                        <span
+                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-white/10"
+                                            title={`${billCountByUlm[ulm] || 0} bollette`}
+                                        >
+                                            <span className="text-[13px] font-medium tabular-nums text-slate-700 dark:text-slate-200">{billCountByUlm[ulm] || 0}</span>
+                                            <span className="text-[9px] font-medium uppercase tracking-tight text-slate-400">boll</span>
+                                        </span>
+                                    </div>
                                 </button>
                             )
                         })}
@@ -618,7 +653,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
                         {/* Table — grid based, list-page style */}
                         <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,0.5fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.4fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.7fr)_72px] gap-3 px-6 py-2 bg-white dark:bg-[#0F1115] text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 border-t border-slate-200/70 dark:border-white/5">
+                            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.4fr)_minmax(0,0.55fr)_minmax(0,0.55fr)_minmax(0,0.7fr)_72px] gap-3 px-6 py-2 bg-white dark:bg-[#0F1115] text-[10px] font-semibold tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 border-t border-slate-200/70 dark:border-white/5">
                                 <div>N° Bolletta</div>
                                 <div>CIF</div>
                                 <div>ULM</div>
@@ -636,7 +671,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                 ) : currentInvoices.map((inv) => (
                                     <div
                                         key={inv.id}
-                                        className="group grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,0.5fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.4fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.7fr)_72px] gap-3 items-center px-6 py-3 hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition-colors"
+                                        className="group grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.4fr)_minmax(0,0.55fr)_minmax(0,0.55fr)_minmax(0,0.7fr)_72px] gap-3 items-center px-6 py-3 hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition-colors"
                                     >
                                         <div className="text-[14px] font-medium text-slate-800 dark:text-white truncate font-mono">
                                             {inv.numero_bolletta || inv.nome_pdf?.replace('.pdf', '') || `#${inv.id}`}
@@ -782,13 +817,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
                         {userSupplies.length > 0 && (
                             <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4 flex flex-col">
-                                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 mb-3 flex items-center justify-between">
-                                    <span>Forniture</span>
-                                    <span className="bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px] font-bold">
-                                        {userSupplies.length}
-                                    </span>
-                                </p>
-                                
                                 {(() => {
                                     const distribution = userSupplies.reduce((acc, s) => {
                                         const status = s.stadio || 'unknown'
@@ -823,10 +851,25 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
                                             {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
                                                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest opacity-70">Azioni Forniture</p>
-                                                        <span className="text-[10px] font-mono text-slate-400">{userSupplies.length}</span>
+                                                    <div
+                                                        onClick={userSupplies.length > 5 ? () => setSuppliesActionsOpen(o => !o) : undefined}
+                                                        className={cn(
+                                                            "w-full flex items-center justify-between mb-3 group/toggle",
+                                                            userSupplies.length > 5 && "cursor-pointer"
+                                                        )}
+                                                        title={userSupplies.length > 5 ? (suppliesActionsOpen ? 'Comprimi' : 'Espandi') : undefined}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400">Forniture</span>
+                                                            <span className="bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px] font-bold">{userSupplies.length}</span>
+                                                        </span>
+                                                        {userSupplies.length > 5 && (
+                                                            <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-400 group-hover/toggle:bg-slate-200 dark:group-hover/toggle:bg-white/20 transition-all shrink-0">
+                                                                <ChevronDown size={14} className={cn("transition-transform duration-200", suppliesActionsOpen && "rotate-180")} />
+                                                            </span>
+                                                        )}
                                                     </div>
+                                                    {(userSupplies.length <= 5 || suppliesActionsOpen) && (
                                                     <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
                                                         {userSupplies.map(s => (
                                                             <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 group/s shrink-0">
@@ -836,7 +879,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                                                 </div>
                                                                 <button
                                                                     onClick={() => handleDeleteSupply(s.cif)}
-                                                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover/s:opacity-100"
+                                                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-500 hover:text-white transition-all shrink-0"
                                                                     title="Elimina fornitura"
                                                                 >
                                                                     <Trash2 size={13} />
@@ -844,6 +887,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                                             </div>
                                                         ))}
                                                     </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

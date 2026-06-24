@@ -83,7 +83,7 @@ export function CodeBadge({
                                 'text-[8px] font-bold uppercase tracking-wider transition-colors duration-300 shrink-0',
                                 copied
                                     ? light ? 'text-emerald-300/80' : 'text-emerald-500/70'
-                                    : light ? 'text-white/70' : 'text-slate-400 dark:text-slate-500',
+                                    : light ? 'text-white/70' : 'text-slate-400 dark:text-slate-400',
                             )}
                         >
                             {label}

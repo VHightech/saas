@@ -35,10 +35,28 @@ interface AdminUploadContextType {
     kind: UploadKind | null
     result: UploadResult | null
     error: string | null
+    canRetry: boolean
+    batchIndex: number
+    batchTotal: number
     uploadFiles: (csv: File, archive: File, force?: boolean) => Promise<void>
+    uploadBatch: (pairs: { csv: File; archive: File }[]) => Promise<void>
     uploadUsers: (file: File) => Promise<void>
+    retryUpload: () => Promise<void>
     resetUpload: () => void
     dismissResult: () => void
+}
+
+/**
+ * Raised when the upload request fails in a way that resuming will recover from
+ * (connection dropped, proxy/timeout returning an HTML error page, etc.). The
+ * server processes uploads idempotently, so re-sending with the same importId
+ * picks up from the last checkpoint.
+ */
+class ResumableUploadError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'ResumableUploadError'
+    }
 }
 
 const AdminUploadContext = createContext<AdminUploadContextType | undefined>(undefined)
@@ -50,9 +68,15 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
     const [kind, setKind] = useState<UploadKind | null>(null)
     const [result, setResult] = useState<UploadResult | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [canRetry, setCanRetry] = useState(false)
+    const [batchIndex, setBatchIndex] = useState(0)
+    const [batchTotal, setBatchTotal] = useState(0)
 
     // Simulate progress timer ref
     const progressTimer = useRef<NodeJS.Timeout | null>(null)
+
+    // Retained between attempts so "Riprova" can resume the SAME batch.
+    const lastBillsUpload = useRef<{ csv: File; archive: File; force: boolean; importId: string } | null>(null)
 
     const resetUpload = () => {
         setIsUploading(false)
@@ -60,12 +84,15 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
         setStatus('')
         setResult(null)
         setError(null)
+        setCanRetry(false)
         if (progressTimer.current) clearInterval(progressTimer.current)
     }
 
     const dismissResult = () => {
         setResult(null)
         setError(null)
+        setCanRetry(false)
+        lastBillsUpload.current = null
     }
 
 
@@ -89,17 +116,19 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
         })
     }
 
-    const uploadFiles = async (csvFile: File, archiveFile: File, force: boolean = false) => {
-        console.log('[UploadProvider] Starting upload...', { csv: csvFile.name, archive: archiveFile.name })
+    // Core bills-upload runner. `importId` is passed in (not generated here) so a
+    // retry can reuse the SAME batch id and resume from the last checkpoint — the
+    // server skips PDFs already on R2 and bills already linked.
+    const runBillsUpload = async (csvFile: File, archiveFile: File, force: boolean, importId: string) => {
+        console.log('[UploadProvider] Starting upload...', { csv: csvFile.name, archive: archiveFile.name, importId })
         resetUpload()
         setIsUploading(true)
         setKind('bills')
         setStatus('Preparazione file...')
         setProgress(0)
 
-        // Fresh UUID per upload — becomes the import_logs.id and the R2 object prefix.
-        const importId = generateUuidV4()
-        console.log('[UploadProvider] Batch ID:', importId)
+        // Remember this attempt so "Riprova" can resume the same batch.
+        lastBillsUpload.current = { csv: csvFile, archive: archiveFile, force, importId }
 
         const formData = new FormData()
         formData.append('csv', csvFile)
@@ -115,19 +144,12 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
                 .maybeSingle()
 
             if (data && !error) {
-                // Calculate %?
-                // If total_files is 0, just show spinner or something.
                 if (data.total_files > 0) {
                     const pct = Math.floor((data.processed_files / data.total_files) * 100)
                     setProgress(pct > 100 ? 100 : pct)
                 }
                 setStatus(`${data.current_file || 'Esecuzione...'} (${data.processed_files}/${data.total_files})`)
                 console.log('[UploadProvider] Polling status:', data.status, data.processed_files)
-
-                if (data.status === 'completed' || data.status === 'error') {
-                    // Stop polling if done (though the fetch below handles the final result)
-                    // clearInterval(poller)
-                }
             }
         }, 1000)
 
@@ -141,29 +163,85 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
             })
 
             console.log('[UploadProvider] Fetch response received:', res.status)
-            const data = await res.json()
-            console.log('[UploadProvider] Data parsed:', data)
 
             // Stop Polling
             clearInterval(poller)
 
+            // Robust parsing: on a dropped connection / proxy timeout the server
+            // (or the tunnel) returns an HTML error page, not JSON. Reading text
+            // first avoids the cryptic "Unexpected token '<'" and lets us show a
+            // resume-friendly message instead.
+            const rawBody = await res.text()
+            let data: any = null
+            try {
+                data = rawBody ? JSON.parse(rawBody) : null
+            } catch {
+                data = null
+            }
+
+            if (!data) {
+                throw new ResumableUploadError(
+                    `Connessione interrotta durante l'upload (HTTP ${res.status}). I file già caricati sono al sicuro — clicca Riprova per riprendere da dove si era fermato.`
+                )
+            }
+
             if (!res.ok) throw new Error(data.error || 'Upload fallito')
 
-            // Success logic
+            // Success
             setProgress(100)
             setStatus('Completato!')
             setResult(data)
+            setCanRetry(false)
+            lastBillsUpload.current = null
             console.log('[UploadProvider] Result set.')
 
         } catch (err: any) {
             console.error('[UploadProvider] Error:', err)
             if (progressTimer.current) clearInterval(progressTimer.current)
-            setError(err.message)
+            // A bills upload is idempotent server-side, so any failure is safe to
+            // resume — keep the batch around and offer "Riprova".
+            setError(err?.message || 'Errore durante l\'upload')
             setStatus('Errore')
             setProgress(0)
+            setCanRetry(true)
         } finally {
             setIsUploading(false)
             console.log('[UploadProvider] Upload process finished.')
+        }
+    }
+
+    const uploadFiles = async (csvFile: File, archiveFile: File, force: boolean = false) => {
+        // Fresh UUID per NEW upload — becomes the import_logs.id and R2 prefix.
+        const importId = generateUuidV4()
+        console.log('[UploadProvider] Batch ID:', importId)
+        await runBillsUpload(csvFile, archiveFile, force, importId)
+    }
+
+    const retryUpload = async () => {
+        const last = lastBillsUpload.current
+        if (!last) {
+            console.warn('[UploadProvider] retryUpload called with no previous batch to resume.')
+            return
+        }
+        console.log('[UploadProvider] Resuming batch:', last.importId)
+        await runBillsUpload(last.csv, last.archive, last.force, last.importId)
+    }
+
+    // Bulk: run several (csv, archive) pairs one after another. Each is its own
+    // import (own importId / own R2 prefix) and uses the normal single-pair
+    // pipeline; running sequentially keeps memory/timeouts safe.
+    const uploadBatch = async (pairs: { csv: File; archive: File }[]) => {
+        if (pairs.length === 0) return
+        setBatchTotal(pairs.length)
+        try {
+            for (let i = 0; i < pairs.length; i++) {
+                setBatchIndex(i + 1)
+                const importId = generateUuidV4()
+                await runBillsUpload(pairs[i].csv, pairs[i].archive, false, importId)
+            }
+        } finally {
+            setBatchTotal(0)
+            setBatchIndex(0)
         }
     }
 
@@ -198,8 +276,17 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
 
         try {
             const res = await fetch('/api/upload-users', { method: 'POST', body: formData })
-            const data = await res.json()
             clearInterval(poller)
+            const rawBody = await res.text()
+            let data: any = null
+            try {
+                data = rawBody ? JSON.parse(rawBody) : null
+            } catch {
+                data = null
+            }
+            if (!data) {
+                throw new Error(`Connessione interrotta durante l'importazione (HTTP ${res.status}). Riprova.`)
+            }
             if (!res.ok) throw new Error(data.error || 'Importazione anagrafica fallita')
             setProgress(100)
             setStatus('Completato!')
@@ -224,7 +311,12 @@ export function AdminUploadProvider({ children }: { children: React.ReactNode })
             uploadUsers,
             result,
             error,
+            canRetry,
+            batchIndex,
+            batchTotal,
             uploadFiles,
+            uploadBatch,
+            retryUpload,
             resetUpload,
             dismissResult
         }}>
