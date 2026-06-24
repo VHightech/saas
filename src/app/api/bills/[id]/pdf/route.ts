@@ -94,7 +94,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         const signed = await getSignedPdfUrl(r2Key, 300, downloadName)
         return NextResponse.redirect(signed, 302)
     } catch (e) {
-        console.error(`[pdf] Failed to serve bill=${bill.id}`)
+        console.error(`[pdf] Failed to serve bill=${bill.id} key="${r2Key}":`, e instanceof Error ? (e.stack || e.message) : e)
         return NextResponse.json({ error: 'Errore nel recupero del PDF' }, { status: 500 })
     }
 }
