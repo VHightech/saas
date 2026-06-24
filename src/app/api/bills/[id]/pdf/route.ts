@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { getSignedPdfUrl, isR2Configured, pdfExistsOnR2 } from '@/lib/r2'
+import { getSignedPdfUrl, isR2Configured } from '@/lib/r2'
 
 interface BillRow {
     id: number
@@ -84,12 +84,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const r2Key = rawKey.startsWith('/') ? rawKey.slice(1) : rawKey
 
     try {
-        const exists = await pdfExistsOnR2(r2Key)
-        if (!exists) {
-            console.error(`[pdf] Object missing on R2 bill=${bill.id} key="${r2Key}"`)
-            return NextResponse.json({ error: 'PDF non presente su R2' }, { status: 404 })
-        }
-
+        // No HeadObject pre-check: it is unreliable against this R2 endpoint
+        // (HEAD can error even when the object exists), producing false
+        // "not in bucket" 404s. Signing is local; a genuinely missing object
+        // simply returns R2's own 404 to the client on access.
         const downloadName = wantsDownload
             ? (bill.nome_pdf || `bolletta_${bill.idboll ?? bill.id}.pdf`)
             : undefined
