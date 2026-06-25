@@ -149,6 +149,18 @@ export function SpesaLineChart({ chartData, bills, monthYear, isAll }: SpesaLine
                     onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) handleScrub(e.clientX, e.currentTarget.getBoundingClientRect()) }}
                 />
 
+                {/* A small dot on every real data point (HTML-positioned so it stays
+                    round despite the non-uniform SVG scaling). The selected point gets
+                    its larger marker from the block below. */}
+                {chartSize.width > 0 && !isEmpty && realPoints.map((p: any) => (
+                    p.slotIdx === selectedExpenseIndex ? null : (
+                        <div key={`dot-${p.slotIdx}`} className="absolute top-0 left-0 pointer-events-none z-10"
+                            style={{ transform: `translate3d(${(p.x / 300) * chartSize.width}px, ${(p.y / 100) * chartSize.height}px, 0)` }}>
+                            <div className="absolute -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#93C5FD] shadow-[0_1px_3px_rgba(147,197,253,0.5)]" />
+                        </div>
+                    )
+                ))}
+
                 {activePoint && chartSize.width > 0 && (
                     <div className="absolute top-0 bottom-0 w-px pointer-events-none z-10 transition-transform duration-300 ease-out will-change-transform"
                         style={{ transform: `translateX(${(activePoint.x / 300) * chartSize.width}px)`, backgroundImage: 'repeating-linear-gradient(to bottom, rgba(147,197,253,0.5) 0 4px, transparent 4px 8px)' }} />
@@ -168,11 +180,12 @@ export function SpesaLineChart({ chartData, bills, monthYear, isAll }: SpesaLine
                 )}
             </div>
 
-            <div className="flex justify-center gap-4 mt-1 max-w-md mx-auto w-full h-4">
+            <div className="relative mt-1 max-w-md mx-auto w-full h-4">
                 {realPoints.map((p: any) => (
                     <span key={p.key}
-                        className={cn("text-[8px] font-bold uppercase tracking-tighter w-12 text-center transition-colors duration-200",
-                            selectedExpenseIndex === p.slotIdx ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400")}>
+                        className={cn("absolute -translate-x-1/2 text-[8px] font-bold uppercase tracking-tighter whitespace-nowrap transition-colors duration-200",
+                            selectedExpenseIndex === p.slotIdx ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400")}
+                        style={{ left: `${(p.x / 300) * 100}%` }}>
                         {p.label}
                     </span>
                 ))}
