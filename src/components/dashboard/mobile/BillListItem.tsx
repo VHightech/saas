@@ -3,6 +3,7 @@
 import React from 'react'
 import { FileText, CheckCircle2, Droplets } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { billingTypeDisplay, DASHBOARD_TONE_CLASS } from '@/lib/billing-type'
 import type { Bill } from '@/types/dashboard'
 
 interface BillListItemProps {
@@ -15,9 +16,7 @@ interface BillListItemProps {
 export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillListItemProps) {
     const isPaid = bill.status === 'paid'
     const billNumber = bill.idboll || bill.nome_pdf?.replace('.pdf', '') || bill.id
-    const type = String(bill.billing_type || '').trim().toUpperCase()
-    const isSaldo = type.startsWith('S')
-    const isAcconto = type.startsWith('A')
+    const bt = billingTypeDisplay(bill.billing_type)
 
     return (
         <button
@@ -48,14 +47,12 @@ export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillList
                 <p className="text-[17px] font-bold text-[#0A2540] dark:text-white tracking-tight leading-none">
                     {formatEuro(Number(bill.importo || 0))}
                 </p>
-                {isSaldo && (
-                    <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-                        Saldo
-                    </span>
-                )}
-                {isAcconto && (
-                    <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
-                        Acconto
+                {bt && (
+                    <span className={cn(
+                        "text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded whitespace-nowrap",
+                        DASHBOARD_TONE_CLASS[bt.tone]
+                    )}>
+                        {bt.label}
                     </span>
                 )}
                 {!isPaid && bill.expected_method === 'MP23' && (

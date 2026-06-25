@@ -13,7 +13,9 @@
     "r2:check": "tsx scripts/r2-check-names.ts",
     "r2:sign": "tsx scripts/r2-sign.ts",
     "r2:compress": "tsx scripts/r2-compress.ts",
-    "backfill": "tsx scripts/backfill-from-csv.ts"
+    "backfill": "tsx scripts/backfill-from-csv.ts",
+    "collect-7z": "tsx scripts/collect-clienti-7z.ts",
+    "relink": "tsx scripts/relink-bills-from-r2.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",

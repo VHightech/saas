@@ -10,7 +10,7 @@ export interface ParsedBill {
     importo: number
     consumo: number
     cif: string | null
-    billing_type?: string | null   // 'S' (saldo) | 'A' (acconto) — from CSV
+    billing_type?: string | null   // 'S' (saldo), 'A' (acconto), or full label verbatim (e.g. 'NOTA DI CREDITO')
     expected_method?: string | null // 'MP01', 'MP23', ... — from CSV
     original_row_index?: number
 }

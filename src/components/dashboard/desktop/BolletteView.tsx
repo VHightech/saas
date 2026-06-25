@@ -3,6 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { FileText, CheckCircle2, Search, LineChart, BarChart3, Eye, CreditCard, Droplets, X, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { billingTypeDisplay, DASHBOARD_TONE_CLASS } from '@/lib/billing-type'
 import { formatEuro as formatEuroBase, monthYear } from '@/lib/format'
 import { buildBillChartData } from '@/lib/bill-chart'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
@@ -473,24 +474,16 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {(() => {
-                                                        const type = String(b.billing_type || '').trim().toUpperCase()
-                                                        const isSaldo = type.startsWith('S')
-                                                        const isAcconto = type.startsWith('A')
-                                                        if (isSaldo) {
-                                                            return (
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-                                                                    Saldo
-                                                                </span>
-                                                            )
-                                                        }
-                                                        if (isAcconto) {
-                                                            return (
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
-                                                                    Acconto
-                                                                </span>
-                                                            )
-                                                        }
-                                                        return <span className="text-slate-400 dark:text-slate-600">-</span>
+                                                        const t = billingTypeDisplay(b.billing_type)
+                                                        if (!t) return <span className="text-slate-400 dark:text-slate-600">-</span>
+                                                        return (
+                                                            <span className={cn(
+                                                                'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider whitespace-nowrap',
+                                                                DASHBOARD_TONE_CLASS[t.tone]
+                                                            )}>
+                                                                {t.label}
+                                                            </span>
+                                                        )
                                                     })()}
                                                 </td>
                                                 <td className="px-6 py-4 text-right text-[16px] font-bold text-[#0A2540] dark:text-white tracking-tight">

@@ -1,6 +1,25 @@
 import { ImportAdapter, ParseResult, ParsedBill } from './types'
 import { parse } from 'csv-parse/sync'
 
+/**
+ * Normalize the CSV document-type label (column 9, or column 8 in the legacy
+ * layout) into the value stored in bills.billing_type.
+ *
+ * Rule (product, 2026-06-25): plain SALDO → 'S', plain ACCONTO → 'A'; every
+ * other type is stored VERBATIM (whitespace-collapsed, uppercased) so the full
+ * document type is preserved — e.g. 'SALDO E CONGUAGLIO', 'ACCONTO E CONGUAGLIO',
+ * 'SALDO FINALE', 'SALDO FINALE E CONGUAGLIO', 'NOTA DI CREDITO'.
+ * Returns null for empty/unknown so we never invent a type.
+ */
+export function normalizeBillingType(raw: string | null): string | null {
+    if (!raw) return null
+    const v = raw.trim().replace(/\s+/g, ' ').toUpperCase()
+    if (!v) return null
+    if (v === 'SALDO') return 'S'
+    if (v === 'ACCONTO') return 'A'
+    return v
+}
+
 export class StandardCsvAdapter implements ImportAdapter {
     async parse(
         text: string,
@@ -80,35 +99,24 @@ export class StandardCsvAdapter implements ImportAdapter {
                 const rowImp = normalize(row[IDX.IMP])
                 const rowCons = normalize(row[IDX.CONS])
 
-                // Payment Method and Type (Index 8 and 9)
-                let paymentMethod = null
-                let paymentType = null
-                
-                if (row.length > 8) {
-                    const raw8 = normalize(row[8])
-                    if (raw8) {
-                        const up8 = raw8.toUpperCase()
-                        if (up8.startsWith('MP')) {
-                            // New format: Index 8 is payment method
-                            paymentMethod = up8
-                        } else if (up8.includes('SALDO')) {
-                            // Old format: Index 8 is payment type
-                            paymentType = 'S'
-                        } else if (up8.includes('ACCONTO')) {
-                            paymentType = 'A'
-                        }
-                    }
-                }
-                
-                if (row.length > 9 && paymentMethod) {
-                    // If Index 8 was a payment method, Index 9 could be the type
-                    const raw9 = normalize(row[9])
-                    if (raw9) {
-                        const up9 = raw9.toUpperCase()
-                        if (up9.includes('SALDO')) paymentType = 'S'
-                        else if (up9.includes('ACCONTO')) paymentType = 'A'
-                    }
-                }
+                // Payment Method (MPxx) and document Type label. Layouts seen:
+                //   • index 8 = MPxx method, index 9 = type label
+                //   • index 8 = empty (e.g. €0,00 bills with no method), index 9 = type label
+                //   • legacy: index 8 = type label, no index 9
+                const raw8 = row.length > 8 ? normalize(row[8]) : null
+                const raw9 = row.length > 9 ? normalize(row[9]) : null
+
+                const paymentMethod = raw8 && raw8.toUpperCase().startsWith('MP')
+                    ? raw8.toUpperCase()
+                    : null
+
+                // The type label is in index 9 when present; otherwise index 8 holds
+                // it (legacy layout where col 8 isn't a method). Crucially this no
+                // longer depends on col 8 being a method, so €0,00 bills (empty col 8)
+                // keep their col 9 type instead of dropping it.
+                const rawTypeLabel = raw9 ?? (paymentMethod ? null : raw8)
+
+                const paymentType = normalizeBillingType(rawTypeLabel)
 
                 // Code Client logic
                 let clientCode = ''

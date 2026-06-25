@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Download, CreditCard, Euro, MapPin, FileText, Clock, Loader2, User, Droplets } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { billingTypeDisplay } from '@/lib/billing-type'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
 
@@ -174,9 +175,7 @@ export function MobileBollettaDetail({
                     >
                         {allBills.map((b, idx) => {
                             const isPaid = b.status === 'paid'
-                            const type = String(b.billing_type || '').trim().toUpperCase()
-                            const isSaldo = type.startsWith('S')
-                            const tLabel = isSaldo ? 'Saldo' : 'Acconto'
+                            const bt = billingTypeDisplay(b.billing_type)
                             const isActive = idx === currentIndex
                             // Smooth per-card "centeredness" — drives gradient fade,
                             // scale, opacity and grayscale continuously while scrolling.
@@ -252,14 +251,17 @@ export function MobileBollettaDetail({
                                                 </div>
                                                 
                                                 <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                    {bt && (
                                                     <span className={cn(
-                                                        "text-[11px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg backdrop-blur-md border",
-                                                        isSaldo 
-                                                            ? "bg-blue-500/20 border-blue-400/20 text-blue-200" 
-                                                            : "bg-orange-500/20 border-orange-400/20 text-orange-200"
+                                                        "text-[11px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg backdrop-blur-md border whitespace-nowrap",
+                                                        bt.tone === 'saldo' ? "bg-blue-500/20 border-blue-400/20 text-blue-200"
+                                                        : bt.tone === 'acconto' ? "bg-orange-500/20 border-orange-400/20 text-orange-200"
+                                                        : bt.tone === 'credito' ? "bg-rose-500/20 border-rose-400/20 text-rose-200"
+                                                        : "bg-slate-500/20 border-slate-400/20 text-slate-200"
                                                     )}>
-                                                        {tLabel}
+                                                        {bt.label}
                                                     </span>
+                                                    )}
                                                     {isPaid ? (
                                                         <span className="text-[10px] font-black tracking-[0.15em] uppercase text-emerald-300 bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-400/20 flex items-center gap-1.5">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />

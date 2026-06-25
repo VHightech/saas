@@ -214,7 +214,9 @@ export async function POST(req: NextRequest) {
         if (!previewMode) {
             const chunkSize = 500
             for (let i = 0; i < billsToInsert.length; i += chunkSize) {
-                const chunk = billsToInsert.slice(i, i + chunkSize).map(({ original_row_index, ...rest }) => ({
+                // `cfpi` is parsed from the CSV (still used to backfill profiles) but
+                // is no longer a column on bills — strip it before insert.
+                const chunk = billsToInsert.slice(i, i + chunkSize).map(({ original_row_index, cfpi, ...rest }) => ({
                     ...rest,
                     import_log_id: importId || null,
                 }))

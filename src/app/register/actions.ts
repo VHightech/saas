@@ -45,9 +45,16 @@ export async function register(formData: FormData) {
         .eq('codice_cliente', clientCode)
         .maybeSingle()
 
-    // Validation Logic:
-    // 1. Profile must exist (or they must have valid bills/supplies)
-    // 2. Must match the provided Fiscal Code (either via CIF or CFPI)
+    // Validation Logic: a (shadow) profile MUST already exist for this codice_cliente,
+    // AND its real fiscal code must match what the user typed.
+    //
+    // SECURITY (C-1, 2026-05-06): identity is validated ONLY against the profile's
+    // codice_fiscale / partita_iva — NEVER against the technical Codice Identificativo
+    // Fornitura (cif), which is printed on every paper bill and would allow account
+    // takeover. The previous bills.cfpi / user_supplies.cfpi fallbacks were removed
+    // (2026-06-25): cfpi no longer exists on those tables and the authoritative fiscal
+    // code lives on profiles. A client with bills but no pre-loaded profile must be
+    // onboarded by an admin (shadow profile) before they can register.
     let isValid = false;
     let name = '';
 
@@ -57,38 +64,6 @@ export async function register(formData: FormData) {
         isValid = (!!cf && cf === fiscalCode) || (!!piva && piva === fiscalCode)
         if (isValid) {
             name = existingProfile.name || fullNameInput;
-        }
-    }
-
-    // Fallback: If no shadow profile exists, check if they have valid supplies or bills.
-    // SECURITY (C-1 fix 2026-05-06): we MUST validate against the user's CF/PIVA (cfpi),
-    // NOT against the technical Codice Identificativo Fornitura (cif) — `cif` is printed
-    // on every paper bill and would let anyone with a paper bill claim the account.
-    if (!isValid && !existingProfile) {
-        const { data: supplyFallback } = await supabaseAdmin
-            .from('user_supplies')
-            .select('id, codice_cliente, cfpi')
-            .eq('codice_cliente', clientCode)
-            .not('cfpi', 'is', null)
-            .limit(1)
-            .maybeSingle()
-
-        if (supplyFallback?.cfpi && supplyFallback.cfpi.toUpperCase() === fiscalCode) {
-            isValid = true;
-            name = fullNameInput;
-        } else {
-            const { data: billFallback } = await supabaseAdmin
-                .from('bills')
-                .select('id, codice_cliente, cfpi')
-                .eq('codice_cliente', clientCode)
-                .not('cfpi', 'is', null)
-                .limit(1)
-                .maybeSingle()
-
-            if (billFallback?.cfpi && billFallback.cfpi.toUpperCase() === fiscalCode) {
-                isValid = true;
-                name = fullNameInput;
-            }
         }
     }
 

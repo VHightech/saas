@@ -33,14 +33,15 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-interface Args { src: string; dryRun: boolean }
+interface Args { src: string; dryRun: boolean; skipProfiles: boolean }
 function parseArgs(argv: string[]): Args {
-    const a: Partial<Args> = { dryRun: false }
+    const a: Partial<Args> = { dryRun: false, skipProfiles: false }
     for (let i = 0; i < argv.length; i++) {
         if (argv[i] === '--csv') a.src = argv[++i]
         else if (argv[i] === '--dry-run') a.dryRun = true
+        else if (argv[i] === '--skip-profiles') a.skipProfiles = true
     }
-    if (!a.src) { console.error('Usage: npm run backfill -- --csv <file-or-folder> [--dry-run]'); process.exit(1) }
+    if (!a.src) { console.error('Usage: npm run backfill -- --csv <file-or-folder> [--dry-run] [--skip-profiles]'); process.exit(1) }
     return a as Args
 }
 
@@ -120,6 +121,9 @@ async function main() {
 
     // ---- 2. Profiles: fill empty codice_fiscale / partita_iva ----
     let profUpdates = 0
+    if (args.skipProfiles) {
+        console.log('Profiles: skipped (--skip-profiles)')
+    } else {
     const codes = [...profWants.keys()]
     await chunked(codes, 500, async (chunk) => {
         const { data, error } = await supabase.from('profiles').select('id, codice_cliente, codice_fiscale, partita_iva').in('codice_cliente', chunk)
@@ -140,6 +144,7 @@ async function main() {
         process.stdout.write(`\rProfiles checked… updates so far: ${profUpdates}`)
     })
     process.stdout.write('\n\n')
+    }
 
     console.log('=== Done ===')
     console.log(`Bills backfilled (Tipo/Metodo): ${billUpdates}`)
