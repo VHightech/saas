@@ -8,39 +8,35 @@ export async function middleware(request: NextRequest) {
         },
     })
 
-    // Only protected areas need the (network) auth check. Public pages skip it
-    // entirely — calling supabase.auth.getUser() on every request adds a
-    // round-trip to the Supabase Auth server (in eu-west-1) to every page load.
-    const path = request.nextUrl.pathname
-    const needsAuth = path.startsWith('/profile') || path.startsWith('/admin')
-
-    let user = null
-    if (needsAuth) {
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    getAll() {
-                        return request.cookies.getAll()
-                    },
-                    setAll(cookiesToSet) {
-                        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-                        response = NextResponse.next({
-                            request: {
-                                headers: request.headers,
-                            },
-                        })
-                        cookiesToSet.forEach(({ name, value, options }) =>
-                            response.cookies.set(name, value, options)
-                        )
-                    },
+    // Run on every request (documented Supabase SSR pattern): this both refreshes
+    // the session cookie and provides the user for the protected-route gating
+    // below. Fail-safe — auth is never skipped based on a path allowlist.
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return request.cookies.getAll()
                 },
-            }
-        )
-        const result = await supabase.auth.getUser()
-        user = result.data.user
-    }
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+                    response = NextResponse.next({
+                        request: {
+                            headers: request.headers,
+                        },
+                    })
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        response.cookies.set(name, value, options)
+                    )
+                },
+            },
+        }
+    )
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
     const supabaseDomain = supabaseUrl ? new URL(supabaseUrl).hostname : ''
