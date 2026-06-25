@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { LayoutDashboard, FileText, User as UserIcon, LifeBuoy, LogOut, Sun, Moon } from 'lucide-react'
 import { useTheme } from 'next-themes'
@@ -83,9 +84,10 @@ export function DesktopSidebar() {
                 {NAV.map(item => {
                     const active = item.match(pathname)
                     return (
-                        <button
+                        <Link
                             key={item.key}
-                            onClick={() => router.push(item.href)}
+                            href={item.href}
+                            prefetch
                             title={!expanded ? item.label : undefined}
                             className={cn(
                                 "w-full flex items-center rounded-xl transition-colors text-[13px] font-bold h-11 px-4 relative overflow-hidden",
@@ -103,7 +105,7 @@ export function DesktopSidebar() {
                             )}>
                                 {item.label}
                             </span>
-                        </button>
+                        </Link>
                     )
                 })}
             </nav>
