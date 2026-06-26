@@ -2,11 +2,13 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react'
 import React from 'react'
-import { BarChart3, LifeBuoy, CheckCircle2, Files, FileText, LogOut, Droplets, Layers } from 'lucide-react'
+import { BarChart3, LifeBuoy, Files, LogOut, Layers } from 'lucide-react'
 import { BillListItem } from './BillListItem'
 import { cn } from '@/lib/utils'
 import { formatEuro, monthYear } from '@/lib/format'
-import { buildBillChartData } from '@/lib/bill-chart'
+import { buildYearlyChartData, availableBillYears } from '@/lib/bill-chart'
+import { consumptionAdvice, type AdviceLevel } from '@/lib/consumption-advice'
+import { YearlyConsumoChart } from '@/components/dashboard/desktop/bollette/YearlyConsumoChart'
 import type { Profile, Bill } from '@/types/dashboard'
 
 interface MobileHomeProps {
@@ -58,8 +60,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
     })
 
     const scrollRef = useRef<HTMLDivElement>(null)
-    const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null)
-    const [selectedExpenseIndex, setSelectedExpenseIndex] = useState<number | null>(null)
+    const [selectedYear, setSelectedYear] = useState<number | null>(null)
     // Live scroll position for smooth gradient / scale / color interpolation
     // between supply cards as the user swipes.
     const [scrollLeft, setScrollLeft] = useState(0)
@@ -81,20 +82,29 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
         }
     }, [selectedSupplyId, carouselItems])
 
+    // Coalesce scroll events to one update per animation frame so we don't
+    // re-render the whole view multiple times per frame while swiping.
+    const rafRef = useRef<number | null>(null)
     const handleScroll = () => {
-        if (!scrollRef.current) return
-        const sl = scrollRef.current.scrollLeft
-        const cardWidth = scrollRef.current.clientWidth
-        setScrollLeft(sl)
-        setCardStep(cardWidth + 12)
-        const newIdx = Math.round(sl / (cardWidth + 12))
-        if (newIdx !== selectedIdx && newIdx >= 0 && newIdx < carouselItems.length) {
-            setSelectedIdx(newIdx)
-            if (carouselItems[newIdx]) {
-                onSelectSupply?.(getSupplyId(carouselItems[newIdx]))
+        if (rafRef.current !== null) return
+        rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null
+            const el = scrollRef.current
+            if (!el) return
+            const sl = el.scrollLeft
+            const cardWidth = el.clientWidth
+            setScrollLeft(sl)
+            setCardStep(cardWidth + 12)
+            const newIdx = Math.round(sl / (cardWidth + 12))
+            if (newIdx !== selectedIdx && newIdx >= 0 && newIdx < carouselItems.length) {
+                setSelectedIdx(newIdx)
+                if (carouselItems[newIdx]) {
+                    onSelectSupply?.(getSupplyId(carouselItems[newIdx]))
+                }
             }
-        }
+        })
     }
+    useEffect(() => () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current) }, [])
 
     const currentSupply = carouselItems[selectedIdx] || carouselItems[0]
     const initials = useMemo(() => {
@@ -118,25 +128,41 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
             .sort((a, b) => new Date(b.data_emissione).getTime() - new Date(a.data_emissione).getTime())
     }, [bills, currentSupply])
 
-    const chartData = useMemo(() => {
+    // Month-by-month spesa + consumo for the selected single supply. "all" shows
+    // the prompt to pick one (no aggregate graph on mobile home).
+    const graphBills = useMemo(() => {
         const supplyUlm = currentSupply?.ulm
-        // No ulm (registered supply with no bills) → empty; "all" → every bill.
-        const supplyBills = supplyUlm
-            ? (supplyUlm === 'all' ? bills : bills.filter((b: any) => b.ulm === supplyUlm))
-            : []
-        return buildBillChartData(supplyBills)
+        if (!supplyUlm || supplyUlm === 'all') return []
+        return bills.filter((b: any) => b.ulm === supplyUlm)
     }, [bills, currentSupply])
 
+    const chartYears = useMemo(() => availableBillYears(graphBills), [graphBills])
+
     useEffect(() => {
-        if (chartData.lastRealIndex !== -1) {
-            setSelectedBarIndex(chartData.lastRealIndex)
-            setSelectedExpenseIndex(chartData.lastRealIndex)
-        } else {
-            // Empty supply — clear stale selection from the previous one
-            setSelectedBarIndex(null)
-            setSelectedExpenseIndex(null)
+        if (chartYears.length === 0) {
+            const cy = new Date().getFullYear()
+            if (selectedYear !== cy) setSelectedYear(cy)
+            return
         }
-    }, [chartData.lastRealIndex])
+        if (selectedYear === null || !chartYears.includes(selectedYear)) {
+            setSelectedYear(chartYears[0])
+        }
+    }, [chartYears, selectedYear])
+
+    const yearlyData = useMemo(
+        () => buildYearlyChartData(graphBills, selectedYear ?? new Date().getFullYear()),
+        [graphBills, selectedYear]
+    )
+
+    // Confronto is only meaningful for a single fornitura; surface its advice as
+    // an alert badge on the quick action, and disable it on the "all" overview.
+    const confrontoDisabled = !currentSupply?.ulm || currentSupply.ulm === 'all'
+    const advice = useMemo(() => consumptionAdvice(graphBills), [graphBills])
+    const confrontoAlert: AdviceLevel | null = confrontoDisabled
+        ? null
+        : advice.level === 'alert' || advice.level === 'warn'
+            ? advice.level
+            : null
 
     return (
         <div className="px-4 pb-8 space-y-4">
@@ -199,18 +225,20 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                 <div
                                     className="relative overflow-hidden rounded-[2rem] p-5 flex flex-col justify-between h-48 animate-gradient-shift"
                                     style={{
-                                        background: isAll 
+                                        background: isAll
                                             ? 'linear-gradient(135deg, #0A2540 0%, #1A365D 50%, #1E5BFF 100%)'
                                             : 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)',
+                                        // Driven directly by scroll position — NO transition, so the
+                                        // card tracks the finger 1:1 instead of easing in late.
                                         transform: `scale(${0.95 + 0.05 * progress})`,
                                         opacity: 0.5 + 0.5 * progress,
-                                        transition: 'transform 220ms ease-out, opacity 220ms ease-out',
+                                        willChange: 'transform, opacity',
                                     }}
                                 >
                                     {/* White inactive overlay — fades out as the card centers */}
                                     <div
                                         className="absolute inset-0 bg-white dark:bg-[#1A1D23] pointer-events-none"
-                                        style={{ opacity: 1 - progress, transition: 'opacity 220ms ease-out' }}
+                                        style={{ opacity: 1 - progress, willChange: 'opacity' }}
                                     />
 
                                     <div className="relative z-10 flex flex-col h-full justify-between" style={{ color: `color-mix(in srgb, ${inactiveColor} ${(1 - progress) * 100}%, ${activeColor} ${progress * 100}%)` }}>
@@ -254,10 +282,17 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <div className={cn(
-                                                        "w-14 h-14 flex items-center justify-center shrink-0 overflow-hidden transition-all duration-500",
-                                                        isActive ? "scale-125 grayscale-0" : "scale-100 grayscale opacity-40"
-                                                    )}>
+                                                    <div
+                                                        className="w-14 h-14 flex items-center justify-center shrink-0 overflow-hidden"
+                                                        style={{
+                                                            // Track the swipe continuously instead of a delayed 500ms
+                                                            // toggle that only fired after the card snapped.
+                                                            transform: `scale(${1 + 0.25 * progress})`,
+                                                            filter: `grayscale(${1 - progress})`,
+                                                            opacity: 0.4 + 0.6 * progress,
+                                                            willChange: 'transform, opacity, filter',
+                                                        }}
+                                                    >
                                                         <img
                                                             src="/acq_favicon.ico"
                                                             alt="Acquambiente"
@@ -271,7 +306,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                             </>
                                         )}
                                     </div>
-                                    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]" style={{ opacity: progress, transition: 'opacity 220ms ease-out' }}>
+                                    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]" style={{ opacity: progress, willChange: 'opacity' }}>
                                             <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-emerald-400/20 blur-3xl animate-wave-pulse" />
                                             <div className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl animate-wave-pulse" style={{ animationDelay: '2.5s' }} />
                                             <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">
@@ -332,7 +367,13 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                     onClick={onGoToBollette}
                     badge={unpaidCount > 0 ? unpaidCount : undefined}
                 />
-                <QuickAction icon={<BarChart3 />} label="Confronto" onClick={onGoToConfronto} />
+                <QuickAction
+                    icon={<BarChart3 />}
+                    label="Confronto"
+                    onClick={onGoToConfronto}
+                    disabled={confrontoDisabled}
+                    alertLevel={confrontoAlert}
+                />
                 <QuickAction icon={<LifeBuoy />} label="Supporto" onClick={onGoToSupporto} />
             </div>
 
@@ -365,354 +406,28 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                 </div>
             </div>
 
+            {/* Combined month-by-month spesa + consumo for the selected supply.
+                "all" keeps the prompt to pick a single fornitura. */}
             <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
-                        <div className="flex items-start justify-between mb-4">
-                            {(() => {
-                                const selectedSlot = selectedExpenseIndex !== null ? chartData.slots[selectedExpenseIndex] : null
-                        const selectedBill = (selectedSlot as any)?.bill
-                        const displayPrice = selectedBill ? (parseFloat(String(selectedBill.importo || 0).replace(',', '.')) || 0) : (parseFloat(String(chartData.lastBill?.importo || 0).replace(',', '.')) || 0)
-                        const displayDate = selectedBill ? monthYear(selectedBill.data_emissione) : (chartData.lastBill ? monthYear(chartData.lastBill.data_emissione) : '')
-
-                        return (
-                            <div>
-                                <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">Andamento Spesa</p>
-                                {currentSupply?.ulm !== 'all' && (
-                                    <>
-                                        <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight">
-                                            € {displayPrice.toFixed(2).replace('.', ',')}
-                                        </h3>
-                                        {displayDate && (
-                                            <p className="text-[12px] text-[#1E5BFF] dark:text-[#93C5FD] font-bold uppercase tracking-wider mt-0.5">
-                                                {displayDate}
-                                            </p>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        )
-                    })()}
-                </div>
-
                 {currentSupply?.ulm === 'all' ? (
-                    <div className="h-32 mt-4 mb-8 flex items-center justify-center text-center px-6 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
-                        <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                            Seleziona una singola fornitura per visualizzare il grafico della spesa.
-                        </p>
-                    </div>
-                ) : (
-                <div className="h-32 mt-4 mb-8 relative touch-none select-none">
-                    {(() => {
-                        const supplyUlm = currentSupply?.ulm
-                        const supplyBills = supplyUlm
-                            ? (supplyUlm === 'all' ? bills : bills.filter((b: any) => b.ulm === supplyUlm))
-                            : []
-                        const maxCost = Math.max(...supplyBills.map(b => parseFloat(String(b.importo || 0).replace(',', '.')) || 0), 1)
-
-                        const margin = 15
-                        const width = 300 - (margin * 2)
-
-                        // Hide placeholder months — span real bills across the full width.
-                        // Bills with €0 importo are excluded so we don't render a flat
-                        // ramp that visually looks broken.
-                        const realSlots = chartData.slots
-                            .map((slot, slotIdx) => ({ slot, slotIdx }))
-                            .filter(({ slot }) => {
-                                const bill = (slot as any).bill
-                                return !!bill && (parseFloat(String(bill.importo || 0).replace(',', '.')) || 0) > 0
-                            })
-
-                        const realCount = realSlots.length
-                        const realStep = realCount > 1 ? width / (realCount - 1) : 0
-
-                        const realPoints = realSlots.map(({ slot, slotIdx }, i) => {
-                            const bill = (slot as any).bill
-                            const val = parseFloat(String(bill.importo || 0).replace(',', '.')) || 0
-                            const y = val > 0 ? 100 - ((val / maxCost) * 70 + 15) : 85
-                            // With a single real bill, anchor it at the right edge so
-                            // the cosmetic ramp climbs from €0 on the left up to it.
-                            const x = realCount > 1
-                                ? margin + i * realStep
-                                : margin + width
-                            return { x, y, cost: val, slotIdx, label: (slot as any).label, key: (slot as any).key }
-                        })
-
-                        // Synthesize cosmetic ghost points when we have 0 or 1
-                        // real points so the chart always shows a ramp climbing
-                        // from €0 (bottom-left) up to the actual amount.
-                        // Ghosts are not interactive.
-                        type LinePoint = { x: number; y: number; ghost: boolean }
-                        const buildRamp = (endY: number): LinePoint[] => {
-                            const startY = 100 // baseline (€0)
-                            const steps = 5
-                            return Array.from({ length: steps }, (_, i) => {
-                                const t = i / (steps - 1)
-                                // Ease-out curve so the climb looks organic
-                                const ease = 1 - Math.pow(1 - t, 1.6)
-                                return {
-                                    x: margin + width * t,
-                                    y: startY - (startY - endY) * ease,
-                                    ghost: i !== steps - 1,
-                                }
-                            })
-                        }
-                        const isEmpty = realPoints.length === 0
-                        const linePoints: LinePoint[] = realPoints.length === 1
-                            ? buildRamp(realPoints[0].y)
-                            : realPoints.map(p => ({ x: p.x, y: p.y, ghost: false }))
-
-                        const linePath = linePoints.length >= 2
-                            ? linePoints.reduce((acc, p, i, arr) => {
-                                if (i === 0) return `M ${p.x},${p.y}`
-                                const prev = arr[i - 1]
-                                const dx = p.x - prev.x
-                                return `${acc} C ${prev.x + dx / 2},${prev.y} ${p.x - dx / 2},${p.y} ${p.x},${p.y}`
-                            }, '')
-                            : ''
-
-                        const areaPath = linePoints.length >= 2
-                            ? `${linePath} L ${linePoints[linePoints.length - 1].x},100 L ${linePoints[0].x},100 Z`
-                            : ''
-
-                        const ghostPoints = linePoints.filter(p => p.ghost)
-
-                        // Default to the last real point when the stored selection
-                        // doesn't match the current supply's points — otherwise the
-                        // active dot/tooltip vanishes after sliding to a new card.
-                        const activePoint = realPoints.find(p => p.slotIdx === selectedExpenseIndex)
-                            ?? realPoints[realPoints.length - 1]
-                            ?? null
-
-                        const handleScrub = (clientX: number, rect: DOMRect) => {
-                            if (realPoints.length === 0) return
-                            const x = Math.max(0, Math.min(rect.width, clientX - rect.left))
-                            let closest = realPoints[0]
-                            let closestDist = Infinity
-                            for (const p of realPoints) {
-                                const px = (p.x / 300) * rect.width
-                                const dist = Math.abs(px - x)
-                                if (dist < closestDist) {
-                                    closestDist = dist
-                                    closest = p
-                                }
-                            }
-                            if (closest.slotIdx !== selectedExpenseIndex) {
-                                setSelectedExpenseIndex(closest.slotIdx)
-                            }
-                        }
-
-                        // Placeholder curve when there's no data — purely cosmetic
-                        return (
-                            <>
-                                <svg viewBox="0 0 300 100" className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="spendingGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                            <stop offset="0%" stopColor="#93C5FD" stopOpacity="0.32" />
-                                            <stop offset="100%" stopColor="#93C5FD" stopOpacity="0" />
-                                        </linearGradient>
-                                    </defs>
-                                    {isEmpty ? (
-                                        <path
-                                            d="M 15,70 C 60,55 100,80 150,55 S 240,70 285,50"
-                                            fill="none"
-                                            stroke="rgba(100,116,139,0.5)"
-                                            strokeWidth="1.5"
-                                            strokeDasharray="4 3"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            vectorEffect="non-scaling-stroke"
-                                        />
-                                    ) : (
-                                        <>
-                                            {areaPath && <path d={areaPath} fill="url(#spendingGradient)" />}
-                                            {linePath && (
-                                                <path
-                                                    d={linePath}
-                                                    fill="none"
-                                                    stroke="#93C5FD"
-                                                    strokeWidth="2.5"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    vectorEffect="non-scaling-stroke"
-                                                    className="drop-shadow-[0_2px_4px_rgba(147,197,253,0.4)]"
-                                                />
-                                            )}
-                                            {ghostPoints.map((p, i) => (
-                                                <circle
-                                                    key={`ghost-${i}`}
-                                                    cx={p.x}
-                                                    cy={p.y}
-                                                    r="2"
-                                                    fill="#93C5FD"
-                                                    opacity="0.45"
-                                                />
-                                            ))}
-                                        </>
-                                    )}
-                                </svg>
-
-                                {/* Touch / mouse scrub overlay */}
-                                <div
-                                    className="absolute inset-0 z-40 cursor-crosshair"
-                                    onPointerDown={(e) => {
-                                        e.currentTarget.setPointerCapture(e.pointerId)
-                                        handleScrub(e.clientX, e.currentTarget.getBoundingClientRect())
-                                    }}
-                                    onPointerMove={(e) => {
-                                        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                                            handleScrub(e.clientX, e.currentTarget.getBoundingClientRect())
-                                        }
-                                    }}
-                                />
-
-                                {/* Vertical crosshair */}
-                                {activePoint && (
-                                    <div
-                                        className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
-                                        style={{
-                                            left: `${(activePoint.x / 300) * 100}%`,
-                                            backgroundImage: 'repeating-linear-gradient(to bottom, rgba(147,197,253,0.5) 0 4px, transparent 4px 8px)',
-                                        }}
-                                    />
-                                )}
-
-                                {/* Active dot — solid, no ripple */}
-                                {activePoint && (
-                                    <div
-                                        className="absolute pointer-events-none z-20 w-3.5 h-3.5 rounded-full bg-white border-[2.5px] border-[#93C5FD] shadow-[0_2px_8px_rgba(147,197,253,0.55)]"
-                                        style={{
-                                            left: `${(activePoint.x / 300) * 100}%`,
-                                            top: `${activePoint.y}%`,
-                                            transform: 'translate(-50%, -50%)',
-                                        }}
-                                    />
-                                )}
-
-                                {/* Floating tooltip */}
-                                {activePoint && (
-                                    <div
-                                        className="absolute bg-[#93C5FD] text-white dark:text-[#0A2540] px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-lg pointer-events-none z-30 whitespace-nowrap"
-                                        style={{
-                                            left: `${(activePoint.x / 300) * 100}%`,
-                                            top: `${activePoint.y}%`,
-                                            transform: 'translate(-50%, calc(-100% - 14px))',
-                                        }}
-                                    >
-                                        €{activePoint.cost.toFixed(2).replace('.', ',')}
-                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#93C5FD] rotate-45" />
-                                    </div>
-                                )}
-
-                                {/* Month labels — only real-data months */}
-                                <div className="absolute -bottom-6 left-0 right-0 h-4">
-                                    {realPoints.map((p) => (
-                                        <span
-                                            key={p.key}
-                                            className={cn(
-                                                "absolute text-[10px] font-bold uppercase tracking-tighter w-12 text-center transition-colors duration-200",
-                                                selectedExpenseIndex === p.slotIdx ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400"
-                                            )}
-                                            style={{
-                                                left: `${(p.x / 300) * 100}%`,
-                                                transform: 'translateX(-50%)'
-                                            }}
-                                        >
-                                            {p.label}
-                                        </span>
-                                    ))}
-                                </div>
-                            </>
-                        )
-                    })()}
-                </div>
-                )}
-            </div>
-
-            <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
-                <div className="flex items-start justify-between mb-4">
                     <div>
-                        <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">Consumo mensile</p>
-                        {currentSupply?.ulm !== 'all' && (
-                            <>
-                                <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight flex items-center gap-1.5">
-                                    <Droplets size={18} className="text-[#1E5BFF] dark:text-[#93C5FD] shrink-0" fill="currentColor" fillOpacity={0.25} />
-                                    {chartData.lastBill?.consumo || '0'}{' '}
-                                    <span className="text-[14px] font-medium text-slate-400">mc</span>
-                                </h3>
-                                <p className="text-[12px] text-slate-400 font-medium mt-1">Ultimi 6 mesi</p>
-                            </>
-                        )}
-                    </div>
-                    {currentSupply?.ulm !== 'all' && (() => {
-                        const realBills = chartData.slots.map(s => (s as any).bill).filter(Boolean)
-                        if (realBills.length < 2) return null
-                        const current = parseFloat(String(realBills[realBills.length - 1].consumo || 0).replace(',', '.')) || 0
-                        const prev = parseFloat(String(realBills[realBills.length - 2].consumo || 0).replace(',', '.')) || 0
-                        if (prev === 0) return null
-                        const diff = current - prev
-                        const isUp = diff > 0
-                        const percent = Math.abs((diff / prev) * 100).toFixed(0)
-                        return (
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isUp ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'}`}>
-                                {isUp ? '↑' : '↓'} {percent}%
-                            </span>
-                        )
-                    })()}
-                </div>
-
-                {currentSupply?.ulm === 'all' ? (
-                    <div className="h-40 mt-4 mb-3 flex items-center justify-center text-center px-6 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
-                        <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                            Seleziona una singola fornitura per visualizzare il grafico dei consumi.
-                        </p>
+                        <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">Spesa &amp; consumo</p>
+                        <div className="h-40 mt-4 flex items-center justify-center text-center px-6 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                            <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                Seleziona una singola fornitura per visualizzare il grafico.
+                            </p>
+                        </div>
                     </div>
                 ) : (
-                <>
-                <div className="flex items-end justify-between gap-2.5 h-40 mb-3 pt-4">
-                    {chartData.slots.map((slot, i) => {
-                        const isSelected = selectedBarIndex === i
-                        const hasData = slot.value !== null
-                        const heightPct = hasData ? ((slot.value as number) / chartData.max) * 100 : chartData.placeholderHeights[i % chartData.placeholderHeights.length]
-                        return (
-                            <div key={slot.key} className="flex-1 flex flex-col items-center justify-end h-full relative cursor-pointer" onClick={() => hasData && setSelectedBarIndex(i)}>
-                                {isSelected && hasData && (
-                                    <span className="absolute px-2 py-0.5 rounded-md bg-[#93C5FD] text-white dark:text-black text-[11px] font-bold whitespace-nowrap z-10 shadow-sm animate-in fade-in zoom-in duration-200" style={{ bottom: `calc(${Math.max(heightPct, 20)}% + 14px)` }}>
-                                        {slot.value} mc
-                                    </span>
-                                )}
-                                <div
-                                    className="w-full rounded-xl relative overflow-hidden transition-[height] duration-300"
-                                    style={{ height: `${Math.max(heightPct, hasData ? 20 : 12)}%` }}
-                                >
-                                    {hasData ? (
-                                        <>
-                                            <div className="absolute inset-0 bg-blue-200 dark:bg-blue-900/30" />
-                                            <div className={cn(
-                                                "absolute inset-0 bg-gradient-to-t from-[#1E5BFF] to-[#60A5FA] transition-opacity duration-300",
-                                                isSelected ? "opacity-100" : "opacity-0"
-                                            )} />
-                                        </>
-                                    ) : (
-                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-200/70 via-slate-100/40 to-transparent dark:from-white/10 dark:via-white/5 dark:to-transparent" />
-                                    )}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-                <div className="flex justify-between gap-2 mt-2">
-                    {chartData.slots.map((slot, i) => (
-                        <span
-                            key={slot.key}
-                            className={cn(
-                                "flex-1 text-center text-[10px] font-bold uppercase tracking-tighter transition-colors duration-200",
-                                selectedBarIndex === i ? "text-[#1E5BFF]" : "text-slate-400"
-                            )}
-                        >
-                            {slot.label}
-                        </span>
-                    ))}
-                </div>
-                </>
+                    <div className="h-[20rem]">
+                        <YearlyConsumoChart
+                            data={yearlyData}
+                            years={chartYears}
+                            selectedYear={selectedYear ?? new Date().getFullYear()}
+                            onSelectYear={setSelectedYear}
+                            formatEuro={formatEuro}
+                        />
+                    </div>
                 )}
             </div>
             </div>
@@ -721,13 +436,23 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
     )
 }
 
-function QuickAction({ icon, label, onClick, badge }: { icon: React.ReactNode; label: string; onClick?: () => void; badge?: number }) {
+function QuickAction({ icon, label, onClick, badge, disabled, alertLevel }: { icon: React.ReactNode; label: string; onClick?: () => void; badge?: number; disabled?: boolean; alertLevel?: AdviceLevel | null }) {
     return (
         <button
-            onClick={onClick}
-            className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1.5 py-1 px-1 active:scale-[0.97] transition-all"
+            onClick={disabled ? undefined : onClick}
+            disabled={disabled}
+            aria-disabled={disabled}
+            className={cn(
+                "flex-1 min-w-0 flex flex-col items-center justify-center gap-1.5 py-1 px-1 transition-all",
+                disabled ? "opacity-40 cursor-not-allowed" : "active:scale-[0.97]"
+            )}
         >
-            <div className="relative w-16 h-16 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-[#1E5BFF] dark:text-[#93C5FD]">
+            <div className={cn(
+                "relative w-16 h-16 rounded-full flex items-center justify-center",
+                disabled
+                    ? "bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-slate-500"
+                    : "bg-slate-100 dark:bg-white/10 text-[#1E5BFF] dark:text-[#93C5FD]"
+            )}>
                 {React.cloneElement(icon as React.ReactElement<{ size?: number; strokeWidth?: number }>, { size: 28, strokeWidth: 1.6 })}
                 {badge !== undefined && (
                     <span
@@ -735,6 +460,18 @@ function QuickAction({ icon, label, onClick, badge }: { icon: React.ReactNode; l
                         style={{ top: '7px', right: '7px', transform: 'translate(50%, -50%)', padding: badge >= 10 ? '0 5px' : 0 }}
                     >
                         {badge}
+                    </span>
+                )}
+                {alertLevel && (
+                    <span
+                        className={cn(
+                            "absolute w-6 h-6 rounded-full text-white text-[14px] font-black flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-[#0F1115]",
+                            alertLevel === 'alert' ? "bg-red-500" : "bg-orange-500"
+                        )}
+                        style={{ top: '7px', right: '7px', transform: 'translate(50%, -50%)' }}
+                        title={alertLevel === 'alert' ? 'Consumi in forte aumento' : 'Consumi in aumento'}
+                    >
+                        !
                     </span>
                 )}
             </div>

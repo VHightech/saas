@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Download, CreditCard, Euro, MapPin, FileText, Clock, Loader2, User, Droplets } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { billingTypeDisplay } from '@/lib/billing-type'
+import { CarouselDots } from './CarouselDots'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
 
@@ -253,14 +254,14 @@ export function MobileBollettaDetail({
                                                 <div className="flex flex-col items-end gap-1.5 shrink-0">
                                                     {bt && (
                                                     <span className={cn(
-                                                        "text-[11px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg backdrop-blur-md border whitespace-nowrap",
+                                                        "text-[11px] font-black uppercase tracking-[0.15em] px-2.5 py-1 rounded-lg backdrop-blur-md border text-right leading-tight max-w-[9rem]",
                                                         bt.tone === 'saldo' ? "bg-blue-500/20 border-blue-400/20 text-blue-200"
                                                         : bt.tone === 'conguaglio' ? "bg-sky-500/20 border-sky-400/20 text-sky-200"
                                                         : bt.tone === 'acconto' ? "bg-orange-500/20 border-orange-400/20 text-orange-200"
                                                         : bt.tone === 'credito' ? "bg-green-500/20 border-green-400/20 text-green-200"
                                                         : "bg-slate-500/20 border-slate-400/20 text-slate-200"
-                                                    )}>
-                                                        {bt.label}
+                                                    )} title={bt.label}>
+                                                        {bt.short}
                                                     </span>
                                                     )}
                                                     {isPaid ? (
@@ -302,22 +303,11 @@ export function MobileBollettaDetail({
                         })}
                     </div>
 
-                    {/* Pagination Dots - Moved Under Cards */}
+                    {/* Pagination Dots — windowed/fading so the count always matches
+                        the real number of bills (4 bills → 4 dots) and never overflows. */}
                     {allBills.length > 1 && (
                         <div className="flex flex-col items-center mt-6 mb-2">
-                            <div className="flex justify-center gap-2 items-center">
-                                {allBills.slice(0, 10).map((_, i) => (
-                                    <div 
-                                        key={i} 
-                                        className={cn(
-                                            "h-2 rounded-full transition-all duration-300 shrink-0",
-                                            i === currentIndex 
-                                                ? "w-8 bg-blue-600 dark:bg-blue-400" 
-                                                : "w-2 bg-blue-300 dark:bg-blue-800"
-                                        )} 
-                                    />
-                                ))}
-                            </div>
+                            <CarouselDots count={allBills.length} active={currentIndex} />
                         </div>
                     )}
                 </div>

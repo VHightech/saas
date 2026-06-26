@@ -43,16 +43,19 @@ export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillList
                 </p>
             </div>
             
-            <div className="text-right flex flex-col items-end gap-1.5">
+            <div className="text-right flex flex-col items-end gap-1.5 shrink-0 max-w-[40%]">
                 <p className="text-[17px] font-bold text-[#0A2540] dark:text-white tracking-tight leading-none">
                     {formatEuro(Number(bill.importo || 0))}
                 </p>
                 {bt && (
-                    <span className={cn(
-                        "text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded whitespace-nowrap",
-                        DASHBOARD_TONE_CLASS[bt.tone]
-                    )}>
-                        {bt.label}
+                    <span
+                        className={cn(
+                            "text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-right leading-tight whitespace-normal break-words",
+                            DASHBOARD_TONE_CLASS[bt.tone]
+                        )}
+                        title={bt.label}
+                    >
+                        {bt.short}
                     </span>
                 )}
                 {!isPaid && bill.expected_method === 'MP23' && (

@@ -9,8 +9,6 @@ import { BillSummaryCard } from './BillSummaryCard'
 import { BillListItem } from './BillListItem'
 import { useDashboard } from '@/components/dashboard/dashboard-context'
 
-type FilterType = 'all' | 'unpaid' | 'paid'
-
 interface MobileBolletteProps {
     bills: Bill[]
     supplies?: any[]
@@ -19,7 +17,6 @@ interface MobileBolletteProps {
 }
 
 export function MobileBollette({ bills, supplies = [], onSelectBill, onBack }: MobileBolletteProps) {
-    const [filter, setFilter] = useState<FilterType>('all')
     const [collapsedYears, setCollapsedYears] = useState<Record<number, boolean>>({})
     const { selectedSupply, setSelectedSupply } = useDashboard()
     const toggleYear = (year: number) =>
@@ -50,14 +47,9 @@ export function MobileBollette({ bills, supplies = [], onSelectBill, onBack }: M
         })
 
         const sorted = supplyFiltered.sort((a, b) => new Date(b.data_emissione).getTime() - new Date(a.data_emissione).getTime())
-        const filtered = sorted.filter((b: any) => {
-            if (filter === 'all') return true
-            if (filter === 'unpaid') return (b.status || 'unpaid') !== 'paid'
-            return b.status === 'paid'
-        })
 
         const groups: { year: number; bills: Bill[] }[] = []
-        filtered.forEach(bill => {
+        sorted.forEach(bill => {
             const year = new Date(bill.data_emissione).getFullYear()
             let group = groups.find(g => g.year === year)
             if (!group) {
@@ -67,7 +59,7 @@ export function MobileBollette({ bills, supplies = [], onSelectBill, onBack }: M
             group.bills.push(bill)
         })
         return groups
-    }, [bills, filter])
+    }, [bills, supplies, selectedSupply])
 
 
     return (
@@ -129,24 +121,6 @@ export function MobileBollette({ bills, supplies = [], onSelectBill, onBack }: M
                     formatEuro={formatEuro}
                     isAll={selectedSupply === 'all'}
                 />
-
-                {/* Flat Filter Tabs */}
-                <div className="flex gap-2 p-1 bg-white dark:bg-white/5 rounded-[1.25rem]">
-                    {(['all', 'unpaid', 'paid'] as const).map((f) => (
-                        <button
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={cn(
-                                'flex-1 py-3 rounded-xl text-[11px] font-medium transition-all active:scale-95',
-                                filter === f 
-                                    ? 'bg-[#1E5BFF] text-white dark:bg-[#93C5FD] dark:text-[#0A2540]'
-                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                            )}
-                        >
-                            {f === 'all' ? 'Tutte' : f === 'unpaid' ? 'Da pagare' : 'Pagate'}
-                        </button>
-                    ))}
-                </div>
             </div>
 
             {/* Scrollable List Area */}
@@ -171,7 +145,7 @@ export function MobileBollette({ bills, supplies = [], onSelectBill, onBack }: M
                                 <div key={group.year} className="space-y-3">
                                     <button
                                         onClick={() => toggleYear(group.year)}
-                                        className="w-[calc(100%+24px)] -mx-3 sticky top-0 z-10 px-3 py-3 flex items-center gap-3 bg-[#F8FAFC] dark:bg-[#0F1115] active:opacity-70 transition-opacity"
+                                        className="w-full px-1 py-2 flex items-center gap-3 active:opacity-70 transition-opacity"
                                     >
                                         <ChevronDown
                                             size={16}

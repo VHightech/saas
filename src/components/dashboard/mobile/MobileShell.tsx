@@ -175,7 +175,7 @@ export function MobileShell({ profile, bills, supplies = [], stats }: MobileShel
             )}
             {tab === 'bollette' && <MobileBollette bills={bills} supplies={supplies} onSelectBill={openBill} onBack={() => window.history.back()} />}
             {tab === 'profilo' && <MobileProfilo profile={profile} stats={stats} supplies={supplies} onBack={() => window.history.back()} onLogout={handleLogout} />}
-            {tab === 'confronto' && <MobileConfronto bills={bills} onBack={() => window.history.back()} />}
+            {tab === 'confronto' && <MobileConfronto bills={bills} supplies={supplies} onBack={() => window.history.back()} />}
             {tab === 'supporto' && <MobileSupporto firstName={stats.firstName} onBack={() => window.history.back()} />}
             </div>
         </div>
