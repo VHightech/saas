@@ -3,6 +3,7 @@ import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemedToaster } from "@/components/themed-toaster"
+import { IdleLogout } from "@/components/auth/IdleLogout"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import React from "react"
@@ -52,6 +53,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <IdleLogout />
           <ThemedToaster />
         </ThemeProvider>
         <Analytics />

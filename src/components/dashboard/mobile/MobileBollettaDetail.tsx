@@ -255,8 +255,9 @@ export function MobileBollettaDetail({
                                                     <span className={cn(
                                                         "text-[11px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-lg backdrop-blur-md border whitespace-nowrap",
                                                         bt.tone === 'saldo' ? "bg-blue-500/20 border-blue-400/20 text-blue-200"
+                                                        : bt.tone === 'conguaglio' ? "bg-sky-500/20 border-sky-400/20 text-sky-200"
                                                         : bt.tone === 'acconto' ? "bg-orange-500/20 border-orange-400/20 text-orange-200"
-                                                        : bt.tone === 'credito' ? "bg-rose-500/20 border-rose-400/20 text-rose-200"
+                                                        : bt.tone === 'credito' ? "bg-green-500/20 border-green-400/20 text-green-200"
                                                         : "bg-slate-500/20 border-slate-400/20 text-slate-200"
                                                     )}>
                                                         {bt.label}

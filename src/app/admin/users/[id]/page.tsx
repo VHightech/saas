@@ -17,7 +17,7 @@ import { InvoiceRangeCalendar } from '@/components/admin/users/InvoiceRangeCalen
 import { formatEuro } from '@/lib/format'
 import { getContractStatus, STATUS_TINT_CLASS } from '@/lib/contract-status'
 import { paymentMethodLabel, formatPaymentMethod } from '@/lib/payment-methods'
-import { billingTypeDisplay, type BillingTone } from '@/lib/billing-type'
+import { billingTypeDisplay, BILLING_TONE_CLASS } from '@/lib/billing-type'
 import { cn } from '@/lib/utils'
 
 interface Profile {
@@ -693,22 +693,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                         <div className="text-[13px] text-slate-500 dark:text-slate-400">
                                             {inv.scadenza ? format(new Date(inv.scadenza), 'dd/MM/yyyy') : '—'}
                                         </div>
-                                        <div className="flex items-center justify-center">
+                                        <div className="flex items-center justify-center min-w-0">
                                             {(() => {
                                                 const t = billingTypeDisplay(inv.billing_type)
                                                 if (!t) return <span className="text-slate-400">—</span>
-                                                const tone: Record<BillingTone, string> = {
-                                                    saldo: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-                                                    acconto: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-                                                    credito: "bg-rose-500/10 text-rose-600 border-rose-500/20",
-                                                    neutral: "bg-slate-500/10 text-slate-500 border-slate-500/20",
-                                                }
+                                                // Use the compact `short` label so the coloured pill always fits
+                                                // this narrow column; the full label stays in the tooltip.
                                                 return (
                                                     <span className={cn(
-                                                        "px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap",
-                                                        tone[t.tone]
+                                                        "px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap",
+                                                        BILLING_TONE_CLASS[t.tone]
                                                     )} title={t.label}>
-                                                        {t.label}
+                                                        {t.short}
                                                     </span>
                                                 )
                                             })()}

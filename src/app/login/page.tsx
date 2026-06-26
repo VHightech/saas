@@ -2,7 +2,7 @@
 
 import { login, initiateFirstAccess } from '@/app/login/actions'
 import { ArrowRight, Droplets, Home, FileText, BarChart3 } from 'lucide-react'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 
@@ -15,7 +15,21 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+    const [expiredNotice, setExpiredNotice] = useState(false)
     const captchaRef = useRef<TurnstileInstance | null>(null)
+
+    // Surfaced when IdleLogout (or any expired-session redirect) sends ?expired=1.
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('expired') === '1') {
+            setExpiredNotice(true)
+            // Clean the URL so a refresh doesn't keep showing the banner.
+            params.delete('expired')
+            const qs = params.toString()
+            window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''))
+        }
+    }, [])
 
     async function handleSubmit(formData: FormData) {
         setLoading(true)
@@ -102,6 +116,12 @@ export default function LoginPage() {
                 </div>
 
                 <form action={handleSubmit} className="space-y-4 sm:space-y-5">
+                    {expiredNotice && !error && (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-500/30 rounded-lg text-amber-700 dark:text-amber-400 text-sm font-medium animate-in slide-in-from-top-1">
+                            Sessione scaduta per inattività. Accedi di nuovo per continuare.
+                        </div>
+                    )}
+
                     {(error || showError) && (
                         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm font-medium animate-in slide-in-from-top-1">
                             {error === 'Invalid login credentials' ? 'Credenziali non valide.' : error}

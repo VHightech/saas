@@ -1,14 +1,14 @@
 'use client'
 
 import { useMemo, useState, useRef, useEffect } from 'react'
-import { FileText, CheckCircle2, Search, LineChart, BarChart3, Eye, CreditCard, Droplets, X, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react'
+import { FileText, CheckCircle2, Search, Eye, CreditCard, Droplets, X, ChevronLeft, ChevronRight, Calendar, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { billingTypeDisplay, DASHBOARD_TONE_CLASS } from '@/lib/billing-type'
 import { formatEuro as formatEuroBase, monthYear } from '@/lib/format'
-import { buildBillChartData } from '@/lib/bill-chart'
+import { buildYearlyChartData, availableBillYears } from '@/lib/bill-chart'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
 import { RangeCalendar } from '@/components/dashboard/desktop/bollette/RangeCalendar'
-import { SpesaLineChart, ConsumoBarChart } from '@/components/dashboard/desktop/bollette/BillingCharts'
+import { YearlyConsumoChart } from '@/components/dashboard/desktop/bollette/YearlyConsumoChart'
 import { SuppliesCarousel } from '@/components/dashboard/desktop/bollette/SuppliesCarousel'
 import { InfoBadge } from '@/components/dashboard/desktop/bollette/InfoBadge'
 import { WaveHero } from '@/components/dashboard/desktop/WaveHero'
@@ -42,7 +42,7 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
     const [selectedUlm, setSelectedUlm] = useState<string | 'all'>('all')
     const [supplyIndex, setSupplyIndex] = useState(0)
 
-    const [activeGraph, setActiveGraph] = useState<'spesa' | 'consumo'>('spesa')
+    const [selectedYear, setSelectedYear] = useState<number | null>(null)
     const [currentPage, setCurrentPage] = useState(1)
     const [itemsPerPage, setItemsPerPage] = useState(8)
     const [dateFrom, setDateFrom] = useState('')
@@ -131,12 +131,34 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
     // Desktop bollette uses the prefix Euro convention ("€175,89").
     const formatEuro = (n: number) => formatEuroBase(n, 'prefix')
 
-    // 6-month series (mobile-style)
-    const chartData = useMemo(() => {
-        // Desktop shows the per-supply series only; "all" renders the empty/placeholder state.
-        const relevant = selectedUlm === 'all' ? [] : bills.filter((b: any) => b.ulm === selectedUlm)
-        return buildBillChartData(relevant)
-    }, [bills, selectedUlm])
+    // Month-by-month spesa + consumo for the selected year. When "all" supplies
+    // are selected the series aggregates across every supply (total monthly spend);
+    // otherwise it's scoped to the chosen supply. The graph honours its own year
+    // selector and is independent of the table's date filter.
+    const graphBills = useMemo(
+        () => (selectedUlm === 'all' ? bills : bills.filter((b: any) => b.ulm === selectedUlm)),
+        [bills, selectedUlm]
+    )
+
+    const chartYears = useMemo(() => availableBillYears(graphBills), [graphBills])
+
+    // Keep the selected year valid for the current supply/data. Default to the
+    // most recent year that has data (fallback: current calendar year).
+    useEffect(() => {
+        if (chartYears.length === 0) {
+            const cy = new Date().getFullYear()
+            if (selectedYear !== cy) setSelectedYear(cy)
+            return
+        }
+        if (selectedYear === null || !chartYears.includes(selectedYear)) {
+            setSelectedYear(chartYears[0])
+        }
+    }, [chartYears, selectedYear])
+
+    const yearlyData = useMemo(
+        () => buildYearlyChartData(graphBills, selectedYear ?? new Date().getFullYear()),
+        [graphBills, selectedYear]
+    )
 
     const totals = useMemo(() => {
         const source = selectedUlm === 'all' ? bills : bills.filter((b: any) => b.ulm === selectedUlm)
@@ -268,49 +290,15 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                 setSupplyIndex={setSupplyIndex}
                             />
 
-                            {/* Right Widget: Graphs */}
+                            {/* Right Widget: Combined monthly spesa + consumo chart */}
                             <div className="col-span-12 lg:col-span-5 relative bg-white dark:bg-[#1A1D23] rounded-[2rem] p-4 flex flex-col h-full min-h-[110px]">
-                                <div className="absolute top-3 right-3 z-10 flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg">
-                                    <button
-                                        onClick={() => setActiveGraph('spesa')}
-                                        className={cn(
-                                            "h-7 w-8 rounded-md transition-colors flex items-center justify-center",
-                                            activeGraph === 'spesa'
-                                                ? "bg-white dark:bg-white/15 text-[#1E5BFF] dark:text-[#93C5FD] shadow-sm"
-                                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                                        )}
-                                        title="Spesa"
-                                    >
-                                        <LineChart size={14} />
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveGraph('consumo')}
-                                        className={cn(
-                                            "h-7 w-8 rounded-md transition-colors flex items-center justify-center",
-                                            activeGraph === 'consumo'
-                                                ? "bg-white dark:bg-white/15 text-[#1E5BFF] dark:text-[#93C5FD] shadow-sm"
-                                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                                        )}
-                                        title="Consumo"
-                                    >
-                                        <BarChart3 size={14} />
-                                    </button>
-                                </div>
-
-                                <div className="flex-1 flex flex-col min-h-0">
-                                    {activeGraph === 'spesa' ? (
-                                        <SpesaLineChart chartData={chartData} bills={bills} monthYear={monthYear} isAll={false} />
-                                    ) : (
-                                        <ConsumoBarChart chartData={chartData} isAll={false} />
-                                    )}
-                                </div>
-                                {selectedUlm === 'all' && (
-                                    <div className="absolute inset-0 z-[60] rounded-[2rem] flex items-center justify-center p-6 bg-white/70 dark:bg-[#1A1D23]/70 backdrop-blur-md">
-                                        <p className="text-[14px] font-bold text-[#0A2540] dark:text-white bg-white dark:bg-[#2A2D35] px-5 py-3 rounded-2xl shadow-xl ring-1 ring-slate-200 dark:ring-white/10 max-w-[80%] text-center">
-                                            Seleziona una fornitura per vedere il grafico
-                                        </p>
-                                    </div>
-                                )}
+                                <YearlyConsumoChart
+                                    data={yearlyData}
+                                    years={chartYears}
+                                    selectedYear={selectedYear ?? new Date().getFullYear()}
+                                    onSelectYear={setSelectedYear}
+                                    formatEuro={formatEuro}
+                                />
                             </div>
                         </div>
                     </div>

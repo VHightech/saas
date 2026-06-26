@@ -65,3 +65,84 @@ export function buildBillChartData(supplyBills: any[]): BillChartData {
 
     return { slots, max, lastRealIndex, placeholderHeights: PLACEHOLDER_HEIGHTS, lastBill }
 }
+
+// ===== Yearly month-by-month series (spesa + consumo combined) =====
+
+/** Robustly parse a euro amount that may be a number or an Italian "1.234,56" string. */
+const parseAmount = (v: unknown): number => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+    const s = String(v ?? '').trim()
+    if (!s) return 0
+    // Italian format: thousands '.' and decimal ',' → strip dots, swap comma.
+    const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s
+    return parseFloat(normalized) || 0
+}
+
+const MONTHS_IT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
+
+export interface YearlyMonth {
+    month: number   // 0-11
+    label: string   // 'Gen' … 'Dic'
+    spesa: number   // € summed for that month
+    consumo: number // mc summed for that month
+    count: number   // number of bills in that month
+}
+
+export interface YearlyChartData {
+    year: number
+    months: YearlyMonth[]
+    maxSpesa: number
+    maxConsumo: number
+    totalSpesa: number
+    totalConsumo: number
+    hasData: boolean
+}
+
+/** Distinct years (desc) that have at least one bill with a valid emission date. */
+export function availableBillYears(bills: any[]): number[] {
+    const years = new Set<number>()
+    for (const b of bills) {
+        const raw = b?.data_emissione
+        if (!raw) continue
+        const d = new Date(raw)
+        if (!Number.isNaN(d.getTime())) years.add(d.getFullYear())
+    }
+    return [...years].sort((a, b) => b - a)
+}
+
+/**
+ * Aggregate a supply's (or all) bills into the 12 calendar months of `year`,
+ * summing both spesa (importo) and consumo per month. Unlike buildBillChartData
+ * this keeps the FULL set of bills for the year — no last-N truncation.
+ */
+export function buildYearlyChartData(bills: any[], year: number): YearlyChartData {
+    const months: YearlyMonth[] = MONTHS_IT.map((label, month) => ({
+        month, label, spesa: 0, consumo: 0, count: 0,
+    }))
+
+    for (const b of bills) {
+        const raw = b?.data_emissione
+        if (!raw) continue
+        const d = new Date(raw)
+        if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) continue
+        const slot = months[d.getMonth()]
+        slot.spesa += parseAmount(b.importo)
+        slot.consumo += parseConsumo(b.consumo)
+        slot.count += 1
+    }
+
+    const maxSpesa = Math.max(...months.map(m => m.spesa), 1)
+    const maxConsumo = Math.max(...months.map(m => m.consumo), 1)
+    const totalSpesa = months.reduce((s, m) => s + m.spesa, 0)
+    const totalConsumo = months.reduce((s, m) => s + m.consumo, 0)
+
+    return {
+        year,
+        months,
+        maxSpesa,
+        maxConsumo,
+        totalSpesa,
+        totalConsumo,
+        hasData: months.some(m => m.count > 0),
+    }
+}
