@@ -102,17 +102,24 @@ export function MobileBollettaDetail({
         return () => clearTimeout(t)
     }, [bill.id, targetProgress])
 
+    // Coalesce scroll events to one update per animation frame for a smooth swipe.
+    const rafRef = useRef<number | null>(null)
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const s = getStride(e.currentTarget)
-        setScrollLeft(e.currentTarget.scrollLeft)
-        setStride(s)
-        if (isScrolling) return
-        const index = Math.round(e.currentTarget.scrollLeft / s)
-
-        if (index !== currentIndex && index >= 0 && index < allBills.length) {
-            onSelectBill?.(allBills[index])
-        }
+        const el = e.currentTarget
+        if (rafRef.current !== null) return
+        rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null
+            const s = getStride(el)
+            setScrollLeft(el.scrollLeft)
+            setStride(s)
+            if (isScrolling) return
+            const index = Math.round(el.scrollLeft / s)
+            if (index !== currentIndex && index >= 0 && index < allBills.length) {
+                onSelectBill?.(allBills[index])
+            }
+        })
     }
+    useEffect(() => () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current) }, [])
 
     // Keep scroll position in sync with the externally-selected bill
     useEffect(() => {
@@ -193,10 +200,13 @@ export function MobileBollettaDetail({
                                         allBills.length === 1 ? "w-full" : "w-[calc(100vw-60px)]"
                                     )}
                                     style={{
+                                        // Driven directly by scroll position so the card + blur
+                                        // track the finger 1:1 (no late-easing transition).
                                         transform: `scale(${0.92 + 0.08 * progress})`,
                                         opacity: 0.4 + 0.6 * progress,
-                                        filter: `grayscale(${(1 - progress) * 0.2})`,
-                                        transition: 'transform 220ms ease-out, opacity 220ms ease-out, filter 220ms ease-out',
+                                        // Off-centre cards blur + desaturate for a depth swipe feel.
+                                        filter: `grayscale(${(1 - progress) * 0.2}) blur(${(1 - progress) * 3}px)`,
+                                        willChange: 'transform, opacity, filter',
                                     }}
                                 >
                                     <div

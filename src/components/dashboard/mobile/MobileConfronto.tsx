@@ -5,6 +5,7 @@ import { ChevronLeft, Lightbulb, TrendingDown, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/components/dashboard/dashboard-context'
 import { consumptionAdvice, consumptionAdviceText } from '@/lib/consumption-advice'
+import { smoothPath } from '@/lib/chart-path'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
 
@@ -155,22 +156,33 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
                                 )
                             })}
 
-                            {/* Previous-year comparison line overlay */}
-                            {hasCompare && (
-                                <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
-                                    <polyline
-                                        fill="none"
-                                        stroke="#E89B3C"
-                                        strokeWidth="1"
-                                        strokeDasharray="2 2"
-                                        vectorEffect="non-scaling-stroke"
-                                        points={prevByMonth.map((v, i) => `${(i + 0.5) * (100 / 12)},${100 - (v / max) * 100}`).join(' ')}
-                                    />
-                                    {prevByMonth.map((v, i) => (
-                                        <circle key={i} cx={(i + 0.5) * (100 / 12)} cy={100 - (v / max) * 100} r="1.2" fill="#E89B3C" vectorEffect="non-scaling-stroke" />
-                                    ))}
-                                </svg>
-                            )}
+                            {/* Previous-year comparison line — smooth waves through
+                                the months that actually have readings. */}
+                            {hasCompare && (() => {
+                                const pts = prevByMonth
+                                    .map((v, i) => ({ x: (i + 0.5) * (100 / 12), y: 100 - (v / max) * 100, i, v }))
+                                    .filter(p => p.v > 0)
+                                const path = smoothPath(pts)
+                                return (
+                                    <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                        {path && (
+                                            <path
+                                                d={path}
+                                                fill="none"
+                                                stroke="#E89B3C"
+                                                strokeWidth="1"
+                                                strokeDasharray="2 2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                vectorEffect="non-scaling-stroke"
+                                            />
+                                        )}
+                                        {pts.map((p) => (
+                                            <circle key={p.i} cx={p.x} cy={p.y} r="1.2" fill="#E89B3C" vectorEffect="non-scaling-stroke" />
+                                        ))}
+                                    </svg>
+                                )
+                            })()}
                         </div>
 
                         <div className="flex justify-between gap-1 mt-2">

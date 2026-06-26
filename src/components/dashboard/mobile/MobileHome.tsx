@@ -230,9 +230,11 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                             : 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #1E5BFF 100%)',
                                         // Driven directly by scroll position — NO transition, so the
                                         // card tracks the finger 1:1 instead of easing in late.
+                                        // Off-centre cards blur for a depth-of-field swipe feel.
                                         transform: `scale(${0.95 + 0.05 * progress})`,
                                         opacity: 0.5 + 0.5 * progress,
-                                        willChange: 'transform, opacity',
+                                        filter: progress < 1 ? `blur(${(1 - progress) * 3}px)` : undefined,
+                                        willChange: 'transform, opacity, filter',
                                     }}
                                 >
                                     {/* White inactive overlay — fades out as the card centers */}

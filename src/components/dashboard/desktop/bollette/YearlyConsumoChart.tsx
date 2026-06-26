@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { smoothPath } from '@/lib/chart-path'
 import type { YearlyChartData } from '@/lib/bill-chart'
 
 interface YearlyConsumoChartProps {
@@ -47,13 +48,13 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
     const headLabel = activeMonth ? `${activeMonth.label} ${selectedYear}` : `Totale ${selectedYear}`
 
     // Consumo line: y in the 0-100 viewBox (10% top padding, floor at 95).
+    // Only the months that actually have a bill are plotted, so the line waves
+    // smoothly between real readings instead of crashing to zero on empty months.
     const consumoY = (v: number) => 95 - (v / maxConsumo) * 80
-    const linePoints = months.map((m, i) => ({
-        x: (i + 0.5) * (100 / 12),
-        y: m.consumo > 0 ? consumoY(m.consumo) : 95,
-        consumo: m.consumo,
-    }))
-    const polyline = linePoints.map(p => `${p.x},${p.y}`).join(' ')
+    const consumoPts = months
+        .map((m, i) => ({ x: (i + 0.5) * (100 / 12), y: consumoY(m.consumo), consumo: m.consumo, i }))
+        .filter(p => months[p.i].count > 0)
+    const consumoPath = smoothPath(consumoPts)
 
     return (
         <div className="flex-1 flex flex-col min-h-0 h-full">
@@ -135,10 +136,11 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                     })}
                 </div>
 
-                {/* Consumo line overlay */}
-                {hasData && (
+                {/* Consumo line overlay (smooth waves through real readings) */}
+                {hasData && consumoPath && (
                     <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
-                        <polyline
+                        <path
+                            d={consumoPath}
                             fill="none"
                             stroke="#6366f1"
                             strokeWidth="1.5"
@@ -146,26 +148,23 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             vectorEffect="non-scaling-stroke"
-                            points={polyline}
                             className="opacity-80"
                         />
                     </svg>
                 )}
 
                 {/* Consumo dots (HTML so they stay round) */}
-                {hasData && size.width > 0 && linePoints.map((p, i) => (
-                    months[i].count > 0 ? (
-                        <div
-                            key={`c-${i}`}
-                            className="absolute top-0 left-0 pointer-events-none z-10"
-                            style={{ transform: `translate3d(${(p.x / 100) * size.width}px, ${(p.y / 100) * size.height}px, 0)` }}
-                        >
-                            <div className={cn(
-                                "absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-white border-2 border-indigo-500 transition-all",
-                                active === i ? "w-3 h-3 shadow-[0_2px_8px_rgba(99,102,241,0.5)]" : "w-2 h-2"
-                            )} />
-                        </div>
-                    ) : null
+                {hasData && size.width > 0 && consumoPts.map((p) => (
+                    <div
+                        key={`c-${p.i}`}
+                        className="absolute top-0 left-0 pointer-events-none z-10"
+                        style={{ transform: `translate3d(${(p.x / 100) * size.width}px, ${(p.y / 100) * size.height}px, 0)` }}
+                    >
+                        <div className={cn(
+                            "absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-white border-2 border-indigo-500 transition-all",
+                            active === p.i ? "w-3 h-3 shadow-[0_2px_8px_rgba(99,102,241,0.5)]" : "w-2 h-2"
+                        )} />
+                    </div>
                 ))}
 
                 {/* Active month tooltip */}
