@@ -233,7 +233,10 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                         // Off-centre cards blur for a depth-of-field swipe feel.
                                         transform: `scale(${0.95 + 0.05 * progress})`,
                                         opacity: 0.5 + 0.5 * progress,
-                                        filter: progress < 1 ? `blur(${(1 - progress) * 3}px)` : undefined,
+                                        filter: `blur(${(1 - progress) * 2.5}px)`,
+                                        // Ease only the blur so it doesn't strobe during fast swipes;
+                                        // scale/opacity stay finger-tracked (no positional lag).
+                                        transition: 'filter 160ms ease-out',
                                         willChange: 'transform, opacity, filter',
                                     }}
                                 >

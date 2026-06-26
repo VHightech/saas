@@ -19,7 +19,7 @@ interface YearlyConsumoChartProps {
  * the dataset. Hover/click a month to inspect its values.
  */
 export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, formatEuro }: YearlyConsumoChartProps) {
-    const { months, maxSpesa, maxConsumo, totalSpesa, totalConsumo, hasData } = data
+    const { months, spesaScale, consumoScale, totalSpesa, totalConsumo, hasData } = data
 
     // Default the inspected month to the last one that has data.
     const lastWithData = months.reduce((acc, m, i) => (m.count > 0 ? i : acc), -1)
@@ -50,7 +50,7 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
     // Consumo line: y in the 0-100 viewBox (10% top padding, floor at 95).
     // Only the months that actually have a bill are plotted, so the line waves
     // smoothly between real readings instead of crashing to zero on empty months.
-    const consumoY = (v: number) => 95 - (v / maxConsumo) * 80
+    const consumoY = (v: number) => 95 - (Math.min(v, consumoScale) / consumoScale) * 80
     const consumoPts = months
         .map((m, i) => ({ x: (i + 0.5) * (100 / 12), y: consumoY(m.consumo), consumo: m.consumo, i }))
         .filter(p => months[p.i].count > 0)
@@ -111,14 +111,23 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                 <div className={cn("absolute inset-0 flex items-end justify-between gap-1.5", !hasData && "opacity-30")}>
                     {months.map((m, i) => {
                         const isSelected = active === i
-                        const pct = (m.spesa / maxSpesa) * 100
+                        const clipped = m.spesa > spesaScale * 1.001
+                        const pct = Math.min((m.spesa / spesaScale) * 100, 100)
                         return (
                             <div
                                 key={m.month}
-                                className="flex-1 h-full flex flex-col justify-end items-center cursor-pointer group"
+                                className="flex-1 h-full relative flex flex-col justify-end items-center cursor-pointer group"
                                 onClick={() => m.count > 0 && setActive(i)}
                                 onMouseEnter={() => m.count > 0 && setActive(i)}
                             >
+                                {clipped && (
+                                    <span
+                                        className="absolute top-0 left-1/2 -translate-x-1/2 text-[8px] leading-none text-[#1E5BFF] dark:text-[#93C5FD] z-10"
+                                        title="Oltre scala"
+                                    >
+                                        ▲
+                                    </span>
+                                )}
                                 <div
                                     className="w-full rounded-t-md relative overflow-hidden transition-[height] duration-300"
                                     style={{ height: `${m.count > 0 ? Math.max(pct, 4) : 2}%` }}

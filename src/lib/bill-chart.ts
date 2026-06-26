@@ -93,9 +93,41 @@ export interface YearlyChartData {
     months: YearlyMonth[]
     maxSpesa: number
     maxConsumo: number
+    /** Outlier-resistant scale for bar/line heights (freak bills clip above it). */
+    spesaScale: number
+    consumoScale: number
     totalSpesa: number
     totalConsumo: number
     hasData: boolean
+}
+
+/**
+ * Outlier-resistant upper bound for a set of monthly values. Uses the Tukey
+ * upper fence (Q3 + 1.5·IQR): when the largest value sits within the fence the
+ * scale is just the data max (normal chart); when a freak bill blows past it the
+ * scale clamps to the top of the "normal" range so a €110k anomaly clips instead
+ * of flattening every other month to nothing.
+ */
+function robustScale(values: number[]): number {
+    const v = values.filter(x => x > 0).sort((a, b) => a - b)
+    if (v.length === 0) return 1
+    const dataMax = v[v.length - 1]
+    if (v.length <= 2) return dataMax || 1 // too few points to call anything an outlier
+
+    const quantile = (p: number) => {
+        const idx = (v.length - 1) * p
+        const lo = Math.floor(idx)
+        const hi = Math.ceil(idx)
+        return v[lo] + (v[hi] - v[lo]) * (idx - lo)
+    }
+    const q1 = quantile(0.25)
+    const q3 = quantile(0.75)
+    const fence = q3 + 1.5 * (q3 - q1)
+    if (dataMax <= fence) return dataMax
+
+    const within = v.filter(x => x <= fence)
+    const top = within.length ? within[within.length - 1] : q3
+    return Math.max(top * 1.1, fence, 1)
 }
 
 /** Distinct years (desc) that have at least one bill with a valid emission date. */
@@ -133,6 +165,8 @@ export function buildYearlyChartData(bills: any[], year: number): YearlyChartDat
 
     const maxSpesa = Math.max(...months.map(m => m.spesa), 1)
     const maxConsumo = Math.max(...months.map(m => m.consumo), 1)
+    const spesaScale = robustScale(months.map(m => m.spesa))
+    const consumoScale = robustScale(months.map(m => m.consumo))
     const totalSpesa = months.reduce((s, m) => s + m.spesa, 0)
     const totalConsumo = months.reduce((s, m) => s + m.consumo, 0)
 
@@ -141,6 +175,8 @@ export function buildYearlyChartData(bills: any[], year: number): YearlyChartDat
         months,
         maxSpesa,
         maxConsumo,
+        spesaScale,
+        consumoScale,
         totalSpesa,
         totalConsumo,
         hasData: months.some(m => m.count > 0),

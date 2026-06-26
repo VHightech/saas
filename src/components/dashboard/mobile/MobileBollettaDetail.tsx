@@ -205,7 +205,10 @@ export function MobileBollettaDetail({
                                         transform: `scale(${0.92 + 0.08 * progress})`,
                                         opacity: 0.4 + 0.6 * progress,
                                         // Off-centre cards blur + desaturate for a depth swipe feel.
-                                        filter: `grayscale(${(1 - progress) * 0.2}) blur(${(1 - progress) * 3}px)`,
+                                        filter: `grayscale(${(1 - progress) * 0.2}) blur(${(1 - progress) * 2.5}px)`,
+                                        // Snappy ease on the filter only — faster than before so the
+                                        // grey→colour change isn't sluggish, smooth enough to not strobe.
+                                        transition: 'filter 160ms ease-out',
                                         willChange: 'transform, opacity, filter',
                                     }}
                                 >

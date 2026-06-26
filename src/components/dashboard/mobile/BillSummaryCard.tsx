@@ -49,7 +49,7 @@ export function BillSummaryCard({
                     <span className="text-4xl font-extrabold tracking-tight">{formatNumberOnly(total)}</span>
                 </div>
 
-                {/* Bottom Row: Unpaid Status/Summary */}
+                {/* Bottom Row: Unpaid Status/Summary — hidden for now (may return later).
                 <div className="pt-3 border-t border-white/10">
                     <div className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2.5 flex items-center justify-between">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">
@@ -61,6 +61,7 @@ export function BillSummaryCard({
                         </div>
                     </div>
                 </div>
+                */}
             </div>
 
             {/* Premium Animations */}
