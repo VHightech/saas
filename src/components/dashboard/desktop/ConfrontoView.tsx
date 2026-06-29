@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { TrendingUp, TrendingDown, Lightbulb } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
@@ -9,7 +9,6 @@ import { ConsumoComparisonChart } from '@/components/dashboard/ConsumoComparison
 import { consumptionAdvice, consumptionAdviceText } from '@/lib/consumption-advice'
 import type { Bill, UserSupply } from '@/types/dashboard'
 
-const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
 const num = (v: unknown): number => parseFloat(String(v ?? 0).replace(',', '.')) || 0
 const fmtMc = (n: number) => n.toLocaleString('it-IT', { maximumFractionDigits: n < 10 ? 1 : 0 })
 
@@ -61,12 +60,6 @@ export function ConfrontoView({ bills, supplies = [] }: ConfrontoViewProps) {
             prevTotal: prev.reduce((a, b) => a + b, 0),
         }
     }, [supplyBills, advice])
-
-    const [sel, setSel] = useState<number | null>(null)
-    useEffect(() => {
-        const last = curByMonth.reduce((acc, v, i) => (v > 0 ? i : acc), -1)
-        setSel(last === -1 ? null : last)
-    }, [currentYear, supplyBills])
 
     const isLess = advice.diffPct < 0
     const selectedSupply = realSupplies.find((s: any) => s.ulm === selectedUlm)
@@ -122,18 +115,10 @@ export function ConfrontoView({ bills, supplies = [] }: ConfrontoViewProps) {
                             <div className="grid grid-cols-3 gap-6 items-start">
                                 {/* Chart card */}
                                 <div className="col-span-2 bg-white dark:bg-[#1A1D23] rounded-[2rem] p-6">
-                                    <div className="flex items-start justify-between mb-5">
-                                        <div>
-                                            <h2 className="text-lg font-bold text-[#0A2540] dark:text-white">Andamento mensile</h2>
-                                            {selectedSupply?.address && (
-                                                <p className="text-[12px] text-slate-400 font-medium">{selectedSupply.address}</p>
-                                            )}
-                                        </div>
-                                        {sel !== null && (
-                                            <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 text-right">
-                                                {MONTHS[sel]} · <span className="text-[#1E5BFF] dark:text-[#93C5FD] font-bold">{fmtMc(curByMonth[sel])} mc</span>
-                                                {hasCompare && <> <span className="text-slate-300 dark:text-slate-600">/</span> {fmtMc(prevByMonth[sel])} mc ({prevYear})</>}
-                                            </p>
+                                    <div className="mb-5">
+                                        <h2 className="text-lg font-bold text-[#0A2540] dark:text-white">Andamento mensile</h2>
+                                        {selectedSupply?.address && (
+                                            <p className="text-[12px] text-slate-400 font-medium">{selectedSupply.address}</p>
                                         )}
                                     </div>
 
@@ -143,8 +128,6 @@ export function ConfrontoView({ bills, supplies = [] }: ConfrontoViewProps) {
                                         currentYear={currentYear}
                                         prevYear={prevYear}
                                         hasCompare={hasCompare}
-                                        selected={sel}
-                                        onSelect={setSel}
                                         heightClass="h-72"
                                     />
                                 </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import { ChevronLeft, Lightbulb, TrendingDown, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/components/dashboard/dashboard-context'
@@ -15,7 +15,6 @@ interface MobileConfrontoProps {
     onBack: () => void
 }
 
-const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
 const num = (v: unknown): number => parseFloat(String(v ?? 0).replace(',', '.')) || 0
 const fmtMc = (n: number) => n.toLocaleString('it-IT', { maximumFractionDigits: n < 10 ? 1 : 0 })
 
@@ -53,13 +52,6 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
             prevTotal: prev.reduce((a, b) => a + b, 0),
         }
     }, [supplyBills, advice])
-
-    // Default the inspected month to the last one with data in the current year.
-    const [sel, setSel] = useState<number | null>(null)
-    useEffect(() => {
-        const last = curByMonth.reduce((acc, v, i) => (v > 0 ? i : acc), -1)
-        setSel(last === -1 ? null : last)
-    }, [currentYear, supplyBills])
 
     const isLess = advice.diffPct < 0
     const empty = selectedSupply === 'all' || supplyBills.length === 0
@@ -122,27 +114,14 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
 
                     {/* Chart */}
                     <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-5">
-                        <div className="flex items-start justify-between mb-4">
-                            <div>
-                                <p className="text-sm font-bold text-[#0A2540] dark:text-white">Andamento mensile</p>
-                                {sel !== null && (
-                                    <p className="text-[12px] font-medium text-slate-400 mt-0.5">
-                                        {MONTHS[sel]} · <span className="text-[#1E5BFF] dark:text-[#93C5FD] font-bold">{fmtMc(curByMonth[sel])} mc</span>
-                                        {hasCompare && <> <span className="text-slate-300 dark:text-slate-600">/</span> {fmtMc(prevByMonth[sel])} mc ({prevYear})</>}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
+                        <p className="text-sm font-bold text-[#0A2540] dark:text-white mb-4">Andamento mensile</p>
                         <ConsumoComparisonChart
                             curByMonth={curByMonth}
                             prevByMonth={prevByMonth}
                             currentYear={currentYear}
                             prevYear={prevYear}
                             hasCompare={hasCompare}
-                            selected={sel}
-                            onSelect={setSel}
-                            heightClass="h-44"
+                            heightClass="h-52"
                         />
                     </div>
 

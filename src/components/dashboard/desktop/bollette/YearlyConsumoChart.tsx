@@ -1,8 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState, useLayoutEffect } from 'react'
+import {
+    Area,
+    Bar,
+    CartesianGrid,
+    ComposedChart,
+    Line,
+    XAxis,
+    YAxis,
+} from 'recharts'
 import { cn } from '@/lib/utils'
-import { smoothPath } from '@/lib/chart-path'
+import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
 import type { YearlyChartData } from '@/lib/bill-chart'
 
 interface YearlyConsumoChartProps {
@@ -13,58 +21,34 @@ interface YearlyConsumoChartProps {
     formatEuro: (n: number) => string
 }
 
+const chartConfig = {
+    spesa: { label: 'Spesa (€)', color: '#1E5BFF' },
+    consumo: { label: 'Consumo (mc)', color: '#6366f1' },
+} satisfies ChartConfig
+
+const fmtAxis = (n: number) =>
+    n >= 10000
+        ? `${(n / 1000).toLocaleString('it-IT', { maximumFractionDigits: 0 })}k`
+        : Math.round(n).toLocaleString('it-IT')
+
 /**
- * Combined month-by-month chart: bars = spesa (€), overlaid line = consumo (mc),
- * across the 12 calendar months of the selected year. A year selector switches
- * the dataset. Hover/click a month to inspect its values.
+ * Combined month-by-month chart (Recharts / shadcn): bars = spesa (€) on the
+ * left axis, dashed line = consumo (mc) on the right axis, across the 12 months
+ * of the selected year. A year selector switches the dataset.
  */
 export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, formatEuro }: YearlyConsumoChartProps) {
     const { months, spesaScale, consumoScale, totalSpesa, totalConsumo, hasData } = data
 
-    // Default the inspected month to the last one that has data.
-    const lastWithData = months.reduce((acc, m, i) => (m.count > 0 ? i : acc), -1)
-    const [active, setActive] = useState<number | null>(lastWithData === -1 ? null : lastWithData)
-
-    useEffect(() => {
-        const last = months.reduce((acc, m, i) => (m.count > 0 ? i : acc), -1)
-        setActive(last === -1 ? null : last)
-    }, [selectedYear, months])
-
-    const plotRef = useRef<HTMLDivElement>(null)
-    const [size, setSize] = useState({ width: 0, height: 0 })
-    useLayoutEffect(() => {
-        const el = plotRef.current
-        if (!el) return
-        const update = () => setSize({ width: el.clientWidth, height: el.clientHeight })
-        update()
-        const ro = new ResizeObserver(update)
-        ro.observe(el)
-        return () => ro.disconnect()
-    }, [])
-
-    const activeMonth = active !== null ? months[active] : null
-    const headSpesa = activeMonth ? activeMonth.spesa : totalSpesa
-    const headConsumo = activeMonth ? activeMonth.consumo : totalConsumo
-    const headLabel = activeMonth ? `${activeMonth.label} ${selectedYear}` : `Totale ${selectedYear}`
-
-    // Consumo line shares the bars' 0→100 vertical scale (0 at the bottom,
-    // consumoScale at the top) so the line height is anchored to the right-hand
-    // mc axis. Only months with a real reading are plotted (smooth waves).
-    const consumoY = (v: number) => 100 - (Math.min(v, consumoScale) / consumoScale) * 100
-    const consumoPts = months
-        .map((m, i) => ({ x: (i + 0.5) * (100 / 12), y: consumoY(m.consumo), consumo: m.consumo, i }))
-        .filter(p => months[p.i].count > 0)
-    const consumoPath = smoothPath(consumoPts)
-
-    // Axis tick labels: full grouped number up to 9.999, then "k" above.
-    const fmtAxis = (n: number) =>
-        n >= 10000
-            ? `${(n / 1000).toLocaleString('it-IT', { maximumFractionDigits: 0 })}k`
-            : Math.round(n).toLocaleString('it-IT')
+    const chartData = months.map(m => ({
+        month: m.label,
+        spesa: m.spesa,
+        // null on months without a bill so the line waves across real readings.
+        consumo: m.count > 0 ? m.consumo : null,
+    }))
 
     return (
         <div className="flex-1 flex flex-col min-h-0 h-full">
-            {/* Header: value + year tabs */}
+            {/* Header: totals + year tabs */}
             <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="min-w-0">
                     <p className="text-[9px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">
@@ -72,14 +56,14 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                     </p>
                     <div className="flex items-baseline gap-2 flex-wrap">
                         <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight leading-none">
-                            {formatEuro(headSpesa)}
+                            {formatEuro(totalSpesa)}
                         </h3>
                         <span className="text-[13px] font-bold text-indigo-500 dark:text-indigo-400 tabular-nums whitespace-nowrap">
-                            {headConsumo.toLocaleString('it-IT', { maximumFractionDigits: 1 })} mc
+                            {totalConsumo.toLocaleString('it-IT', { maximumFractionDigits: 1 })} mc
                         </span>
                     </div>
                     <p className="text-[10px] text-[#1E5BFF] dark:text-[#93C5FD] font-bold uppercase tracking-wider mt-1">
-                        {headLabel}
+                        Totale {selectedYear}
                     </p>
                 </div>
 
@@ -103,144 +87,116 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                 )}
             </div>
 
-            {/* Plot with € (left) and mc (right) axis references */}
-            <div className="flex-1 min-h-0 flex gap-1 mt-1">
-                {/* Left axis — spesa (€) */}
-                {hasData && (
-                    <div className="w-8 shrink-0 relative">
-                        <span className="absolute top-0 right-0 text-[8px] font-medium text-slate-400 leading-none tabular-nums">€{fmtAxis(spesaScale)}</span>
-                        <span className="absolute top-1/2 right-0 -translate-y-1/2 text-[8px] font-medium text-slate-300 dark:text-slate-600 leading-none tabular-nums">€{fmtAxis(spesaScale / 2)}</span>
-                        <span className="absolute bottom-0 right-0 text-[8px] font-medium text-slate-400 leading-none tabular-nums">0</span>
+            {/* Chart */}
+            <div className="flex-1 min-h-0 mt-1">
+                {!hasData ? (
+                    <div className="h-full flex items-center justify-center text-center">
+                        <p className="text-[11px] font-bold text-slate-400">Nessun dato per il {selectedYear}</p>
                     </div>
+                ) : (
+                    <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+                        <ComposedChart data={chartData} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
+                            <defs>
+                                <linearGradient id="fillSpesa" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#60A5FA" stopOpacity={1} />
+                                    <stop offset="100%" stopColor="#1E5BFF" stopOpacity={0.85} />
+                                </linearGradient>
+                                <linearGradient id="fillConsumo" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.22} />
+                                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="currentColor" className="text-slate-200/60 dark:text-white/10" />
+                            <XAxis
+                                dataKey="month"
+                                tickLine={false}
+                                axisLine={false}
+                                tickMargin={6}
+                                tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }}
+                            />
+                            <YAxis
+                                yAxisId="spesa"
+                                domain={[0, spesaScale]}
+                                allowDataOverflow
+                                width={34}
+                                tickCount={3}
+                                tickLine={false}
+                                axisLine={false}
+                                tick={{ fontSize: 8, fill: '#94a3b8' }}
+                                tickFormatter={(v) => `€${fmtAxis(v)}`}
+                            />
+                            <YAxis
+                                yAxisId="consumo"
+                                orientation="right"
+                                domain={[0, consumoScale]}
+                                allowDataOverflow
+                                width={30}
+                                tickCount={3}
+                                tickLine={false}
+                                axisLine={false}
+                                tick={{ fontSize: 8, fill: '#818cf8' }}
+                                tickFormatter={(v) => fmtAxis(v)}
+                            />
+                            <ChartTooltip
+                                cursor={{ fill: 'rgba(30,91,255,0.07)', radius: 6 }}
+                                content={({ active, payload, label }) => {
+                                    if (!active || !payload?.length) return null
+                                    const sp = payload.find(p => p.dataKey === 'spesa')?.value as number | undefined
+                                    const co = payload.find(p => p.dataKey === 'consumo')?.value as number | undefined
+                                    return (
+                                        <div className="rounded-lg border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1A1D23] px-2.5 py-1.5 text-xs shadow-xl">
+                                            <div className="font-bold text-[#0A2540] dark:text-white mb-1">{label} {selectedYear}</div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded-sm bg-gradient-to-t from-[#1E5BFF] to-[#60A5FA]" />
+                                                <span className="text-slate-500 dark:text-slate-400">Spesa</span>
+                                                <span className="ml-auto font-mono font-medium tabular-nums text-[#0A2540] dark:text-white">{formatEuro(sp ?? 0)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="w-2.5 border-t-2 border-dashed border-indigo-500" />
+                                                <span className="text-slate-500 dark:text-slate-400">Consumo</span>
+                                                <span className="ml-auto font-mono font-medium tabular-nums text-indigo-500 dark:text-indigo-400">{(co ?? 0).toLocaleString('it-IT', { maximumFractionDigits: 1 })} mc</span>
+                                            </div>
+                                        </div>
+                                    )
+                                }}
+                            />
+                            <Bar
+                                yAxisId="spesa"
+                                dataKey="spesa"
+                                fill="url(#fillSpesa)"
+                                fillOpacity={0.9}
+                                radius={[6, 6, 0, 0]}
+                                maxBarSize={30}
+                                activeBar={{ fillOpacity: 1, stroke: '#1E5BFF', strokeOpacity: 0.25, strokeWidth: 4 }}
+                                animationDuration={900}
+                                animationEasing="ease-out"
+                            />
+                            <Area
+                                yAxisId="consumo"
+                                dataKey="consumo"
+                                type="monotone"
+                                fill="url(#fillConsumo)"
+                                stroke="none"
+                                connectNulls
+                                animationDuration={1000}
+                                animationEasing="ease-out"
+                            />
+                            <Line
+                                yAxisId="consumo"
+                                dataKey="consumo"
+                                type="monotone"
+                                stroke="var(--color-consumo)"
+                                strokeWidth={2.5}
+                                strokeDasharray="5 3"
+                                connectNulls
+                                dot={{ r: 2.5, fill: '#fff', stroke: 'var(--color-consumo)', strokeWidth: 2 }}
+                                activeDot={{ r: 5, fill: 'var(--color-consumo)', stroke: '#fff', strokeWidth: 2 }}
+                                animationDuration={1100}
+                                animationEasing="ease-out"
+                            />
+                        </ComposedChart>
+                    </ChartContainer>
                 )}
-
-                <div ref={plotRef} className="flex-1 min-h-0 relative">
-                {/* Reference gridlines */}
-                {hasData && [0, 0.5, 1].map((f) => (
-                    <div
-                        key={f}
-                        className="absolute left-0 right-0 border-t border-dashed border-slate-200/70 dark:border-white/10"
-                        style={{ top: `${f * 100}%` }}
-                    />
-                ))}
-                {!hasData && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center text-center">
-                        <p className="text-[11px] font-bold text-slate-400">
-                            Nessun dato per il {selectedYear}
-                        </p>
-                    </div>
-                )}
-
-                {/* Bars (spesa) */}
-                <div className={cn("absolute inset-0 flex items-end justify-between gap-1.5", !hasData && "opacity-30")}>
-                    {months.map((m, i) => {
-                        const isSelected = active === i
-                        const clipped = m.spesa > spesaScale * 1.001
-                        const pct = Math.min((m.spesa / spesaScale) * 100, 100)
-                        return (
-                            <div
-                                key={m.month}
-                                className="flex-1 h-full relative flex flex-col justify-end items-center cursor-pointer group"
-                                onClick={() => m.count > 0 && setActive(i)}
-                                onMouseEnter={() => m.count > 0 && setActive(i)}
-                            >
-                                {clipped && (
-                                    <span
-                                        className="absolute top-0 left-1/2 -translate-x-1/2 text-[8px] leading-none text-[#1E5BFF] dark:text-[#93C5FD] z-10"
-                                        title="Oltre scala"
-                                    >
-                                        ▲
-                                    </span>
-                                )}
-                                <div
-                                    className="w-full rounded-t-md relative overflow-hidden transition-[height] duration-300"
-                                    style={{ height: `${m.count > 0 ? Math.max(pct, 4) : 2}%` }}
-                                >
-                                    <div className="absolute inset-0 bg-blue-100 dark:bg-blue-900/30" />
-                                    {m.count > 0 && (
-                                        <div className={cn(
-                                            "absolute inset-0 bg-gradient-to-t from-[#1E5BFF] to-[#60A5FA] transition-opacity duration-300",
-                                            isSelected ? "opacity-100" : "opacity-70 group-hover:opacity-90"
-                                        )} />
-                                    )}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-
-                {/* Consumo line overlay (smooth waves through real readings) */}
-                {hasData && consumoPath && (
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
-                        <path
-                            d={consumoPath}
-                            fill="none"
-                            stroke="#6366f1"
-                            strokeWidth="1.5"
-                            strokeDasharray="3 3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            vectorEffect="non-scaling-stroke"
-                            className="opacity-80"
-                        />
-                    </svg>
-                )}
-
-                {/* Consumo dots (HTML so they stay round) */}
-                {hasData && size.width > 0 && consumoPts.map((p) => (
-                    <div
-                        key={`c-${p.i}`}
-                        className="absolute top-0 left-0 pointer-events-none z-10"
-                        style={{ transform: `translate3d(${(p.x / 100) * size.width}px, ${(p.y / 100) * size.height}px, 0)` }}
-                    >
-                        <div className={cn(
-                            "absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-white border-2 border-indigo-500 transition-all",
-                            active === p.i ? "w-3 h-3 shadow-[0_2px_8px_rgba(99,102,241,0.5)]" : "w-2 h-2"
-                        )} />
-                    </div>
-                ))}
-
-                {/* Active month tooltip */}
-                {activeMonth && size.width > 0 && (
-                    <div
-                        className="absolute top-0 left-0 z-20 pointer-events-none transition-transform duration-200"
-                        style={{ transform: `translate3d(${((active! + 0.5) * (100 / 12) / 100) * size.width}px, 0, 0) translateX(-50%)` }}
-                    >
-                        <div className="bg-[#0A2540] dark:bg-white text-white dark:text-[#0A2540] px-2.5 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap shadow-lg leading-tight text-center">
-                            <div>{formatEuro(activeMonth.spesa)}</div>
-                            <div className="text-indigo-300 dark:text-indigo-600">{activeMonth.consumo.toLocaleString('it-IT', { maximumFractionDigits: 1 })} mc</div>
-                        </div>
-                    </div>
-                )}
-                </div>
-
-                {/* Right axis — consumo (mc) */}
-                {hasData && (
-                    <div className="w-9 shrink-0 relative">
-                        <span className="absolute top-0 left-0 text-[8px] font-medium text-indigo-400 leading-none tabular-nums">{fmtAxis(consumoScale)}</span>
-                        <span className="absolute top-1/2 left-0 -translate-y-1/2 text-[8px] font-medium text-indigo-300 dark:text-indigo-500/70 leading-none tabular-nums">{fmtAxis(consumoScale / 2)}</span>
-                        <span className="absolute bottom-0 left-0 text-[8px] font-medium text-indigo-400 leading-none tabular-nums">0</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Month labels — aligned under the plot (match the axis gutters) */}
-            <div className="flex gap-1 mt-2 shrink-0">
-                {hasData && <div className="w-8 shrink-0" />}
-                <div className="flex-1 flex justify-between gap-1.5">
-                    {months.map((m, i) => (
-                        <span
-                            key={m.month}
-                            className={cn(
-                                "flex-1 text-center text-[8px] font-bold uppercase tracking-tighter transition-colors",
-                                active === i ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400"
-                            )}
-                        >
-                            {m.label}
-                        </span>
-                    ))}
-                </div>
-                {hasData && <div className="w-9 shrink-0" />}
             </div>
 
             {/* Legend */}
