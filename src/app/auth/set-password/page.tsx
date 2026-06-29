@@ -37,6 +37,28 @@ export default function SetPasswordPage() {
         })
 
         ;(async () => {
+            // Recovery links deliver the session as tokens in the URL hash
+            // (#access_token=…). The PKCE browser client does NOT auto-process the
+            // hash, so apply it explicitly (same as the invite HashHandler).
+            const hash = window.location.hash
+            if (hash && hash.length > 1) {
+                const hp = new URLSearchParams(hash.substring(1))
+                if (hp.get('error')) { bounce('/login'); return } // expired / invalid link
+                const at = hp.get('access_token')
+                const rt = hp.get('refresh_token')
+                if (at && rt) {
+                    await supabase.auth.setSession({ access_token: at, refresh_token: rt }).catch(() => {})
+                    // strip the tokens from the URL
+                    history.replaceState(null, '', window.location.pathname + window.location.search)
+                }
+            } else {
+                const code = params.get('code')
+                if (code) {
+                    // PKCE code flow (best-effort — needs the verifier in this browser)
+                    await supabase.auth.exchangeCodeForSession(code).catch(() => {})
+                }
+            }
+
             const { data } = await supabase.auth.getSession()
 
             if (data.session) {
