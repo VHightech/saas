@@ -47,14 +47,20 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
     const headConsumo = activeMonth ? activeMonth.consumo : totalConsumo
     const headLabel = activeMonth ? `${activeMonth.label} ${selectedYear}` : `Totale ${selectedYear}`
 
-    // Consumo line: y in the 0-100 viewBox (10% top padding, floor at 95).
-    // Only the months that actually have a bill are plotted, so the line waves
-    // smoothly between real readings instead of crashing to zero on empty months.
-    const consumoY = (v: number) => 95 - (Math.min(v, consumoScale) / consumoScale) * 80
+    // Consumo line shares the bars' 0→100 vertical scale (0 at the bottom,
+    // consumoScale at the top) so the line height is anchored to the right-hand
+    // mc axis. Only months with a real reading are plotted (smooth waves).
+    const consumoY = (v: number) => 100 - (Math.min(v, consumoScale) / consumoScale) * 100
     const consumoPts = months
         .map((m, i) => ({ x: (i + 0.5) * (100 / 12), y: consumoY(m.consumo), consumo: m.consumo, i }))
         .filter(p => months[p.i].count > 0)
     const consumoPath = smoothPath(consumoPts)
+
+    // Axis tick labels: full grouped number up to 9.999, then "k" above.
+    const fmtAxis = (n: number) =>
+        n >= 10000
+            ? `${(n / 1000).toLocaleString('it-IT', { maximumFractionDigits: 0 })}k`
+            : Math.round(n).toLocaleString('it-IT')
 
     return (
         <div className="flex-1 flex flex-col min-h-0 h-full">
@@ -97,8 +103,26 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                 )}
             </div>
 
-            {/* Plot */}
-            <div ref={plotRef} className="flex-1 min-h-0 relative mt-1">
+            {/* Plot with € (left) and mc (right) axis references */}
+            <div className="flex-1 min-h-0 flex gap-1 mt-1">
+                {/* Left axis — spesa (€) */}
+                {hasData && (
+                    <div className="w-8 shrink-0 relative">
+                        <span className="absolute top-0 right-0 text-[8px] font-medium text-slate-400 leading-none tabular-nums">€{fmtAxis(spesaScale)}</span>
+                        <span className="absolute top-1/2 right-0 -translate-y-1/2 text-[8px] font-medium text-slate-300 dark:text-slate-600 leading-none tabular-nums">€{fmtAxis(spesaScale / 2)}</span>
+                        <span className="absolute bottom-0 right-0 text-[8px] font-medium text-slate-400 leading-none tabular-nums">0</span>
+                    </div>
+                )}
+
+                <div ref={plotRef} className="flex-1 min-h-0 relative">
+                {/* Reference gridlines */}
+                {hasData && [0, 0.5, 1].map((f) => (
+                    <div
+                        key={f}
+                        className="absolute left-0 right-0 border-t border-dashed border-slate-200/70 dark:border-white/10"
+                        style={{ top: `${f * 100}%` }}
+                    />
+                ))}
                 {!hasData && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center text-center">
                         <p className="text-[11px] font-bold text-slate-400">
@@ -188,21 +212,35 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                         </div>
                     </div>
                 )}
+                </div>
+
+                {/* Right axis — consumo (mc) */}
+                {hasData && (
+                    <div className="w-9 shrink-0 relative">
+                        <span className="absolute top-0 left-0 text-[8px] font-medium text-indigo-400 leading-none tabular-nums">{fmtAxis(consumoScale)}</span>
+                        <span className="absolute top-1/2 left-0 -translate-y-1/2 text-[8px] font-medium text-indigo-300 dark:text-indigo-500/70 leading-none tabular-nums">{fmtAxis(consumoScale / 2)}</span>
+                        <span className="absolute bottom-0 left-0 text-[8px] font-medium text-indigo-400 leading-none tabular-nums">0</span>
+                    </div>
+                )}
             </div>
 
-            {/* Month labels */}
-            <div className="flex justify-between gap-1.5 mt-2 shrink-0">
-                {months.map((m, i) => (
-                    <span
-                        key={m.month}
-                        className={cn(
-                            "flex-1 text-center text-[8px] font-bold uppercase tracking-tighter transition-colors",
-                            active === i ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400"
-                        )}
-                    >
-                        {m.label}
-                    </span>
-                ))}
+            {/* Month labels — aligned under the plot (match the axis gutters) */}
+            <div className="flex gap-1 mt-2 shrink-0">
+                {hasData && <div className="w-8 shrink-0" />}
+                <div className="flex-1 flex justify-between gap-1.5">
+                    {months.map((m, i) => (
+                        <span
+                            key={m.month}
+                            className={cn(
+                                "flex-1 text-center text-[8px] font-bold uppercase tracking-tighter transition-colors",
+                                active === i ? "text-[#1E5BFF] dark:text-[#93C5FD]" : "text-slate-400"
+                            )}
+                        >
+                            {m.label}
+                        </span>
+                    ))}
+                </div>
+                {hasData && <div className="w-9 shrink-0" />}
             </div>
 
             {/* Legend */}

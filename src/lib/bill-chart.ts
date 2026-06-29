@@ -130,6 +130,30 @@ function robustScale(values: number[]): number {
     return Math.max(top * 1.1, fence, 1)
 }
 
+/**
+ * Round a value up to a "nice" axis ceiling (1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 7.5
+ * ×10ⁿ) with ~5% headroom, so the tallest bar/line never sits flush against the
+ * top and the axis labels are readable round numbers.
+ */
+function niceCeil(value: number): number {
+    if (!Number.isFinite(value) || value <= 0) return 1
+    const v = value * 1.05
+    const exp = Math.floor(Math.log10(v))
+    const base = Math.pow(10, exp)
+    const norm = v / base // [1, 10)
+    const step =
+        norm <= 1 ? 1 :
+        norm <= 1.25 ? 1.25 :
+        norm <= 1.5 ? 1.5 :
+        norm <= 2 ? 2 :
+        norm <= 2.5 ? 2.5 :
+        norm <= 3 ? 3 :
+        norm <= 4 ? 4 :
+        norm <= 5 ? 5 :
+        norm <= 7.5 ? 7.5 : 10
+    return step * base
+}
+
 /** Distinct years (desc) that have at least one bill with a valid emission date. */
 export function availableBillYears(bills: any[]): number[] {
     const years = new Set<number>()
@@ -165,8 +189,8 @@ export function buildYearlyChartData(bills: any[], year: number): YearlyChartDat
 
     const maxSpesa = Math.max(...months.map(m => m.spesa), 1)
     const maxConsumo = Math.max(...months.map(m => m.consumo), 1)
-    const spesaScale = robustScale(months.map(m => m.spesa))
-    const consumoScale = robustScale(months.map(m => m.consumo))
+    const spesaScale = niceCeil(robustScale(months.map(m => m.spesa)))
+    const consumoScale = niceCeil(robustScale(months.map(m => m.consumo)))
     const totalSpesa = months.reduce((s, m) => s + m.spesa, 0)
     const totalConsumo = months.reduce((s, m) => s + m.consumo, 0)
 
