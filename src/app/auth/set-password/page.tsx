@@ -15,14 +15,31 @@ export default function SetPasswordPage() {
     const [password, setPassword] = useState('')
     const [confirm, setConfirm] = useState('')
 
-    // Redirect to login if there's no active session
+    // Guard the recovery/invite session:
+    //  - no session -> back to login.
+    //  - an ADMIN session here means a recovery link was opened in a browser that
+    //    was already logged in as an admin (the recovery session didn't take over).
+    //    Setting a password now would target the WRONG account, so bounce to /admin.
+    //    Admins change their own password from /profile/change-password.
     useEffect(() => {
         const supabase = createClient()
-        supabase.auth.getSession().then(({ data }) => {
-            if (!data.session) {
+        ;(async () => {
+            const { data } = await supabase.auth.getSession()
+            const user = data.session?.user
+            if (!user) {
                 router.replace('/login')
+                return
             }
-        })
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('auth_user_id', user.id)
+                .maybeSingle()
+            const role = profile?.role
+            if (role === 'admin' || role === 'super_admin' || role === 'superadmin') {
+                router.replace('/admin/users')
+            }
+        })()
     }, [router])
 
     // Password strength rules (visual feedback)
