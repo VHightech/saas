@@ -7,7 +7,7 @@ import {
     Printer, Download, Check, Pencil, Edit2, Key,
     TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
 } from 'lucide-react'
-import { resetUserPassword, deleteUser } from './actions'
+import { resetUserPassword, deleteUser, updateUser, updateUserSupply } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'
@@ -236,25 +236,27 @@ export default function AdminUsersPage() {
 
         const toastId = toast.loading('Salvataggio in corso...')
         try {
-            const updates = {
+            // Route through server actions (service-role): the browser/authenticated
+            // role can only update name/address/city by column grant, so a direct
+            // client update of email/CF/etc. returns 403.
+            const res = await updateUser(editingUserId, {
                 name: rowDrafts.fullName,
                 email: rowDrafts.email,
                 codice_fiscale: rowDrafts.codiceFiscale,
                 partita_iva: rowDrafts.partitaIva,
                 pec: rowDrafts.pec,
-                codice_cliente: rowDrafts.clientCode
-            }
-            const { error } = await supabase.from('profiles').update(updates).eq('id', editingUserId)
-            if (error) throw error
+                codice_cliente: rowDrafts.clientCode,
+            })
+            if (res?.error) throw new Error(res.error)
 
-            // Update user supplies addresses if changed
+            // Update supply addresses if changed (correct columns: address/city)
             if (rowDrafts.userSupplies && rowDrafts.userSupplies.length > 0) {
                 for (const s of rowDrafts.userSupplies) {
                     if (s.cif) {
-                        await supabase.from('user_supplies').update({
-                            indirizzo_fornitura: s.indirizzo_fornitura,
-                            citta: s.citta
-                        }).eq('cif', s.cif)
+                        await updateUserSupply(s.cif, {
+                            address: s.indirizzo_fornitura,
+                            city: s.citta,
+                        }, editingUserId)
                     }
                 }
             }

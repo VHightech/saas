@@ -57,6 +57,7 @@ export async function updateUser(userId: string, data: {
     codice_fiscale?: string
     partita_iva?: string
     pec?: string
+    codice_cliente?: string
 }) {
     const authCheck = await requireUserManagement()
     if (authCheck.error) {
@@ -108,7 +109,8 @@ export async function updateUser(userId: string, data: {
             phone: data.phone,
             codice_fiscale: data.codice_fiscale,
             partita_iva: data.partita_iva,
-            pec: data.pec
+            pec: data.pec,
+            ...(data.codice_cliente !== undefined ? { codice_cliente: data.codice_cliente } : {}),
         })
         .eq('id', userId)
 
@@ -167,6 +169,34 @@ export async function resetUserPassword(userId: string) {
         return { error: `Errore durante l'invio dell'email di reset: ${error.message}` }
     }
 
+    return { success: true }
+}
+
+export async function updateUserSupply(cif: string, data: { address?: string; city?: string }, userId?: string) {
+    const authCheck = await requireUserManagement()
+    if (authCheck.error) return { error: authCheck.error }
+
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const { error } = await supabaseAdmin
+        .from('user_supplies')
+        .update({
+            ...(data.address !== undefined ? { address: data.address } : {}),
+            ...(data.city !== undefined ? { city: data.city } : {}),
+        })
+        .eq('cif', cif)
+
+    if (error) {
+        console.error('Error updating supply:', error.code)
+        return { error: 'Errore durante l\'aggiornamento della fornitura.' }
+    }
+
+    if (userId) revalidatePath(`/admin/users/${userId}`)
+    revalidatePath('/admin/users')
     return { success: true }
 }
 

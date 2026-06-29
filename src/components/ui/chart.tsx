@@ -44,11 +44,32 @@ const ChartContainer = React.forwardRef<
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
+  // Only mount the ResponsiveContainer once the wrapper actually has a size.
+  // The responsive layout renders both the desktop and mobile copies; the hidden
+  // one (display:none) measures -1x-1 and makes Recharts warn. Gating on a real
+  // size silences that and avoids rendering an invisible chart.
+  const innerRef = React.useRef<HTMLDivElement | null>(null)
+  const [hasSize, setHasSize] = React.useState(false)
+  const setRefs = React.useCallback((node: HTMLDivElement | null) => {
+    innerRef.current = node
+    if (typeof ref === "function") ref(node)
+    else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+  }, [ref])
+  React.useLayoutEffect(() => {
+    const el = innerRef.current
+    if (!el) return
+    const measure = () => setHasSize(el.clientWidth > 0 && el.clientHeight > 0)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <ChartContext.Provider value={{ config }}>
       <div
         data-chart={chartId}
-        ref={ref}
+        ref={setRefs}
         className={cn(
           "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-slate-400 [&_.recharts-layer]:outline-none [&_.recharts-surface]:outline-none",
           className
@@ -56,9 +77,11 @@ const ChartContainer = React.forwardRef<
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
-          {children}
-        </RechartsPrimitive.ResponsiveContainer>
+        {hasSize && (
+          <RechartsPrimitive.ResponsiveContainer>
+            {children}
+          </RechartsPrimitive.ResponsiveContainer>
+        )}
       </div>
     </ChartContext.Provider>
   )
