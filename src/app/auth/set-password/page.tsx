@@ -27,29 +27,36 @@ export default function SetPasswordPage() {
         const fromLink = params.get('invite') === '1' || params.get('recovery') === '1'
         let settled = false
         const allow = () => { if (!settled) { settled = true; setReady(true) } }
+        const bounce = (to: string) => { if (!settled) { settled = true; router.replace(to) } }
 
-        const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'PASSWORD_RECOVERY') allow()
+        // The recovery link carries its session in the URL (tokens/hash) and is
+        // applied ASYNCHRONOUSLY — wait for that auth event instead of bouncing to
+        // /login before it lands.
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session && fromLink) allow()
         })
 
         ;(async () => {
             const { data } = await supabase.auth.getSession()
-            const user = data.session?.user
-            if (!user) { router.replace('/login'); return }
-            if (fromLink) { allow(); return }
-            // Session present but no invite/recovery context: wait briefly for a
-            // recovery event (hash processing is async), otherwise bounce.
-            setTimeout(async () => {
-                if (settled) return
+
+            if (data.session) {
+                if (fromLink) { allow(); return }
+                // A bare pre-existing session with no invite/recovery context must
+                // NOT set a password (wrong-account risk) → bounce.
                 const { data: profile } = await supabase
-                    .from('profiles').select('role').eq('auth_user_id', user.id).maybeSingle()
+                    .from('profiles').select('role').eq('auth_user_id', data.session.user.id).maybeSingle()
                 const role = profile?.role
-                router.replace(
-                    role === 'admin' || role === 'super_admin' || role === 'superadmin'
-                        ? '/admin/users'
-                        : '/profile'
-                )
-            }, 1500)
+                bounce(role === 'admin' || role === 'super_admin' || role === 'superadmin' ? '/admin/users' : '/profile')
+                return
+            }
+
+            // No session yet.
+            if (fromLink) {
+                // Recovery/invite token still being processed — give it a moment.
+                setTimeout(() => bounce('/login'), 6000)
+            } else {
+                bounce('/login')
+            }
         })()
 
         return () => { sub.subscription.unsubscribe() }
