@@ -41,7 +41,7 @@ export async function register(formData: FormData) {
     // We only allow registration if the user's data is already pre-loaded (e.g. from CSV import)
     const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
-        .select('id, codice_cliente, name, email, codice_fiscale, partita_iva')
+        .select('id, codice_cliente, name, email, codice_fiscale, partita_iva, role')
         .eq('codice_cliente', clientCode)
         .maybeSingle()
 
@@ -123,13 +123,22 @@ export async function register(formData: FormData) {
     //          id = auth_user_id = new.id.
     //    We just enrich the linked profile row with any extra fields collected
     //    by the form that the trigger didn't set.
+    // Preserve a role an admin deliberately pre-assigned to this shadow profile
+    // (e.g. role='admin' set before sending the activation code). Everyone else
+    // defaults to 'user'. Self-registration can never *grant* admin — it only
+    // keeps a role an admin already set on the pre-loaded profile.
+    const ADMIN_ROLES = ['admin', 'super_admin', 'superadmin']
+    const keepRole = existingProfile?.role && ADMIN_ROLES.includes(existingProfile.role)
+        ? existingProfile.role
+        : 'user'
+
     const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .update({
             name: name,
             email: email,
             ...(/^\d{11}$/.test(fiscalCode) ? { partita_iva: fiscalCode } : { codice_fiscale: fiscalCode }),
-            role: 'user',
+            role: keepRole,
             is_shadow: false,
         })
         .eq('auth_user_id', authData.user.id)

@@ -80,6 +80,7 @@ async function promoteToAdmin(userId: string, name: string, email: string) {
     // 2. Upsert Profile with 'admin' role
     const { error: profileError } = await supabase.from('profiles').upsert({
         id: userId,
+        auth_user_id: userId, // keep both links set so role resolves either way
         email: email,
         name: name,
         role: 'admin', // Force admin

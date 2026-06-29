@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserRole } from '@/lib/auth'
 import { verifyTurnstileToken } from '@/lib/captcha'
 import { logAuthEvent, bumpAndCheckRateLimit } from '@/lib/auth-events'
 
@@ -58,14 +59,10 @@ export async function login(formData: FormData) {
         return { error: 'Credenziali non valide.' }
     }
 
-    // We must fetch the role from the 'profiles' table because app_metadata might not be synced
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single()
-
-    const userRole = profile?.role || 'user'
+    // Resolve role via the shared helper so the redirect matches exactly what the
+    // admin layout will allow (it links by auth_user_id OR id). Using a different
+    // lookup here is what previously routed real admins to the user dashboard.
+    const userRole = await getCurrentUserRole()
 
     if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'superadmin') {
         redirect('/admin/users') // Default safe admin page

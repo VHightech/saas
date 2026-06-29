@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { formatEuro, monthYear } from '@/lib/format'
 import { buildYearlyChartData, availableBillYears } from '@/lib/bill-chart'
 import { consumptionAdvice, type AdviceLevel } from '@/lib/consumption-advice'
+import { getContractStatus, STATUS_GLASS_CLASS } from '@/lib/contract-status'
 import { YearlyConsumoChart } from '@/components/dashboard/desktop/bollette/YearlyConsumoChart'
 import type { Profile, Bill } from '@/types/dashboard'
 
@@ -263,7 +264,20 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                             <>
                                                 <div className="flex items-start justify-between">
                                                     <div>
-                                                        <p className="text-[14px] font-bold mb-0.5 opacity-70">Fornitura</p>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <p className="text-[14px] font-bold opacity-70">Fornitura</p>
+                                                            {s.stadio && (() => {
+                                                                const st = getContractStatus(s.stadio)
+                                                                return (
+                                                                    <span className={cn(
+                                                                        "text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap",
+                                                                        STATUS_GLASS_CLASS[st.color]
+                                                                    )}>
+                                                                        {st.label}
+                                                                    </span>
+                                                                )
+                                                            })()}
+                                                        </div>
                                                         <h3 className="text-lg font-bold tracking-tight leading-tight truncate max-w-[240px]">{s.address}</h3>
                                                         {s.city && (
                                                             <p className="text-[13px] font-medium opacity-60 mt-0.5">{s.city}</p>

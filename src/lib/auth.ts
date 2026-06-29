@@ -12,19 +12,33 @@ export async function getCurrentUserRole(): Promise<UserRole> {
         return 'user' // Default safe fallback
     }
 
-    // 1. Check in profiles table (linked via auth_user_id, not id).
-    const { data: profile, error: profileError } = await supabase
+    // Profiles can be linked to the auth user in two ways depending on how the
+    // account was created:
+    //   - auth_user_id = auth.uid  (shadow profile claimed at registration)
+    //   - id = auth.uid            (fresh / script / invite-created profile)
+    // Resolve the role by EITHER link so admin access is not creation-path
+    // dependent (this was the source of admins landing on the user dashboard).
+    let { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('auth_user_id', user.id)
         .maybeSingle()
+
+    if (!profile) {
+        const byId = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+        profile = byId.data
+    }
 
     const role = profile?.role
     if (role === 'admin' || role === 'super_admin' || role === 'superadmin') {
         return role as UserRole
     }
 
-    // 2. Default to 'user'
+    // Default to 'user'
     return 'user'
 }
 

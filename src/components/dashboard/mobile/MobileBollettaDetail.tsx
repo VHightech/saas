@@ -8,6 +8,11 @@ import { CarouselDots } from './CarouselDots'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
 
+const billYearOf = (b: Bill): number => {
+    const d = new Date(b.data_emissione)
+    return Number.isNaN(d.getTime()) ? 0 : d.getFullYear()
+}
+
 interface MobileBollettaDetailProps {
     bill: Bill
     supply?: UserSupply
@@ -40,11 +45,39 @@ export function MobileBollettaDetail({
         if (scrollRef.current) setStride(getStride(scrollRef.current))
     }, [allBills.length])
 
-    const currentIndex = useMemo(() => {
-        return allBills.findIndex(b => b.id === bill.id)
-    }, [allBills, bill.id])
+    // Year selector: the carousel only holds the selected year's bills, so the
+    // user gets a short, clear swipe per year instead of scrolling the whole
+    // history. Years are picked from a scrollable badge row in the header.
+    const years = useMemo(() => {
+        const s = new Set<number>()
+        allBills.forEach(b => { const y = billYearOf(b); if (y) s.add(y) })
+        return [...s].sort((a, b) => b - a)
+    }, [allBills])
 
-    const isMultiBill = allBills.length > 1
+    const [selectedYear, setSelectedYear] = useState<number>(() => billYearOf(bill) || new Date().getFullYear())
+    useEffect(() => { const y = billYearOf(bill); if (y) setSelectedYear(y) }, [bill.id])
+
+    const yearBills = useMemo(
+        () => allBills
+            .filter(b => billYearOf(b) === selectedYear)
+            .sort((a, b) => new Date(b.data_emissione).getTime() - new Date(a.data_emissione).getTime()),
+        [allBills, selectedYear]
+    )
+
+    const selectYear = (y: number) => {
+        if (y === selectedYear) return
+        setSelectedYear(y)
+        const first = allBills
+            .filter(b => billYearOf(b) === y)
+            .sort((a, b) => new Date(b.data_emissione).getTime() - new Date(a.data_emissione).getTime())[0]
+        if (first && first.id !== bill.id) onSelectBill?.(first)
+    }
+
+    const currentIndex = useMemo(() => {
+        return yearBills.findIndex(b => b.id === bill.id)
+    }, [yearBills, bill.id])
+
+    const isMultiBill = yearBills.length > 1
 
     const billNumber = (b: Bill) => b.idboll || b.nome_pdf?.replace('.pdf', '') || b.id
     const formatPrice = (p: any) => Number(p || 0).toFixed(2).replace('.', ',')
@@ -114,8 +147,8 @@ export function MobileBollettaDetail({
             setStride(s)
             if (isScrolling) return
             const index = Math.round(el.scrollLeft / s)
-            if (index !== currentIndex && index >= 0 && index < allBills.length) {
-                onSelectBill?.(allBills[index])
+            if (index !== currentIndex && index >= 0 && index < yearBills.length) {
+                onSelectBill?.(yearBills[index])
             }
         })
     }
@@ -159,6 +192,26 @@ export function MobileBollettaDetail({
                     <p className="text-xl font-black text-[#0A2540] dark:text-white tracking-tight">Dettaglio</p>
                     <div className="w-12" /> {/* Spacer */}
                 </div>
+
+                {/* Year selector — scrollable badges, replaces scrolling the full history */}
+                {years.length > 1 && (
+                    <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide -mx-5 px-5">
+                        {years.map((y) => (
+                            <button
+                                key={y}
+                                onClick={() => selectYear(y)}
+                                className={cn(
+                                    "shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all active:scale-95",
+                                    y === selectedYear
+                                        ? "bg-[#1E5BFF] text-white shadow-sm"
+                                        : "bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400"
+                                )}
+                            >
+                                {y}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div
@@ -181,7 +234,7 @@ export function MobileBollettaDetail({
                             touchAction: isMultiBill ? 'pan-x pan-y' : 'pan-y',
                         }}
                     >
-                        {allBills.map((b, idx) => {
+                        {yearBills.map((b, idx) => {
                             const isPaid = b.status === 'paid'
                             const bt = billingTypeDisplay(b.billing_type)
                             const isActive = idx === currentIndex
@@ -197,15 +250,15 @@ export function MobileBollettaDetail({
                                     key={b.id}
                                     className={cn(
                                         "shrink-0 snap-center",
-                                        allBills.length === 1 ? "w-full" : "w-[calc(100vw-60px)]"
+                                        yearBills.length === 1 ? "w-full" : "w-[calc(100vw-60px)]"
                                     )}
                                     style={{
                                         // Driven directly by scroll position so the card + blur
                                         // track the finger 1:1 (no late-easing transition).
                                         transform: `scale(${0.92 + 0.08 * progress})`,
                                         opacity: 0.4 + 0.6 * progress,
-                                        // Off-centre cards blur + desaturate for a depth swipe feel.
-                                        filter: `grayscale(${(1 - progress) * 0.2}) blur(${(1 - progress) * 2.5}px)`,
+                                        // Off-centre cards blur (no desaturation) for a depth swipe feel.
+                                        filter: `blur(${(1 - progress) * 2.5}px)`,
                                         // Snappy ease on the filter only — faster than before so the
                                         // grey→colour change isn't sluggish, smooth enough to not strobe.
                                         transition: 'filter 160ms ease-out',
@@ -318,9 +371,9 @@ export function MobileBollettaDetail({
 
                     {/* Pagination Dots — windowed/fading so the count always matches
                         the real number of bills (4 bills → 4 dots) and never overflows. */}
-                    {allBills.length > 1 && (
+                    {yearBills.length > 1 && (
                         <div className="flex flex-col items-center mt-6 mb-2">
-                            <CarouselDots count={allBills.length} active={currentIndex} />
+                            <CarouselDots count={yearBills.length} active={currentIndex} />
                         </div>
                     )}
                 </div>

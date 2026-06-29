@@ -73,6 +73,7 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
             .from('profiles')
             .upsert({
                 id: data.user.id,
+                auth_user_id: data.user.id, // keep both links set so role resolves either way
                 email: email,
                 name: fullName || 'Admin',
                 role: 'admin',
