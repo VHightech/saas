@@ -74,14 +74,29 @@ export async function updateUser(userId: string, data: {
         }
     )
 
-    // 1. Update Auth if email is present (Best effort, might fail if Shadow user)
-    if (data.email) {
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
+    // Resolve the AUTH user id. For shadow-claimed profiles, profiles.id is NOT
+    // the auth.users id — the link is auth_user_id. Updating auth by profiles.id
+    // silently hit nothing, which is why the login email never changed.
+    const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('auth_user_id')
+        .eq('id', userId)
+        .maybeSingle()
+    const authUserId = (prof?.auth_user_id as string | null) || null
+
+    // 1. Update the auth email — only if there is a real auth account (registered
+    //    users). email_confirm:true applies the new address immediately (no second
+    //    confirmation step). Errors are surfaced, not swallowed.
+    if (data.email && authUserId) {
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
             email: data.email,
-            user_metadata: {
-                full_name: data.name || ''
-            }
-        }).catch(err => console.log('Auth update skipped/failed (likely shadow user):', err))
+            email_confirm: true,
+            user_metadata: { full_name: data.name || '' },
+        })
+        if (authErr) {
+            console.error('Auth email update failed:', authErr.message)
+            return { error: `Impossibile aggiornare l'email di accesso: ${authErr.message}` }
+        }
     }
 
     // 2. Update Public Profile
@@ -124,38 +139,39 @@ export async function resetUserPassword(userId: string) {
         }
     )
 
-    // 1. Get user email
-    const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
-    if (userError || !user.user?.email) {
-        return { error: 'Impossibile trovare l\'email dell\'utente o utente non registrato.' }
+    // Resolve the AUTH user id (auth_user_id) + email from the profile. Using
+    // profiles.id as the auth id fails for shadow-claimed users.
+    const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('auth_user_id, email')
+        .eq('id', userId)
+        .maybeSingle()
+
+    const authUserId = (prof?.auth_user_id as string | null) || null
+    const email = (prof?.email as string | null) || null
+
+    if (!authUserId || !email) {
+        return { error: 'Utente non registrato: nessun account di accesso da reimpostare.' }
     }
 
-    // 2. Trigger reset email
-    const { error } = await supabaseAdmin.auth.admin.generateLink({
+    // Generate a recovery link via the admin API. This does NOT require a captcha
+    // (unlike resetPasswordForEmail, which is the public/captcha-gated endpoint and
+    // was causing the "captcha_token" error). The link is returned so the admin can
+    // deliver it to the user; it logs them in and lets them set a new password.
+    const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
-        email: user.user.email,
+        email,
         options: {
-            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard/profile`
-        }
+            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/auth/set-password`,
+        },
     })
 
-    if (error) {
-        console.error('Reset password failed:', error.message)
-        return { error: 'Errore durante l\'invio dell\'email di reset.' }
+    if (error || !linkData?.properties?.action_link) {
+        console.error('Reset link generation failed:', error?.message)
+        return { error: 'Errore durante la generazione del link di reset.' }
     }
 
-    // Note: generateLink gives us the link, but if we want Supabase to SEND the email automatically,
-    // we should use resetPasswordForEmail. However, resetPasswordForEmail is a client-side / public API.
-    // To do it "as admin" and ensure the email is sent by Supabase:
-    const { error: sendError } = await supabaseAdmin.auth.resetPasswordForEmail(user.user.email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard/profile`
-    })
-
-    if (sendError) {
-        return { error: 'Errore nell\'invio dell\'email: ' + sendError.message }
-    }
-
-    return { success: true }
+    return { success: true, link: linkData.properties.action_link }
 }
 
 export async function deleteSupply(cif: string, userId?: string) {

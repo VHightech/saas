@@ -9,7 +9,7 @@ import {
 import { Toaster, toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { format, startOfDay, endOfDay } from 'date-fns'
-import { updateUser, deleteUser, deleteSupply } from '../actions'
+import { updateUser, deleteUser, deleteSupply, resetUserPassword } from '../actions'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'
 import { MiniSpendChart } from '@/components/admin/users/MiniSpendChart'
@@ -165,16 +165,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     const handleResetPwd = () => {
         const email = isEditing ? userData.email : profile?.email
         if (!email) { toast.error("Nessuna email presente."); return }
-        toast("Confermi invio reset password?", {
-            description: `Email a: ${email}`,
+        toast("Generare il link di reset password?", {
+            description: `Per: ${email}`,
             action: {
-                label: 'Invia',
+                label: 'Genera',
                 onClick: async () => {
-                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                        redirectTo: `${window.location.origin}/auth/update-password`,
-                    })
-                    if (error) toast.error("Errore: " + error.message)
-                    else toast.success("Email di reset inviata!")
+                    const res = await resetUserPassword(id)
+                    if (res.error) { toast.error("Errore: " + res.error); return }
+                    if (res.link) {
+                        try {
+                            await navigator.clipboard.writeText(res.link)
+                            toast.success("Link di reset copiato negli appunti — invialo all'utente.")
+                        } catch {
+                            toast.success("Link di reset generato.", { description: res.link })
+                        }
+                    }
                 }
             }
         })

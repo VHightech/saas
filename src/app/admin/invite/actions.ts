@@ -29,7 +29,9 @@ function createStandardClient() {
 }
 
 export async function inviteAdmin(formData: FormData): Promise<{ success: boolean; error?: string }> {
-    const authCheck = await requireAdmin()
+    // Only super_admins may create other admins. (Regular admins manage end users,
+    // not the admin roster.)
+    const authCheck = await requireSuperadmin()
     if (authCheck.error) return { success: false, error: authCheck.error }
 
     const email = formData.get('email') as string
