@@ -4,12 +4,12 @@ import { use, useMemo, useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     ArrowLeft, Download, Eye, Edit2, Key, ChevronLeft, ChevronRight,
-    Search, FileText, X, Check, Calendar, ChevronDown, Droplets, Trash2
+    Search, FileText, X, Check, Calendar, ChevronDown, Droplets, Trash2, RotateCcw
 } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { format, startOfDay, endOfDay } from 'date-fns'
-import { updateUser, deleteUser, deleteSupply, resetUserPassword } from '../actions'
+import { updateUser, deleteUser, deleteSupply, resetUserPassword, resetActivation } from '../actions'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'
 import { MiniSpendChart } from '@/components/admin/users/MiniSpendChart'
@@ -176,6 +176,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                     const res = await resetUserPassword(id)
                     if (res.error) { toast.error("Errore: " + res.error); return }
                     toast.success("Email di reset password inviata all'utente.")
+                }
+            }
+        })
+    }
+
+    const handleResetActivation = () => {
+        toast("Ripristinare l'attivazione di questo utente?", {
+            description: "L'account di accesso verrà rimosso e il profilo torna 'da attivare'. Bollette e forniture restano. Potrai inviare un nuovo link di registrazione.",
+            action: {
+                label: 'Ripristina',
+                onClick: async () => {
+                    const res = await resetActivation(id)
+                    if (res.error) { toast.error('Errore: ' + res.error); return }
+                    toast.success('Attivazione ripristinata. Ora puoi inviare un nuovo invito di registrazione.')
+                    fetchData()
                 }
             }
         })
@@ -368,17 +383,29 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                         </div>
                         )}
 
-                        {/* Row 2: Elimina Profilo (super admin only), under the row above */}
+                        {/* Row 2: super-admin actions (reset activation + delete) */}
                         {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
-                            <button
-                                onClick={handleDeleteUser}
-                                className="group h-9 pl-2 pr-4 rounded-full border border-rose-200 dark:border-rose-500/20 bg-white dark:bg-rose-500/5 text-rose-600 dark:text-rose-400 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-[0.98]"
-                            >
-                                <div className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center transition-transform group-hover:scale-110">
-                                    <Trash2 size={11} strokeWidth={3} />
-                                </div>
-                                <span className="text-[12px] font-semibold tracking-tight">Elimina Profilo</span>
-                            </button>
+                            <div className="flex items-center gap-2.5">
+                                <button
+                                    onClick={handleResetActivation}
+                                    className="group h-9 pl-2 pr-4 rounded-full border border-amber-200 dark:border-amber-500/20 bg-white dark:bg-amber-500/5 text-amber-600 dark:text-amber-400 flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all active:scale-[0.98]"
+                                    title="Rimuove l'account di accesso e riporta il profilo a 'da attivare'"
+                                >
+                                    <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center transition-transform group-hover:rotate-[-90deg]">
+                                        <RotateCcw size={11} strokeWidth={3} />
+                                    </div>
+                                    <span className="text-[12px] font-semibold tracking-tight">Reset Attivazione</span>
+                                </button>
+                                <button
+                                    onClick={handleDeleteUser}
+                                    className="group h-9 pl-2 pr-4 rounded-full border border-rose-200 dark:border-rose-500/20 bg-white dark:bg-rose-500/5 text-rose-600 dark:text-rose-400 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-[0.98]"
+                                >
+                                    <div className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center transition-transform group-hover:scale-110">
+                                        <Trash2 size={11} strokeWidth={3} />
+                                    </div>
+                                    <span className="text-[12px] font-semibold tracking-tight">Elimina Profilo</span>
+                                </button>
+                            </div>
                         )}
                     </div>
                 }

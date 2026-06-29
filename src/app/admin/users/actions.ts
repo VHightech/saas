@@ -172,6 +172,57 @@ export async function resetUserPassword(userId: string) {
     return { success: true }
 }
 
+/**
+ * Reset a user's activation: deletes their auth account and returns the profile
+ * to "shadow" state (auth_user_id = null, is_shadow = true) so the next "first
+ * access" sends a brand-new invite instead of a password-reset link. Bills /
+ * supplies / payments are untouched (they FK profiles.id, not auth_user_id).
+ * Super_admin only; admins are managed from the admin roster, not here.
+ */
+export async function resetActivation(userId: string) {
+    const authCheck = await requireSuperadmin()
+    if (authCheck.error) return { error: authCheck.error }
+
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('auth_user_id, role')
+        .eq('id', userId)
+        .maybeSingle()
+
+    if (!prof) return { error: 'Profilo non trovato.' }
+    if (prof.role && ['admin', 'super_admin', 'superadmin'].includes(prof.role as string)) {
+        return { error: 'Gli amministratori si gestiscono dalla pagina Amministratori.' }
+    }
+
+    if (prof.auth_user_id) {
+        const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(prof.auth_user_id as string)
+        if (delErr && !/not.?found/i.test(delErr.message)) {
+            console.error('resetActivation deleteUser:', delErr.message)
+            return { error: "Errore durante la rimozione dell'account di accesso." }
+        }
+    }
+
+    const { error: updErr } = await supabaseAdmin
+        .from('profiles')
+        .update({ auth_user_id: null, is_shadow: true })
+        .eq('id', userId)
+
+    if (updErr) {
+        console.error('resetActivation update:', updErr.code)
+        return { error: 'Errore durante il ripristino del profilo.' }
+    }
+
+    revalidatePath(`/admin/users/${userId}`)
+    revalidatePath('/admin/users')
+    return { success: true }
+}
+
 export async function updateUserSupply(cif: string, data: { address?: string; city?: string }, userId?: string) {
     const authCheck = await requireUserManagement()
     if (authCheck.error) return { error: authCheck.error }
