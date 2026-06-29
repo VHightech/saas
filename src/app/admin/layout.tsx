@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminLayoutShell } from '@/components/admin/admin-layout-shell'
 import { getCurrentUserRole } from '@/lib/auth'
+import { getAdminContext } from '@/lib/auth-checks'
 
 export default async function AdminLayout({
     children,
@@ -25,8 +26,10 @@ export default async function AdminLayout({
         redirect('/profile')
     }
 
-    // 4. Get User Info
+    // 4. Get User Info + granular permissions (for sidebar visibility)
     const userName = user.user_metadata?.full_name || 'Admin'
+    const adminCtx = await getAdminContext()
+    const canInviteAdmins = adminCtx.ctx?.canInviteAdmins ?? false
 
     // 5. Render Shell with Mobile Restriction
     return (
@@ -46,7 +49,7 @@ export default async function AdminLayout({
 
             {/* Desktop Admin Interface */}
             <div className="hidden md:block">
-                <AdminLayoutShell userName={userName} userRole={role}>
+                <AdminLayoutShell userName={userName} userRole={role} canInviteAdmins={canInviteAdmins}>
                     {children}
                 </AdminLayoutShell>
             </div>

@@ -29,6 +29,7 @@ interface AdminLayoutShellProps {
     children: React.ReactNode
     userName?: string
     userRole?: string
+    canInviteAdmins?: boolean
 }
 
 const NAV_ITEMS = [
@@ -38,7 +39,7 @@ const NAV_ITEMS = [
 ] as const
 
 
-export function AdminLayoutShell({ children, userName, userRole }: AdminLayoutShellProps) {
+export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins }: AdminLayoutShellProps) {
     const pathname = usePathname()
     const { setTheme, resolvedTheme } = useTheme()
     const [mounted, setMounted] = useState(false)
@@ -118,9 +119,11 @@ export function AdminLayoutShell({ children, userName, userRole }: AdminLayoutSh
                         <nav className="flex-1 px-3 overflow-y-auto custom-scrollbar space-y-1">
                             <ul className="space-y-1">
                                 {NAV_ITEMS.filter(item => {
-                                    if (item.href === '/admin/upload' || item.href === '/admin/invite') {
-                                        return userRole === 'superadmin' || userRole === 'super_admin'
-                                    }
+                                    const isSuper = userRole === 'superadmin' || userRole === 'super_admin'
+                                    // Upload stays super-admin only.
+                                    if (item.href === '/admin/upload') return isSuper
+                                    // Invite/manage admins: super_admin OR an admin granted the permission.
+                                    if (item.href === '/admin/invite') return isSuper || !!canInviteAdmins
                                     return true
                                 }).map((item) => {
                                     const Icon = item.icon
