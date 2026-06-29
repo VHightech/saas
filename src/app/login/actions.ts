@@ -182,7 +182,7 @@ export async function initiateFirstAccess(codiceCliente: string, captchaToken?: 
     // 5. Profile lookup — outcome NOT leaked to the user.
     const { data: profile, error: profileErr } = await adminClient
         .from('profiles')
-        .select('id, email, is_shadow')
+        .select('id, email, auth_user_id')
         .eq('codice_cliente', cleanCode)
         .maybeSingle()
 
@@ -219,75 +219,39 @@ export async function initiateFirstAccess(codiceCliente: string, captchaToken?: 
         }
     }
 
-    // Uniform response — codice sconosciuto o già attivato collassano nello stesso
-    // messaggio generico, così un attaccante non può distinguere lo stato.
-    if (!profile || profile.is_shadow !== true) {
+    // Unknown codice → uniform generic response (no email sent).
+    if (!profile) {
         await logAuthEvent({
             eventType: 'first_access',
             codiceCliente: cleanCode,
-            email: profile?.email ?? null,
             ip,
             userAgent,
             outcome: 'blocked',
-            reason: !profile ? 'codice_not_found' : 'already_activated',
+            reason: 'codice_not_found',
         })
         return { success: true, message: GENERIC_OK_MESSAGE }
     }
 
-    // 6. Lookup existing auth user; only delete it if the previous invite is
-    //    OLD enough that a legitimate retry is reasonable. This prevents an
-    //    attacker (with knowledge of a codice) from invalidating a user's
-    //    pending invitation by spamming the form.
-    const { data: existingAuthUsers } = await adminClient.auth.admin.listUsers()
-    const existingAuthUser = existingAuthUsers?.users?.find(
-        u => u.email?.toLowerCase() === profile.email.toLowerCase()
-    )
-
     const origin = process.env.NEXT_PUBLIC_SITE_URL
                 || headersList.get('origin')
                 || 'http://localhost:3000'
-    const redirectTo = `${origin}/auth/confirm-invite`
 
-    if (existingAuthUser) {
-        const isUnconfirmed = !existingAuthUser.email_confirmed_at
-        const createdAt = existingAuthUser.created_at ? Date.parse(existingAuthUser.created_at) : 0
-        const ageMs = Date.now() - createdAt
-        const COOLDOWN_MS = isDev ? 0 : 2 * 60 * 1000 // disabled in dev, 2 min in prod
-
-        if (!isUnconfirmed) {
-            // Auth row already confirmed but profile.is_shadow still true: data
-            // inconsistency — refuse to reset and alert.
-            await logAuthEvent({
-                eventType: 'first_access',
-                codiceCliente: cleanCode,
-                email: profile.email,
-                ip,
-                userAgent,
-                outcome: 'blocked',
-                reason: 'auth_confirmed_but_profile_shadow',
-                metadata: { auth_user_id: existingAuthUser.id },
-            })
-            return { success: true, message: GENERIC_OK_MESSAGE }
-        }
-
-        if (ageMs < COOLDOWN_MS) {
-            // Recent invite still potentially in the user's inbox — don't nuke it.
-            await logAuthEvent({
-                eventType: 'first_access',
-                codiceCliente: cleanCode,
-                email: profile.email,
-                ip,
-                userAgent,
-                outcome: 'blocked',
-                reason: 'invite_cooldown',
-                metadata: { auth_user_id: existingAuthUser.id, age_ms: ageMs },
-            })
-            return { success: true, message: GENERIC_OK_MESSAGE }
-        }
-
-        const { error: deleteError } = await adminClient.auth.admin.deleteUser(existingAuthUser.id)
-        if (deleteError) {
-            console.error('[initiateFirstAccess] deleteUser failed:', deleteError.message)
+    // Determine whether an auth account already exists via profiles.auth_user_id
+    // (set by the handle_new_user trigger when the account is created). This avoids
+    // auth.admin.listUsers() (paginates at 50 → unreliable at scale) and the
+    // is_shadow gate, which the trigger flips to false at INVITE time — so a user
+    // who was invited but never set a password used to be wrongly treated as
+    // "already activated" and could not get a new link.
+    if (profile.auth_user_id) {
+        // Account already exists (e.g. a previous link that expired, or an active
+        // user). Send a fresh set-password / recovery link. This is SAFE — it never
+        // deletes the account — and works whether or not onboarding was completed.
+        // Service-role call bypasses the captcha; Supabase delivers the email.
+        const { error: recErr } = await adminClient.auth.resetPasswordForEmail(profile.email, {
+            redirectTo: `${origin}/auth/set-password?recovery=1`,
+        })
+        if (recErr) {
+            console.error('[initiateFirstAccess] recovery send failed:', recErr.message)
             await logAuthEvent({
                 eventType: 'first_access',
                 codiceCliente: cleanCode,
@@ -295,32 +259,32 @@ export async function initiateFirstAccess(codiceCliente: string, captchaToken?: 
                 ip,
                 userAgent,
                 outcome: 'failure',
-                reason: 'delete_user_failed',
+                reason: 'recovery_send_failed',
             })
             return { error: 'Errore di sistema. Riprova più tardi.' }
         }
-    }
-
-    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-        profile.email,
-        {
-            data: { codice_cliente: cleanCode },
-            redirectTo,
+    } else {
+        // Brand-new: send an invite. The trigger links the shadow profile on create.
+        const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+            profile.email,
+            {
+                data: { codice_cliente: cleanCode },
+                redirectTo: `${origin}/auth/confirm-invite`,
+            }
+        )
+        if (inviteError) {
+            console.error('[initiateFirstAccess] inviteUserByEmail failed:', inviteError.message)
+            await logAuthEvent({
+                eventType: 'first_access',
+                codiceCliente: cleanCode,
+                email: profile.email,
+                ip,
+                userAgent,
+                outcome: 'failure',
+                reason: 'invite_send_failed',
+            })
+            return { error: 'Errore di sistema. Riprova più tardi.' }
         }
-    )
-
-    if (inviteError) {
-        console.error('[initiateFirstAccess] inviteUserByEmail failed:', JSON.stringify(inviteError))
-        await logAuthEvent({
-            eventType: 'first_access',
-            codiceCliente: cleanCode,
-            email: profile.email,
-            ip,
-            userAgent,
-            outcome: 'failure',
-            reason: 'invite_send_failed',
-        })
-        return { error: 'Errore di sistema. Riprova più tardi.' }
     }
 
     await logAuthEvent({
