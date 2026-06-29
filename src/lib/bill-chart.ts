@@ -108,7 +108,7 @@ export interface YearlyChartData {
  * scale clamps to the top of the "normal" range so a €110k anomaly clips instead
  * of flattening every other month to nothing.
  */
-function robustScale(values: number[]): number {
+export function robustScale(values: number[]): number {
     const v = values.filter(x => x > 0).sort((a, b) => a - b)
     if (v.length === 0) return 1
     const dataMax = v[v.length - 1]
@@ -135,7 +135,7 @@ function robustScale(values: number[]): number {
  * ×10ⁿ) with ~5% headroom, so the tallest bar/line never sits flush against the
  * top and the axis labels are readable round numbers.
  */
-function niceCeil(value: number): number {
+export function niceCeil(value: number): number {
     if (!Number.isFinite(value) || value <= 0) return 1
     const v = value * 1.05
     const exp = Math.floor(Math.log10(v))

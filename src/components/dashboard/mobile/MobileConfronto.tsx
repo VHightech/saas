@@ -5,7 +5,7 @@ import { ChevronLeft, Lightbulb, TrendingDown, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/components/dashboard/dashboard-context'
 import { consumptionAdvice, consumptionAdviceText } from '@/lib/consumption-advice'
-import { smoothPath } from '@/lib/chart-path'
+import { ConsumoComparisonChart } from '@/components/dashboard/ConsumoComparisonChart'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
 
@@ -30,7 +30,7 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
 
     const advice = useMemo(() => consumptionAdvice(supplyBills), [supplyBills])
 
-    const { curByMonth, prevByMonth, currentYear, prevYear, hasCompare, max, curTotal, prevTotal } = useMemo(() => {
+    const { curByMonth, prevByMonth, currentYear, prevYear, hasCompare, curTotal, prevTotal } = useMemo(() => {
         const sumByMonth = (year: number) => {
             const arr = new Array(12).fill(0)
             supplyBills.forEach((b: any) => {
@@ -49,7 +49,6 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
             currentYear: cy,
             prevYear: py,
             hasCompare: advice.hasData,
-            max: Math.max(...cur, ...prev, 1),
             curTotal: cur.reduce((a, b) => a + b, 0),
             prevTotal: prev.reduce((a, b) => a + b, 0),
         }
@@ -135,76 +134,16 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
                             </div>
                         </div>
 
-                        <div className="relative h-44 flex items-end justify-between gap-1.5">
-                            {curByMonth.map((value, i) => {
-                                const pct = (value / max) * 100
-                                const isSel = sel === i
-                                return (
-                                    <div
-                                        key={i}
-                                        className="flex-1 h-full flex flex-col items-center justify-end cursor-pointer"
-                                        onClick={() => setSel(i)}
-                                    >
-                                        <div
-                                            className={cn(
-                                                'w-full rounded-t transition-all duration-200',
-                                                isSel ? 'bg-gradient-to-t from-[#1E5BFF] to-[#60A5FA]' : 'bg-blue-200 dark:bg-blue-900/40'
-                                            )}
-                                            style={{ height: `${Math.max(pct, value > 0 ? 4 : 1)}%` }}
-                                        />
-                                    </div>
-                                )
-                            })}
-
-                            {/* Previous-year comparison line — smooth waves through
-                                the months that actually have readings. */}
-                            {hasCompare && (() => {
-                                const pts = prevByMonth
-                                    .map((v, i) => ({ x: (i + 0.5) * (100 / 12), y: 100 - (v / max) * 100, i, v }))
-                                    .filter(p => p.v > 0)
-                                const path = smoothPath(pts)
-                                return (
-                                    <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
-                                        {path && (
-                                            <path
-                                                d={path}
-                                                fill="none"
-                                                stroke="#E89B3C"
-                                                strokeWidth="1"
-                                                strokeDasharray="2 2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                vectorEffect="non-scaling-stroke"
-                                            />
-                                        )}
-                                        {pts.map((p) => (
-                                            <circle key={p.i} cx={p.x} cy={p.y} r="1.2" fill="#E89B3C" vectorEffect="non-scaling-stroke" />
-                                        ))}
-                                    </svg>
-                                )
-                            })()}
-                        </div>
-
-                        <div className="flex justify-between gap-1 mt-2">
-                            {MONTHS.map((m, i) => (
-                                <span key={m} className={cn('flex-1 text-center text-[9px] font-bold transition-colors', sel === i ? 'text-[#1E5BFF] dark:text-[#93C5FD]' : 'text-slate-400')}>
-                                    {m}
-                                </span>
-                            ))}
-                        </div>
-
-                        <div className="flex items-center gap-4 mt-4 pt-3 border-t border-slate-100 dark:border-white/5">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-t from-[#1E5BFF] to-[#60A5FA]" />
-                                <span className="text-[11px] font-bold text-slate-500">{currentYear}</span>
-                            </div>
-                            {hasCompare && (
-                                <div className="flex items-center gap-1.5">
-                                    <span className="w-3 border-t-2 border-dotted border-[#E89B3C]" />
-                                    <span className="text-[11px] font-bold text-slate-500">{prevYear}</span>
-                                </div>
-                            )}
-                        </div>
+                        <ConsumoComparisonChart
+                            curByMonth={curByMonth}
+                            prevByMonth={prevByMonth}
+                            currentYear={currentYear}
+                            prevYear={prevYear}
+                            hasCompare={hasCompare}
+                            selected={sel}
+                            onSelect={setSel}
+                            heightClass="h-44"
+                        />
                     </div>
 
                     {/* Consiglio */}

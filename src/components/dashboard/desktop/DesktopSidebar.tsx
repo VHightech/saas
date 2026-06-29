@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { LayoutDashboard, FileText, User as UserIcon, LifeBuoy, LogOut, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, BarChart3, User as UserIcon, LifeBuoy, LogOut, Sun, Moon } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -23,6 +23,13 @@ const NAV: NavEntry[] = [
         icon: <LayoutDashboard size={18} />,
         href: '/profile',
         match: (p) => p === '/profile' || p === '/profile/',
+    },
+    {
+        key: 'confronto',
+        label: 'Confronto consumi',
+        icon: <BarChart3 size={18} />,
+        href: '/confronto',
+        match: (p) => p.startsWith('/confronto'),
     },
     {
         key: 'profilo',
