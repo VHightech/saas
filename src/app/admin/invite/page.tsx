@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { ShieldCheck, Mail, UserPlus, Loader2, X, Check, ArrowRight } from 'lucide-react'
-import { inviteAdmin, getAdmins, removeAdmin } from './actions'
+import { inviteAdmin, getAdmins, removeAdmin, setAdminPermissions, getMyAdminContext } from './actions'
 import { toast } from 'sonner'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ export default function AdminManagementPage() {
     const [loading, setLoading] = useState(true)
     const [isPending, startTransition] = useTransition()
     const [currentUser, setCurrentUser] = useState<any>(null)
+    const [ctx, setCtx] = useState<{ isSuperadmin: boolean; canInviteAdmins: boolean; canManageUsers: boolean } | null>(null)
 
     // Form State
     const [email, setEmail] = useState('')
@@ -37,6 +38,7 @@ export default function AdminManagementPage() {
                     if (profileError) console.error('Error fetching profile:', profileError)
                     setCurrentUser(profile)
                 }
+                setCtx(await getMyAdminContext())
             } catch (err) {
                 console.error('Initialization error:', err)
             } finally {
@@ -75,6 +77,16 @@ export default function AdminManagementPage() {
         })
     }
 
+    const handlePerm = async (adminId: string, key: 'can_invite_admins' | 'can_manage_users', value: boolean) => {
+        // optimistic
+        setAdmins(prev => prev.map(a => a.id === adminId ? { ...a, [key]: value } : a))
+        const res = await setAdminPermissions(adminId, { [key]: value })
+        if (!res.success) {
+            toast.error(res.error || 'Errore salvataggio permessi')
+            loadAdmins()
+        }
+    }
+
     const handleRemove = async (userId: string) => {
         if (!confirm("Sei sicuro di voler revocare l'accesso a questo amministratore?")) return
 
@@ -85,6 +97,18 @@ export default function AdminManagementPage() {
         } else {
             toast.error(res.error || "Errore durante la revoca")
         }
+    }
+
+    if (ctx && !ctx.canInviteAdmins && !ctx.isSuperadmin) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-12">
+                <ShieldCheck size={40} className="text-slate-300 dark:text-slate-700 mb-4" />
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Accesso non consentito</h3>
+                <p className="text-[13px] text-slate-500 max-w-sm">
+                    Solo i super amministratori (o gli admin abilitati) possono gestire le utenze amministrative.
+                </p>
+            </div>
+        )
     }
 
     return (
@@ -203,8 +227,11 @@ export default function AdminManagementPage() {
                                         <div className="flex-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Utenza</span>
                                         </div>
-                                        <div className="w-32 text-center">
+                                        <div className="w-24 text-center">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ruolo</span>
+                                        </div>
+                                        <div className="flex items-center justify-center mr-3">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Permessi</span>
                                         </div>
                                         <div className="w-20 text-right">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Azioni</span>
@@ -245,10 +272,48 @@ export default function AdminManagementPage() {
                                                 </div>
 
                                                 {/* Role Column */}
-                                                <div className="w-32 text-center">
+                                                <div className="w-24 text-center">
                                                     <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 capitalize tracking-tight">
                                                         {admin.role}
                                                     </p>
+                                                </div>
+
+                                                {/* Permissions Column (super_admin only) */}
+                                                <div className="flex items-center justify-center gap-1.5 mr-3">
+                                                    {ctx?.isSuperadmin && (
+                                                        admin.role === 'admin' ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handlePerm(admin.id, 'can_invite_admins', !admin.can_invite_admins)}
+                                                                    className={cn(
+                                                                        "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors",
+                                                                        admin.can_invite_admins
+                                                                            ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20"
+                                                                            : "bg-slate-50 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10 hover:text-slate-600"
+                                                                    )}
+                                                                    title="Può invitare altri amministratori"
+                                                                >
+                                                                    Invita admin
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handlePerm(admin.id, 'can_manage_users', !admin.can_manage_users)}
+                                                                    className={cn(
+                                                                        "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors",
+                                                                        admin.can_manage_users
+                                                                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                                            : "bg-slate-50 dark:bg-white/5 text-slate-400 border-slate-200 dark:border-white/10 hover:text-slate-600"
+                                                                    )}
+                                                                    title="Può modificare i dati utente e reimpostare le password"
+                                                                >
+                                                                    Gestione utenti
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                                                Tutti i permessi
+                                                            </span>
+                                                        )
+                                                    )}
                                                 </div>
 
                                                 {/* Actions Column */}

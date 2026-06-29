@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireAdmin, requireSuperadmin } from '@/lib/auth-checks'
+import { requireSuperadmin, requireUserManagement } from '@/lib/auth-checks'
 
 export async function deleteUser(userId: string) {
     const authCheck = await requireSuperadmin()
@@ -58,7 +58,7 @@ export async function updateUser(userId: string, data: {
     partita_iva?: string
     pec?: string
 }) {
-    const authCheck = await requireAdmin()
+    const authCheck = await requireUserManagement()
     if (authCheck.error) {
         return { error: authCheck.error }
     }
@@ -123,7 +123,7 @@ export async function updateUser(userId: string, data: {
 }
 
 export async function resetUserPassword(userId: string) {
-    const authCheck = await requireAdmin()
+    const authCheck = await requireUserManagement()
     if (authCheck.error) {
         return { error: authCheck.error }
     }
@@ -154,24 +154,20 @@ export async function resetUserPassword(userId: string) {
         return { error: 'Utente non registrato: nessun account di accesso da reimpostare.' }
     }
 
-    // Generate a recovery link via the admin API. This does NOT require a captcha
-    // (unlike resetPasswordForEmail, which is the public/captcha-gated endpoint and
-    // was causing the "captcha_token" error). The link is returned so the admin can
-    // deliver it to the user; it logs them in and lets them set a new password.
-    const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email,
-        options: {
-            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/auth/set-password`,
-        },
+    // Send the recovery email automatically. Calling this from the SERVER with the
+    // service-role client bypasses the Turnstile captcha (the captcha only applies
+    // to the public/browser endpoint — that was the source of the "captcha_token"
+    // error). Supabase delivers the email via its configured provider (Resend).
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/auth/set-password`,
     })
 
-    if (error || !linkData?.properties?.action_link) {
-        console.error('Reset link generation failed:', error?.message)
-        return { error: 'Errore durante la generazione del link di reset.' }
+    if (error) {
+        console.error('Reset email failed:', error.message)
+        return { error: `Errore durante l'invio dell'email di reset: ${error.message}` }
     }
 
-    return { success: true, link: linkData.properties.action_link }
+    return { success: true }
 }
 
 export async function deleteSupply(cif: string, userId?: string) {

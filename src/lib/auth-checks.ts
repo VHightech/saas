@@ -3,6 +3,52 @@ import type { User } from '@supabase/supabase-js'
 
 type ProfileRow = {
     role: 'admin' | 'super_admin' | 'superadmin' | 'user' | null
+    can_invite_admins?: boolean | null
+    can_manage_users?: boolean | null
+}
+
+const SUPER_ROLES = ['super_admin', 'superadmin']
+const ADMIN_ROLES = ['admin', 'super_admin', 'superadmin']
+
+export interface AdminContext {
+    user: User
+    role: NonNullable<ProfileRow['role']>
+    isSuperadmin: boolean
+    canInviteAdmins: boolean
+    canManageUsers: boolean
+}
+
+/**
+ * Resolve the signed-in admin's role + granular permissions. super_admin
+ * implicitly has every permission. Returns a failure shape if not an admin.
+ */
+export async function getAdminContext(): Promise<
+    { ctx: AdminContext; error?: undefined } | { ctx?: undefined; error: string; status: number }
+> {
+    const supabase = await createClient()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) return { error: 'Unauthorized', status: 401 }
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, can_invite_admins, can_manage_users')
+        .eq('auth_user_id', user.id)
+        .maybeSingle<ProfileRow>()
+
+    const role = profile?.role ?? null
+    if (!role || !ADMIN_ROLES.includes(role)) {
+        return { error: 'Forbidden: Admin access required', status: 403 }
+    }
+    const isSuperadmin = SUPER_ROLES.includes(role)
+    return {
+        ctx: {
+            user,
+            role,
+            isSuperadmin,
+            canInviteAdmins: isSuperadmin || !!profile?.can_invite_admins,
+            canManageUsers: isSuperadmin || !!profile?.can_manage_users,
+        },
+    }
 }
 
 export type AdminCheckSuccess = {
@@ -69,4 +115,24 @@ export async function requireSuperadmin(): Promise<AdminCheckResult> {
     }
 
     return { error: 'Forbidden: Superadmin access required', status: 403 }
+}
+
+/** Allow super_admin, or an admin granted `can_manage_users`. */
+export async function requireUserManagement(): Promise<AdminCheckResult> {
+    const res = await getAdminContext()
+    if (!res.ctx) return { error: res.error, status: res.status }
+    if (!res.ctx.canManageUsers) {
+        return { error: 'Forbidden: gestione utenti non consentita', status: 403 }
+    }
+    return { user: res.ctx.user, profile: { role: res.ctx.role } }
+}
+
+/** Allow super_admin, or an admin granted `can_invite_admins`. */
+export async function requireAdminInvite(): Promise<AdminCheckResult> {
+    const res = await getAdminContext()
+    if (!res.ctx) return { error: res.error, status: res.status }
+    if (!res.ctx.canInviteAdmins) {
+        return { error: 'Forbidden: invito amministratori non consentito', status: 403 }
+    }
+    return { user: res.ctx.user, profile: { role: res.ctx.role } }
 }

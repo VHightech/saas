@@ -84,6 +84,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     const [bills, setBills] = useState<Bill[]>([])
     const [supplySearch, setSupplySearch] = useState('')
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
+    const [canManage, setCanManage] = useState(false)
     const [suppliesActionsOpen, setSuppliesActionsOpen] = useState(false)
 
     const supabase = createClient()
@@ -117,8 +118,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         // Fetch current user role
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-            const { data: currProfile } = await supabase.from('profiles').select('role').eq('auth_user_id', user.id).single()
-            setCurrentUserRole(currProfile?.role || null)
+            const { data: currProfile } = await supabase.from('profiles').select('role, can_manage_users').eq('auth_user_id', user.id).single()
+            const role = currProfile?.role || null
+            setCurrentUserRole(role)
+            setCanManage(role === 'super_admin' || role === 'superadmin' || !!currProfile?.can_manage_users)
         }
 
         setLoading(false)
@@ -172,14 +175,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 onClick: async () => {
                     const res = await resetUserPassword(id)
                     if (res.error) { toast.error("Errore: " + res.error); return }
-                    if (res.link) {
-                        try {
-                            await navigator.clipboard.writeText(res.link)
-                            toast.success("Link di reset copiato negli appunti — invialo all'utente.")
-                        } catch {
-                            toast.success("Link di reset generato.", { description: res.link })
-                        }
-                    }
+                    toast.success("Email di reset password inviata all'utente.")
                 }
             }
         })
@@ -323,7 +319,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 }
                 topActions={
                     <div className="flex flex-col items-end gap-2.5">
-                        {/* Row 1: Modifica + Reset Pwd (same line as the Indietro button) */}
+                        {/* Row 1: Modifica + Reset Pwd — only for admins allowed to manage users */}
+                        {canManage && (
                         <div className="flex items-center gap-2.5">
                             {isEditing ? (
                                 <div className="flex items-center rounded-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
@@ -369,6 +366,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                 <span className="text-[12px] font-semibold tracking-tight">Reset Pwd</span>
                             </button>
                         </div>
+                        )}
 
                         {/* Row 2: Elimina Profilo (super admin only), under the row above */}
                         {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (

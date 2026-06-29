@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { requireAdmin, requireSuperadmin } from '@/lib/auth-checks'
+import { requireAdmin, requireSuperadmin, requireAdminInvite, getAdminContext } from '@/lib/auth-checks'
 
 // Helper to create Admin Client (bypass RLS)
 
@@ -29,9 +29,8 @@ function createStandardClient() {
 }
 
 export async function inviteAdmin(formData: FormData): Promise<{ success: boolean; error?: string }> {
-    // Only super_admins may create other admins. (Regular admins manage end users,
-    // not the admin roster.)
-    const authCheck = await requireSuperadmin()
+    // super_admin, or an admin granted can_invite_admins.
+    const authCheck = await requireAdminInvite()
     if (authCheck.error) return { success: false, error: authCheck.error }
 
     const email = formData.get('email') as string
@@ -150,5 +149,49 @@ export async function removeAdmin(userId: string) {
     if (error) return { success: false, error: error.message }
 
     revalidatePath('/admin/admins')
+    revalidatePath('/admin/invite')
     return { success: true }
+}
+
+// Super_admin grants/revokes granular permissions on a regular admin.
+export async function setAdminPermissions(
+    userId: string,
+    perms: { can_invite_admins?: boolean; can_manage_users?: boolean }
+) {
+    const authCheck = await requireSuperadmin()
+    if (authCheck.error) return { success: false, error: authCheck.error }
+
+    const supabaseAdmin = createAdminClient()
+
+    // Only mutate regular admins — super_admins implicitly have everything.
+    const { error } = await supabaseAdmin
+        .from('profiles')
+        .update({
+            ...(perms.can_invite_admins !== undefined ? { can_invite_admins: perms.can_invite_admins } : {}),
+            ...(perms.can_manage_users !== undefined ? { can_manage_users: perms.can_manage_users } : {}),
+        })
+        .eq('id', userId)
+        .eq('role', 'admin')
+
+    if (error) {
+        console.error('setAdminPermissions error:', error.code)
+        return { success: false, error: 'Errore durante il salvataggio dei permessi.' }
+    }
+
+    revalidatePath('/admin/invite')
+    return { success: true }
+}
+
+// Lightweight context for gating admin UI (buttons, page access).
+export async function getMyAdminContext() {
+    const res = await getAdminContext()
+    if (!res.ctx) {
+        return { isSuperadmin: false, canInviteAdmins: false, canManageUsers: false, role: null as string | null }
+    }
+    return {
+        isSuperadmin: res.ctx.isSuperadmin,
+        canInviteAdmins: res.ctx.canInviteAdmins,
+        canManageUsers: res.ctx.canManageUsers,
+        role: res.ctx.role as string,
+    }
 }
