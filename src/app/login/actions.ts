@@ -2,7 +2,6 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getCurrentUserRole } from '@/lib/auth'
 import { verifyTurnstileToken } from '@/lib/captcha'
 import { logAuthEvent, bumpAndCheckRateLimit } from '@/lib/auth-events'
 
@@ -59,10 +58,30 @@ export async function login(formData: FormData) {
         return { error: 'Credenziali non valide.' }
     }
 
-    // Resolve role via the shared helper so the redirect matches exactly what the
-    // admin layout will allow (it links by auth_user_id OR id). Using a different
-    // lookup here is what previously routed real admins to the user dashboard.
-    const userRole = await getCurrentUserRole()
+    // Resolve the role from the just-authenticated user id via the admin client.
+    // Doing it here (rather than re-reading the session with getUser() right after
+    // sign-in, which can race the cookie write and is also constrained by RLS)
+    // guarantees the redirect sees the real role. Profiles link to the auth user
+    // by auth_user_id (shadow-claimed) OR id (script/invite-created) — check both.
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminClient = createAdminClient()
+
+    let { data: roleRow } = await adminClient
+        .from('profiles')
+        .select('role')
+        .eq('auth_user_id', data.user.id)
+        .maybeSingle()
+
+    if (!roleRow) {
+        const byId = await adminClient
+            .from('profiles')
+            .select('role')
+            .eq('id', data.user.id)
+            .maybeSingle()
+        roleRow = byId.data
+    }
+
+    const userRole = roleRow?.role || 'user'
 
     if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'superadmin') {
         redirect('/admin/users') // Default safe admin page
