@@ -137,7 +137,9 @@ export function robustScale(values: number[]): number {
  */
 export function niceCeil(value: number): number {
     if (!Number.isFinite(value) || value <= 0) return 1
-    const v = value * 1.05
+    // ~25% headroom so the tallest bar / a near-constant line sits around 3/4
+    // height instead of hugging the top edge of the plot.
+    const v = value / 0.8
     const exp = Math.floor(Math.log10(v))
     const base = Math.pow(10, exp)
     const norm = v / base // [1, 10)
