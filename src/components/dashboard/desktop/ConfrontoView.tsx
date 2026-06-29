@@ -19,7 +19,15 @@ interface ConfrontoViewProps {
 }
 
 export function ConfrontoView({ bills, supplies = [] }: ConfrontoViewProps) {
-    const realSupplies = useMemo(() => supplies.filter((s: any) => s?.ulm), [supplies])
+    // user_supplies has no `ulm` column — it's derived from the last 6 of `cif`
+    // (matching bills.ulm, a generated column). Derive it here so the supply
+    // filter actually matches bills (otherwise the page shows no data).
+    const realSupplies = useMemo(
+        () => supplies
+            .map((s: any) => ({ ...s, ulm: s.ulm || (s.cif ? String(s.cif).slice(-6) : '') }))
+            .filter((s: any) => s.ulm),
+        [supplies]
+    )
 
     const [selectedUlm, setSelectedUlm] = useState<string>(() => {
         const withBills = realSupplies.find((s: any) => bills.some((b: any) => b.ulm === s.ulm))
