@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { ShieldCheck, Mail, UserPlus, Loader2, X, Check, ArrowRight } from 'lucide-react'
-import { inviteAdmin, getAdmins, removeAdmin, setAdminPermissions, getMyAdminContext } from './actions'
+import { inviteAdmin, getAdmins, removeAdmin, setAdminPermissions, getMyAdminContext, resendAdminInvite } from './actions'
 import { toast } from 'sonner'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { cn } from '@/lib/utils'
@@ -85,6 +85,12 @@ export default function AdminManagementPage() {
             toast.error(res.error || 'Errore salvataggio permessi')
             loadAdmins()
         }
+    }
+
+    const handleResend = async (userId: string) => {
+        const res = await resendAdminInvite(userId)
+        if (res.success) toast.success('Email con link aggiornato inviata.')
+        else toast.error(res.error || "Errore durante l'invio")
     }
 
     const handleRemove = async (userId: string) => {
@@ -233,7 +239,7 @@ export default function AdminManagementPage() {
                                         <div className="flex items-center justify-center mr-3">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Permessi</span>
                                         </div>
-                                        <div className="w-20 text-right">
+                                        <div className="w-24 text-right">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Azioni</span>
                                         </div>
                                     </div>
@@ -317,7 +323,14 @@ export default function AdminManagementPage() {
                                                 </div>
 
                                                 {/* Actions Column */}
-                                                <div className="w-20 flex justify-end">
+                                                <div className="w-24 flex justify-end items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleResend(admin.id)}
+                                                        className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:text-sky-500 transition-all group/send"
+                                                        title="Reinvia email con link aggiornato"
+                                                    >
+                                                        <Mail size={17} strokeWidth={2} className="group-hover/send:scale-110 transition-transform" />
+                                                    </button>
                                                     {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && admin.id !== currentUser?.id && (
                                                         <button
                                                             onClick={() => handleRemove(admin.id)}

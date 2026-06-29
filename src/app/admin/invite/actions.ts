@@ -107,6 +107,35 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
     }
 }
 
+// Re-send a fresh set-password link to an already-invited admin (e.g. one whose
+// link expired or who never completed onboarding). The auth user already exists,
+// so inviteUserByEmail would fail — send a recovery email instead (service-role
+// bypasses the captcha; Supabase delivers it).
+export async function resendAdminInvite(userId: string): Promise<{ success: boolean; error?: string }> {
+    const authCheck = await requireAdminInvite()
+    if (authCheck.error) return { success: false, error: authCheck.error }
+
+    const supabaseAdmin = createAdminClient()
+    const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('email')
+        .eq('id', userId)
+        .maybeSingle()
+
+    if (!prof?.email) return { success: false, error: 'Email non trovata per questo amministratore.' }
+
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(prof.email as string, {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/set-password?recovery=1`,
+    })
+
+    if (error) {
+        console.error('resendAdminInvite error:', error.message)
+        return { success: false, error: 'Errore durante l\'invio dell\'email.' }
+    }
+
+    return { success: true }
+}
+
 export async function getAdmins() {
     const authCheck = await requireAdmin()
     if (authCheck.error) return []
