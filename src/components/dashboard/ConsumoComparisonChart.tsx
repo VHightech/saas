@@ -79,7 +79,9 @@ export function ConsumoComparisonChart({
                         tickLine={false}
                         axisLine={false}
                         tickMargin={6}
-                        tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }}
+                        interval={0}
+                        minTickGap={0}
+                        tick={{ fontSize: 8, fontWeight: 700, fill: '#94a3b8' }}
                     />
                     <YAxis
                         domain={[0, scale]}
@@ -144,7 +146,7 @@ export function ConsumoComparisonChart({
                             strokeWidth={2.5}
                             strokeDasharray="5 3"
                             connectNulls
-                            dot={{ r: 2.5, fill: '#fff', stroke: 'var(--color-prev)', strokeWidth: 2 }}
+                            dot={{ r: 3, fill: 'var(--color-prev)', stroke: '#fff', strokeWidth: 1.5 }}
                             activeDot={{ r: 5, fill: 'var(--color-prev)', stroke: '#fff', strokeWidth: 2 }}
                             animationDuration={1100}
                             animationEasing="ease-out"
