@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Download, CreditCard, Euro, MapPin, FileText
 import { cn } from '@/lib/utils'
 import { billingTypeDisplay } from '@/lib/billing-type'
 import { CarouselDots } from './CarouselDots'
+import { PAGOPA_ENABLED } from '@/lib/features'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
 
@@ -333,7 +334,7 @@ export function MobileBollettaDetail({
                                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                                                             PAGATA
                                                         </span>
-                                                    ) : b.expected_method === 'MP23' ? (
+                                                    ) : (PAGOPA_ENABLED && b.expected_method === 'MP23') ? (
                                                         <span className="text-[10px] font-black tracking-[0.15em] uppercase text-[#93C5FD] bg-[#1E5BFF]/20 px-2.5 py-1 rounded-lg border border-[#60A5FA]/20 flex items-center gap-1.5">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-[#60A5FA] animate-pulse" />
                                                             DA PAGARE
@@ -354,7 +355,7 @@ export function MobileBollettaDetail({
                                                     <span className="text-[9px] font-bold uppercase tracking-widest text-white/50">N° Bolletta</span>
                                                     <span className="text-[12px] font-bold text-white mt-0.5 font-mono">{billNumber(b)}</span>
                                                 </div>
-                                                {!isPaid && b.expected_method === 'MP23' && (
+                                                {PAGOPA_ENABLED && !isPaid && b.expected_method === 'MP23' && (
                                                     <div className="flex items-center gap-2 shrink-0">
                                                         <img src="/pagoPA-white.svg" alt="pagoPA" className="h-5 w-auto opacity-90" />
                                                     </div>
@@ -472,7 +473,7 @@ export function MobileBollettaDetail({
 
             {/* Sticky Bottom Actions */}
             <div className="p-5 bg-white/95 dark:bg-[#1A1D23]/95 backdrop-blur-lg border-t border-slate-100 dark:border-white/5 shrink-0 flex flex-col gap-2.5 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
-                {bill.status !== 'paid' && bill.expected_method === 'MP23' && (
+                {PAGOPA_ENABLED && bill.status !== 'paid' && bill.expected_method === 'MP23' && (
                     <button
                         onClick={() => {
                             if (!isPaying) onPay?.(bill);

@@ -15,6 +15,7 @@ import { WaveHero } from '@/components/dashboard/desktop/WaveHero'
 import { MobileBollette } from '@/components/dashboard/mobile/MobileBollette'
 import { MobileBollettaDetail } from '@/components/dashboard/mobile/MobileBollettaDetail'
 import { initiatePagoPAPayment } from '@/actions/payment-actions'
+import { PAGOPA_ENABLED } from '@/lib/features'
 import type { Profile, Bill, UserSupply } from '@/types/dashboard'
 
 interface BolletteViewProps {
@@ -484,7 +485,7 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
                                                                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[12px] font-bold whitespace-nowrap">
                                                                     <CheckCircle2 size={13} /> Pagata
                                                                 </span>
-                                                            ) : b.expected_method === 'MP23' ? (
+                                                            ) : (PAGOPA_ENABLED && b.expected_method === 'MP23') ? (
                                                                 <div className="flex items-center gap-3">
                                                                     <div className="h-5 flex items-center shrink-0">
                                                                         <img src="/pagoPA.svg" alt="pagoPA" className="h-5 w-auto dark:hidden" />

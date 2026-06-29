@@ -4,6 +4,7 @@ import React from 'react'
 import { FileText, CheckCircle2, Droplets } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { billingTypeDisplay, DASHBOARD_TONE_CLASS } from '@/lib/billing-type'
+import { PAGOPA_ENABLED } from '@/lib/features'
 import type { Bill } from '@/types/dashboard'
 
 interface BillListItemProps {
@@ -58,7 +59,7 @@ export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillList
                         {bt.short}
                     </span>
                 )}
-                {!isPaid && bill.expected_method === 'MP23' && (
+                {PAGOPA_ENABLED && !isPaid && bill.expected_method === 'MP23' && (
                     <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#93C5FD] text-[#0A2540] whitespace-nowrap">
                         Da pagare
                     </span>
