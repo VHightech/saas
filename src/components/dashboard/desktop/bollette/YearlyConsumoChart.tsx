@@ -129,7 +129,6 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
                                 yAxisId="consumo"
                                 orientation="right"
                                 domain={[0, consumoScale]}
-                                allowDataOverflow
                                 width={30}
                                 tickCount={3}
                                 tickLine={false}

@@ -11,7 +11,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
-import { robustScale, niceCeil } from '@/lib/bill-chart'
+import { niceCeil } from '@/lib/bill-chart'
 
 const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
 
@@ -49,7 +49,9 @@ export function ConsumoComparisonChart({
     hasCompare,
     heightClass = 'h-52',
 }: ConsumoComparisonChartProps) {
-    const scale = niceCeil(robustScale([...curByMonth, ...prevByMonth]))
+    // Scale to fit ALL values (with headroom) so neither the bars nor the
+    // comparison line ever get clipped — a cut line reads as broken.
+    const scale = niceCeil(Math.max(...curByMonth, ...prevByMonth, 1))
 
     const data = MONTHS.map((m, i) => ({
         month: m,
@@ -81,7 +83,6 @@ export function ConsumoComparisonChart({
                     />
                     <YAxis
                         domain={[0, scale]}
-                        allowDataOverflow
                         width={34}
                         tickCount={3}
                         tickLine={false}

@@ -189,8 +189,11 @@ export function buildYearlyChartData(bills: any[], year: number): YearlyChartDat
 
     const maxSpesa = Math.max(...months.map(m => m.spesa), 1)
     const maxConsumo = Math.max(...months.map(m => m.consumo), 1)
+    // Spesa is drawn as bars → robust scale (a freak bill clips, doesn't flatten
+    // the rest). Consumo is drawn as a LINE → fit the actual max (with headroom)
+    // so the line is never clipped, which would read as broken.
     const spesaScale = niceCeil(robustScale(months.map(m => m.spesa)))
-    const consumoScale = niceCeil(robustScale(months.map(m => m.consumo)))
+    const consumoScale = niceCeil(Math.max(...months.map(m => m.consumo), 1))
     const totalSpesa = months.reduce((s, m) => s + m.spesa, 0)
     const totalConsumo = months.reduce((s, m) => s + m.consumo, 0)
 

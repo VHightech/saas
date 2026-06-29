@@ -253,14 +253,12 @@ export function MobileBollettaDetail({
                                         yearBills.length === 1 ? "w-full" : "w-[calc(100vw-60px)]"
                                     )}
                                     style={{
-                                        // Driven directly by scroll position so the card + blur
-                                        // track the finger 1:1 (no late-easing transition).
-                                        transform: `scale(${0.92 + 0.08 * progress})`,
-                                        opacity: 0.4 + 0.6 * progress,
-                                        // Off-centre cards blur (no desaturation) for a depth swipe feel.
+                                        // Match the home fornitura carousel exactly: scale/opacity are
+                                        // scroll-driven (1:1, no lag) and only the blur eases (160ms) so
+                                        // it reacts to the swipe without strobing.
+                                        transform: `scale(${0.95 + 0.05 * progress})`,
+                                        opacity: 0.5 + 0.5 * progress,
                                         filter: `blur(${(1 - progress) * 2.5}px)`,
-                                        // Snappy ease on the filter only — faster than before so the
-                                        // grey→colour change isn't sluggish, smooth enough to not strobe.
                                         transition: 'filter 160ms ease-out',
                                         willChange: 'transform, opacity, filter',
                                     }}
