@@ -14,17 +14,45 @@ export default function SetPasswordPage() {
     const [showConfirm, setShowConfirm] = useState(false)
     const [password, setPassword] = useState('')
     const [confirm, setConfirm] = useState('')
+    const [ready, setReady] = useState(false)
 
-    // Requires an active session (established by the invite/recovery link).
-    // NOTE: this page is the first-password step for BOTH invited admins and
-    // recovering users, so we must NOT bounce admin sessions here.
+    // Only allow setting a password when this page was reached from a genuine
+    // invite (?invite=1) or recovery (?recovery=1, set on the email redirect)
+    // flow — or a PASSWORD_RECOVERY event from the URL hash. A bare pre-existing
+    // session (e.g. an admin opened a link in their already-logged-in browser)
+    // is NOT a valid context and must not set a password for the wrong account.
     useEffect(() => {
         const supabase = createClient()
-        supabase.auth.getSession().then(({ data }) => {
-            if (!data.session) {
-                router.replace('/login')
-            }
+        const params = new URLSearchParams(window.location.search)
+        const fromLink = params.get('invite') === '1' || params.get('recovery') === '1'
+        let settled = false
+        const allow = () => { if (!settled) { settled = true; setReady(true) } }
+
+        const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY') allow()
         })
+
+        ;(async () => {
+            const { data } = await supabase.auth.getSession()
+            const user = data.session?.user
+            if (!user) { router.replace('/login'); return }
+            if (fromLink) { allow(); return }
+            // Session present but no invite/recovery context: wait briefly for a
+            // recovery event (hash processing is async), otherwise bounce.
+            setTimeout(async () => {
+                if (settled) return
+                const { data: profile } = await supabase
+                    .from('profiles').select('role').eq('auth_user_id', user.id).maybeSingle()
+                const role = profile?.role
+                router.replace(
+                    role === 'admin' || role === 'super_admin' || role === 'superadmin'
+                        ? '/admin/users'
+                        : '/profile'
+                )
+            }, 1500)
+        })()
+
+        return () => { sub.subscription.unsubscribe() }
     }, [router])
 
     // Password strength rules (visual feedback)
@@ -62,6 +90,14 @@ export default function SetPasswordPage() {
             setLoading(false)
         }
         // On success, the server action calls redirect('/profile') — no extra handling needed
+    }
+
+    if (!ready) {
+        return (
+            <div className="min-h-[100dvh] w-full flex items-center justify-center bg-white dark:bg-[#0a0a0a]">
+                <Loader2 className="animate-spin text-slate-400" size={32} />
+            </div>
+        )
     }
 
     return (

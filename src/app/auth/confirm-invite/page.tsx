@@ -30,7 +30,7 @@ export default async function ConfirmInvitePage({ searchParams }: ConfirmInviteP
             console.error('[confirm-invite] exchangeCodeForSession error:', error.message)
             return renderMessage('Link non valido o scaduto. Richiedi un nuovo invito.')
         }
-        redirect('/auth/set-password')
+        redirect('/auth/set-password?invite=1')
     }
 
     // Legacy / magic-link flow with token_hash.
@@ -43,7 +43,7 @@ export default async function ConfirmInvitePage({ searchParams }: ConfirmInviteP
             console.error('[confirm-invite] verifyOtp error:', error.message)
             return renderMessage('Link non valido o scaduto. Richiedi un nuovo invito.')
         }
-        redirect('/auth/set-password')
+        redirect('/auth/set-password?invite=1')
     }
 
     // No query params — likely implicit flow with tokens in the URL hash.

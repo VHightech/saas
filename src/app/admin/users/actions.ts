@@ -161,7 +161,7 @@ export async function resetUserPassword(userId: string) {
     // to the public/browser endpoint — that was the source of the "captcha_token"
     // error). Supabase delivers the email via its configured provider (Resend).
     const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/auth/set-password`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/auth/set-password?recovery=1`,
     })
 
     if (error) {

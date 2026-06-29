@@ -47,7 +47,7 @@ export default function HashHandler() {
                 return
             }
 
-            router.replace('/auth/set-password')
+            router.replace('/auth/set-password?invite=1')
         }
 
         run()
