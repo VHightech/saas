@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
     Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X,
-    Printer, Download, Check, Pencil, Edit2, Key,
+    Printer, Download, Check, Pencil, Edit2,
     TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
 } from 'lucide-react'
-import { resetUserPassword, deleteUser, updateUser, updateUserSupply } from './actions'
+import { deleteUser, updateUser, updateUserSupply } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'

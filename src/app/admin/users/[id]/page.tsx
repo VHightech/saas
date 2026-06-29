@@ -3,13 +3,13 @@
 import { use, useMemo, useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    ArrowLeft, Download, Eye, Edit2, Key, ChevronLeft, ChevronRight,
+    ArrowLeft, Download, Eye, Edit2, ChevronLeft, ChevronRight,
     Search, FileText, X, Check, Calendar, ChevronDown, Droplets, Trash2, RotateCcw
 } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { format, startOfDay, endOfDay } from 'date-fns'
-import { updateUser, deleteUser, deleteSupply, resetUserPassword, resetActivation } from '../actions'
+import { updateUser, deleteUser, deleteSupply, resetActivation } from '../actions'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'
 import { MiniSpendChart } from '@/components/admin/users/MiniSpendChart'
@@ -163,22 +163,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 error: (err) => `Errore: ${err.message}`
             }
         )
-    }
-
-    const handleResetPwd = () => {
-        const email = isEditing ? userData.email : profile?.email
-        if (!email) { toast.error("Nessuna email presente."); return }
-        toast("Generare il link di reset password?", {
-            description: `Per: ${email}`,
-            action: {
-                label: 'Genera',
-                onClick: async () => {
-                    const res = await resetUserPassword(id)
-                    if (res.error) { toast.error("Errore: " + res.error); return }
-                    toast.success("Email di reset password inviata all'utente.")
-                }
-            }
-        })
     }
 
     const handleResetActivation = () => {
@@ -370,16 +354,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                     <span className="text-[12px] font-semibold tracking-tight">Modifica</span>
                                 </button>
                             )}
-
-                            <button
-                                onClick={handleResetPwd}
-                                className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
-                            >
-                                <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform group-hover:rotate-12">
-                                    <Key size={11} strokeWidth={3} />
-                                </div>
-                                <span className="text-[12px] font-semibold tracking-tight">Reset Pwd</span>
-                            </button>
                         </div>
                         )}
 
