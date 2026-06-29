@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Eye, EyeOff } from 'lucide-react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { changePassword } from './actions'
 
 export default function ChangePasswordPage() {
@@ -14,6 +15,8 @@ export default function ChangePasswordPage() {
         confirmPassword: ''
     })
     const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+    const captchaRef = useRef<TurnstileInstance | null>(null)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -24,8 +27,17 @@ export default function ChangePasswordPage() {
             return
         }
 
+        if (!captchaToken) {
+            setMessage({ kind: 'err', text: 'Completa il controllo di sicurezza.' })
+            return
+        }
+
         setLoading(true)
-        const res = await changePassword(form.currentPassword, form.newPassword)
+        const res = await changePassword(form.currentPassword, form.newPassword, captchaToken)
+
+        // Turnstile tokens are single-use — reset after every attempt.
+        captchaRef.current?.reset()
+        setCaptchaToken(null)
 
         if (res?.error) {
             setMessage({ kind: 'err', text: res.error })
@@ -64,18 +76,32 @@ export default function ChangePasswordPage() {
                         label="Password Attuale"
                         value={form.currentPassword}
                         onChange={v => setForm({ ...form, currentPassword: v })}
+                        autoComplete="current-password"
                     />
                     <Field
                         label="Nuova Password"
                         value={form.newPassword}
                         onChange={v => setForm({ ...form, newPassword: v })}
                         helper="Almeno 8 caratteri, una maiuscola, una minuscola, un numero e un carattere speciale."
+                        autoComplete="new-password"
                     />
                     <Field
                         label="Conferma Nuova Password"
                         value={form.confirmPassword}
                         onChange={v => setForm({ ...form, confirmPassword: v })}
+                        autoComplete="new-password"
                     />
+
+                    <div className="flex justify-center">
+                        <Turnstile
+                            ref={captchaRef}
+                            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                            options={{ theme: 'auto', size: 'flexible' }}
+                            onSuccess={setCaptchaToken}
+                            onExpire={() => setCaptchaToken(null)}
+                            onError={() => setCaptchaToken(null)}
+                        />
+                    </div>
 
                     <div className="flex gap-3 pt-2">
                         <button
@@ -104,26 +130,40 @@ function Field({
     label,
     value,
     onChange,
-    helper
+    helper,
+    autoComplete
 }: {
     label: string
     value: string
     onChange: (v: string) => void
     helper?: string
+    autoComplete?: string
 }) {
+    const [show, setShow] = useState(false)
     return (
         <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">{label}</label>
-            <input
-                type="password"
-                required
-                minLength={8}
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-white"
-                placeholder="••••••••"
-                autoComplete="current-password"
-            />
+            <div className="relative">
+                <input
+                    type={show ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    className="w-full px-4 py-3 pr-12 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-white"
+                    placeholder="••••••••"
+                    autoComplete={autoComplete}
+                />
+                <button
+                    type="button"
+                    onClick={() => setShow(s => !s)}
+                    tabIndex={-1}
+                    aria-label={show ? 'Nascondi password' : 'Mostra password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                    {show ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+            </div>
             {helper && <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{helper}</p>}
         </div>
     )
