@@ -200,14 +200,8 @@ export async function resetActivation(userId: string) {
         return { error: 'Gli amministratori si gestiscono dalla pagina Amministratori.' }
     }
 
-    if (prof.auth_user_id) {
-        const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(prof.auth_user_id as string)
-        if (delErr && !/not.?found/i.test(delErr.message)) {
-            console.error('resetActivation deleteUser:', delErr.message)
-            return { error: "Errore durante la rimozione dell'account di accesso." }
-        }
-    }
-
+    // Order matters: clear the profile -> auth link FIRST, otherwise the FK
+    // profiles.auth_user_id -> auth.users(id) blocks the auth user deletion.
     const { error: updErr } = await supabaseAdmin
         .from('profiles')
         .update({ auth_user_id: null, is_shadow: true })
@@ -216,6 +210,14 @@ export async function resetActivation(userId: string) {
     if (updErr) {
         console.error('resetActivation update:', updErr.code)
         return { error: 'Errore durante il ripristino del profilo.' }
+    }
+
+    if (prof.auth_user_id) {
+        const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(prof.auth_user_id as string)
+        if (delErr && !/not.?found|user.?not.?found/i.test(delErr.message)) {
+            console.error('resetActivation deleteUser:', delErr.message)
+            return { error: `Profilo ripristinato, ma account di accesso non rimosso: ${delErr.message}` }
+        }
     }
 
     revalidatePath(`/admin/users/${userId}`)
