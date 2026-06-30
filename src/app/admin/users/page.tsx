@@ -90,6 +90,7 @@ export default function AdminUsersPage() {
             success: (res) => {
                 if (res.error) throw new Error(res.error)
                 fetchUsers()
+                refreshHeaderStats()
                 return 'Utente eliminato'
             },
             error: (err) => `Errore: ${err.message}`
@@ -186,39 +187,42 @@ export default function AdminUsersPage() {
                     toast.warning(`Nessun utente trovato con stato "${getContractStatus(contractStatusFilter).label}". Verifica i dati importati.`, { id: 'filter-empty' })
                 }
             }
-
-            // Fetch current user role
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                const { data: currProfile } = await supabase.from('profiles').select('role').eq('auth_user_id', user.id).maybeSingle()
-                setCurrentUserRole(currProfile?.role || null)
-            }
-
-            // Aggregate stats (independent of pagination).
-            // Use head:true count queries so we get exact counts without
-            // hitting the PostgREST default 1000-row cap.
-            const baseFilter = (q: any) =>
-                q.not('role', 'in', '("admin","super_admin","superadmin")')
-
-            const [{ count: totalCount }, { count: shadowDb }] = await Promise.all([
-                baseFilter(
-                    supabase.from('profiles').select('id', { count: 'exact', head: true })
-                ),
-                baseFilter(
-                    supabase.from('profiles').select('id', { count: 'exact', head: true })
-                ).eq('is_shadow', true)
-            ])
-
-            const total = totalCount ?? 0
-            const shadow = shadowDb ?? 0
-            setShadowCount(shadow)
-            setActiveCount(Math.max(0, total - shadow))
         } catch (e: any) {
             console.error('Error fetching users:', e?.message || e)
         } finally {
             setLoading(false)
         }
     }
+
+    // Current role + global active/shadow badge counts are independent of the
+    // current filter/page/sort, so resolve them only on mount (and after a
+    // delete) instead of on every fetchUsers() call. This is what made toggling
+    // a filter feel slow: each toggle was firing getUser() + a role query + two
+    // full-table counts on top of the search RPC.
+    const refreshHeaderStats = useCallback(async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: currProfile } = await supabase
+                .from('profiles').select('role').eq('auth_user_id', user.id).maybeSingle()
+            setCurrentUserRole(currProfile?.role || null)
+        }
+
+        const baseFilter = (q: any) =>
+            q.not('role', 'in', '("admin","super_admin","superadmin")')
+        const [{ count: totalCount }, { count: shadowDb }] = await Promise.all([
+            baseFilter(supabase.from('profiles').select('id', { count: 'exact', head: true })),
+            baseFilter(supabase.from('profiles').select('id', { count: 'exact', head: true })).eq('is_shadow', true),
+        ])
+        const total = totalCount ?? 0
+        const shadow = shadowDb ?? 0
+        setShadowCount(shadow)
+        setActiveCount(Math.max(0, total - shadow))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    useEffect(() => {
+        refreshHeaderStats()
+    }, [refreshHeaderStats])
 
     const handleRowClick = (userId: string) => {
         if (editingUserId) return
