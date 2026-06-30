@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
     Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X,
-    Printer, Download, Edit2,
+    Printer, Download,
     TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
 } from 'lucide-react'
 import { deleteUser } from './actions'
@@ -88,17 +88,25 @@ export default function AdminUsersPage() {
         })
     }
 
-    const handleDeleteUser = async (u: UserProfile) => {
-        if (!window.confirm(`Sei sicuro di voler eliminare definitivamente l'utente ${u.fullName}?`)) return
-        toast.promise(deleteUser(u.id), {
-            loading: 'Eliminazione in corso...',
-            success: (res) => {
-                if (res.error) throw new Error(res.error)
-                fetchUsers()
-                refreshHeaderStats()
-                return 'Utente eliminato'
+    const handleDeleteUser = (u: UserProfile) => {
+        toast(`Eliminare definitivamente ${u.fullName || 'questo utente'}?`, {
+            description: 'Verranno rimossi profilo e accesso. Operazione irreversibile.',
+            action: {
+                label: 'Elimina',
+                onClick: () => {
+                    toast.promise(deleteUser(u.id), {
+                        loading: 'Eliminazione in corso...',
+                        success: (res) => {
+                            if (res.error) throw new Error(res.error)
+                            fetchUsers()
+                            refreshHeaderStats()
+                            return 'Utente eliminato'
+                        },
+                        error: (err) => `Errore: ${err.message}`
+                    })
+                }
             },
-            error: (err) => `Errore: ${err.message}`
+            cancel: { label: 'Annulla', onClick: () => { } }
         })
     }
     const toggleSelectAll = () => {
@@ -1107,8 +1115,8 @@ export default function AdminUsersPage() {
                                                 </span>
                                             </div>
 
-                                            {/* Actions — shown only on row hover */}
-                                            <div className="flex items-center justify-end pr-2 gap-2 opacity-0 group-hover:opacity-100">
+                                            {/* Actions — delete (super admin) on hover; the whole row opens the detail page */}
+                                            <div className="flex items-center justify-end pr-2 gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
                                                 {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
@@ -1118,13 +1126,7 @@ export default function AdminUsersPage() {
                                                         <Trash2 size={14} />
                                                     </button>
                                                 )}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); router.push(`/admin/users/${u.id}`); }}
-                                                    className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] hover:opacity-80"
-                                                    title="Modifica utente"
-                                                >
-                                                    <Edit2 size={13} strokeWidth={2.8} />
-                                                </button>
+                                                <ChevronRight size={16} className="text-slate-300 dark:text-slate-600" aria-hidden />
                                             </div>
                                         </div>
                                     )
