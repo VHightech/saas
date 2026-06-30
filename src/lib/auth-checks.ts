@@ -29,11 +29,23 @@ export async function getAdminContext(): Promise<
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) return { error: 'Unauthorized', status: 401 }
 
-    const { data: profile } = await supabase
+    // Resolve the profile by the canonical link (auth_user_id), falling back to
+    // legacy rows linked via profiles.id. Mirrors getCurrentUserRole so admins
+    // whose link predates the auth_user_id backfill don't get routed to /profile.
+    let { data: profile } = await supabase
         .from('profiles')
         .select('role, can_invite_admins, can_manage_users')
         .eq('auth_user_id', user.id)
         .maybeSingle<ProfileRow>()
+
+    if (!profile) {
+        const fallback = await supabase
+            .from('profiles')
+            .select('role, can_invite_admins, can_manage_users')
+            .eq('id', user.id)
+            .maybeSingle<ProfileRow>()
+        profile = fallback.data
+    }
 
     const role = profile?.role ?? null
     if (!role || !ADMIN_ROLES.includes(role)) {

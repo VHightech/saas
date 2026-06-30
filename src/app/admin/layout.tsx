@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { AdminLayoutShell } from '@/components/admin/admin-layout-shell'
-import { getCurrentUserRole } from '@/lib/auth'
 import { getAdminContext } from '@/lib/auth-checks'
 
 export default async function AdminLayout({
@@ -9,27 +7,17 @@ export default async function AdminLayout({
 }: {
     children: React.ReactNode
 }) {
-    const supabase = await createClient()
-
-    // 1. Check Auth Session
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-        redirect('/login')
-    }
-
-    // 2. Check Role (Using new Auth Logic)
-    const role = await getCurrentUserRole()
-
-    // Allow only administrative roles to access the admin area
-    if (role !== 'admin' && role !== 'super_admin' && role !== 'superadmin') {
-        redirect('/profile')
-    }
-
-    // 4. Get User Info + granular permissions (for sidebar visibility)
-    const userName = user.user_metadata?.full_name || 'Admin'
+    // Single resolution of session + role + permissions. getAdminContext does
+    // one getUser() and one profile lookup (with id fallback), and only returns
+    // a ctx for administrative roles — so this replaces the previous three
+    // sequential auth round-trips (getUser + getCurrentUserRole + getAdminContext).
     const adminCtx = await getAdminContext()
-    const canInviteAdmins = adminCtx.ctx?.canInviteAdmins ?? false
+    if (!adminCtx.ctx) {
+        redirect(adminCtx.status === 401 ? '/login' : '/profile')
+    }
+
+    const { user, role, canInviteAdmins } = adminCtx.ctx
+    const userName = user.user_metadata?.full_name || 'Admin'
 
     // 5. Render Shell with Mobile Restriction
     return (

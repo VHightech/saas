@@ -124,8 +124,10 @@ export async function updateUser(userId: string, data: {
         return { error: 'Errore durante l\'aggiornamento del profilo.' }
     }
 
-    revalidatePath(`/admin/users/${userId}`)
-    revalidatePath('/admin/users')
+    // No revalidatePath: the admin pages are client-rendered and re-fetch their
+    // own data, while the edit form merges the saved fields into local state.
+    // Calling revalidatePath here only forced a router refresh that re-ran the
+    // admin layout's auth round-trip on every save — the source of the lag.
     return { success: true }
 }
 
@@ -253,8 +255,8 @@ export async function updateUserSupply(cif: string, data: { address?: string; ci
         return { error: 'Errore durante l\'aggiornamento della fornitura.' }
     }
 
-    if (userId) revalidatePath(`/admin/users/${userId}`)
-    revalidatePath('/admin/users')
+    // No revalidatePath (see updateUser): avoids the layout-refresh round-trip.
+    void userId
     return { success: true }
 }
 
