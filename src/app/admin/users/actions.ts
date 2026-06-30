@@ -80,19 +80,24 @@ export async function updateUser(userId: string, data: {
     // silently hit nothing, which is why the login email never changed.
     const { data: prof } = await supabaseAdmin
         .from('profiles')
-        .select('auth_user_id')
+        .select('auth_user_id, email')
         .eq('id', userId)
         .maybeSingle()
     const authUserId = (prof?.auth_user_id as string | null) || null
+    const currentEmail = (prof?.email as string | null) || null
 
-    // 1. Update the auth email — only if there is a real auth account (registered
-    //    users). email_confirm:true applies the new address immediately (no second
-    //    confirmation step). Errors are surfaced, not swallowed.
-    if (data.email && authUserId) {
-        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+    // 1. Update the auth email ONLY when it actually changed. The GoTrue admin
+    //    call is a network round-trip; firing it on every save (e.g. a name-only
+    //    edit) made saving slow. email_confirm:true applies the new address
+    //    immediately. Errors are surfaced, not swallowed.
+    const emailChanged =
+        !!data.email && !!authUserId &&
+        (data.email || '').trim().toLowerCase() !== (currentEmail || '').trim().toLowerCase()
+
+    if (emailChanged) {
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId as string, {
             email: data.email,
             email_confirm: true,
-            user_metadata: { full_name: data.name || '' },
         })
         if (authErr) {
             console.error('Auth email update failed:', authErr.message)

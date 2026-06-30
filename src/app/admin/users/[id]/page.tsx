@@ -157,7 +157,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 loading: 'Salvataggio in corso...',
                 success: (res) => {
                     if (res.error) throw new Error(res.error)
-                    setIsEditing(false); fetchData()
+                    setIsEditing(false)
+                    // Merge the saved fields locally instead of re-fetching the
+                    // whole profile + all bills + supplies (that re-fetch was the lag).
+                    setProfile((p: any) => p ? {
+                        ...p,
+                        name: userData.name,
+                        email: userData.email,
+                        phone: userData.phone,
+                        codice_fiscale: userData.codiceFiscale,
+                        partita_iva: userData.partitaIva,
+                        pec: userData.pec,
+                    } : p)
                     return 'Modifiche salvate'
                 },
                 error: (err) => `Errore: ${err.message}`

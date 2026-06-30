@@ -249,16 +249,13 @@ export default function AdminUsersPage() {
             })
             if (res?.error) throw new Error(res.error)
 
-            // Update supply addresses if changed (correct columns: address/city)
-            if (rowDrafts.userSupplies && rowDrafts.userSupplies.length > 0) {
-                for (const s of rowDrafts.userSupplies) {
-                    if (s.cif) {
-                        await updateUserSupply(s.cif, {
-                            address: s.indirizzo_fornitura,
-                            city: s.citta,
-                        }, editingUserId)
-                    }
-                }
+            // Update supply addresses (correct columns: address/city). Run in
+            // parallel — sequential awaits made saving slow for multi-supply users.
+            const supplies = (rowDrafts.userSupplies || []).filter((s: any) => s.cif)
+            if (supplies.length > 0) {
+                await Promise.all(supplies.map((s: any) =>
+                    updateUserSupply(s.cif, { address: s.indirizzo_fornitura, city: s.citta }, editingUserId)
+                ))
             }
 
             toast.success('Utente aggiornato con successo', { id: toastId })
