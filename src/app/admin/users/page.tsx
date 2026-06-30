@@ -50,6 +50,13 @@ export default function AdminUsersPage() {
     const initialPage = Number(searchParams.get('page')) || 1
     const initialLimit = Number(searchParams.get('limit')) || 25
     const initialSearch = searchParams.get('q') || ''
+    // Filters/sort persisted in the URL so a refresh keeps the current view.
+    const oneOf = <T extends string>(val: string | null, allowed: readonly T[], fallback: T): T =>
+        (allowed as readonly string[]).includes(val ?? '') ? (val as T) : fallback
+    const initialStatus = oneOf(searchParams.get('status'), ['all', 'active', 'shadow'] as const, 'all')
+    const initialContract = searchParams.get('contract') || 'all'
+    const initialSortBy = oneOf(searchParams.get('sort'), ['created_at', 'name', 'user_supplies_count', 'bills_count'] as const, 'created_at')
+    const initialOrder = oneOf(searchParams.get('order'), ['asc', 'desc'] as const, 'desc')
 
     const [searchTerm, setSearchTerm] = useState(initialSearch)
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialSearch)
@@ -69,10 +76,10 @@ export default function AdminUsersPage() {
     const [rowDrafts, setRowDrafts] = useState<Partial<UserProfile>>({})
     const [activeBills, setActiveBills] = useState<any[]>([])
     const [activeBillsLoading, setActiveBillsLoading] = useState(false)
-    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'shadow'>('all')
-    const [contractStatusFilter, setContractStatusFilter] = useState<string>('all')
-    const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'user_supplies_count' | 'bills_count'>('created_at')
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'shadow'>(initialStatus)
+    const [contractStatusFilter, setContractStatusFilter] = useState<string>(initialContract)
+    const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'user_supplies_count' | 'bills_count'>(initialSortBy)
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialOrder)
 
     const toggleSelect = (id: string) => {
         setSelected(prev => {
@@ -115,37 +122,38 @@ export default function AdminUsersPage() {
 
     const supabase = createClient()
 
-    const updateUrl = useCallback((updates: { page?: number; limit?: number; q?: string }) => {
-        const params = new URLSearchParams(searchParams.toString())
-        if (updates.page !== undefined) params.set('page', updates.page.toString())
-        if (updates.limit !== undefined) params.set('limit', updates.limit.toString())
-        if (updates.q !== undefined) {
-            if (updates.q) params.set('q', updates.q)
-            else params.delete('q')
-        }
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-    }, [pathname, router, searchParams])
-
     useEffect(() => {
         const timer = setTimeout(() => {
             if (searchTerm !== debouncedSearchTerm) {
                 setDebouncedSearchTerm(searchTerm)
                 setCurrentPage(1)
-                updateUrl({ q: searchTerm, page: 1 })
             }
         }, 400)
         return () => clearTimeout(timer)
-    }, [searchTerm, debouncedSearchTerm, updateUrl])
+    }, [searchTerm, debouncedSearchTerm])
+
+    // Mirror the full view state (search, page, size, filters, sort) into the URL
+    // so a refresh restores it. Defaults are omitted to keep the URL clean.
+    useEffect(() => {
+        const params = new URLSearchParams()
+        if (debouncedSearchTerm) params.set('q', debouncedSearchTerm)
+        if (currentPage !== 1) params.set('page', String(currentPage))
+        if (itemsPerPage !== 25) params.set('limit', String(itemsPerPage))
+        if (statusFilter !== 'all') params.set('status', statusFilter)
+        if (contractStatusFilter !== 'all') params.set('contract', contractStatusFilter)
+        if (sortBy !== 'created_at') params.set('sort', sortBy)
+        if (sortOrder !== 'desc') params.set('order', sortOrder)
+        const qs = params.toString()
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    }, [debouncedSearchTerm, currentPage, itemsPerPage, statusFilter, contractStatusFilter, sortBy, sortOrder, pathname, router])
 
     const handlePageChange = (newPage: number) => {
         setCurrentPage(newPage)
-        updateUrl({ page: newPage })
     }
 
     const handleLimitChange = (newLimit: number) => {
         setItemsPerPage(newLimit)
         setCurrentPage(1)
-        updateUrl({ limit: newLimit, page: 1 })
     }
 
     useEffect(() => {
