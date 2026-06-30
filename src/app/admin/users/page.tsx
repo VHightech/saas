@@ -1107,29 +1107,24 @@ export default function AdminUsersPage() {
                                                 </span>
                                             </div>
 
-                                            {/* Actions */}
-                                            <div className="flex items-center justify-end pr-2 gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
-                                                            className="w-9 h-9 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white transition-all active:scale-90"
-                                                            title="Elimina utente"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </button>
-                                                    )}
+                                            {/* Actions — icons slide in from the left on row hover */}
+                                            <div className="flex items-center justify-end pr-2 gap-2">
+                                                {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); router.push(`/admin/users/${u.id}`); }}
-                                                        className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
-                                                        title="Apri scheda utente"
+                                                        onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
+                                                        className="w-9 h-9 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 active:scale-90"
+                                                        title="Elimina utente"
                                                     >
-                                                        <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
-                                                            <Edit2 size={11} strokeWidth={3} />
-                                                        </div>
-                                                        <span className="text-[12px] font-semibold tracking-tight">Gestisci</span>
+                                                        <Trash2 size={14} />
                                                     </button>
-                                                </div>
+                                                )}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); router.push(`/admin/users/${u.id}`); }}
+                                                    className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] hover:opacity-80 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 delay-[40ms] active:scale-90"
+                                                    title="Modifica utente"
+                                                >
+                                                    <Edit2 size={13} strokeWidth={2.8} />
+                                                </button>
                                             </div>
                                         </div>
                                     )
