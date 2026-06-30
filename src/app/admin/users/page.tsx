@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
     Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X,
-    Printer, Download, Check, Pencil, Edit2,
+    Printer, Download, Edit2,
     TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
 } from 'lucide-react'
-import { deleteUser, updateUser, updateUserSupply } from './actions'
+import { deleteUser } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'
@@ -72,8 +72,6 @@ export default function AdminUsersPage() {
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
     const [activeUserId, setActiveUserId] = useState<string | null>(null)
-    const [editingUserId, setEditingUserId] = useState<string | null>(null)
-    const [rowDrafts, setRowDrafts] = useState<Partial<UserProfile>>({})
     const [activeBills, setActiveBills] = useState<any[]>([])
     const [activeBillsLoading, setActiveBillsLoading] = useState(false)
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'shadow'>(initialStatus)
@@ -233,51 +231,7 @@ export default function AdminUsersPage() {
     }, [refreshHeaderStats])
 
     const handleRowClick = (userId: string) => {
-        if (editingUserId) return
         setActiveUserId(prev => prev === userId ? null : userId)
-    }
-
-    const startEditRow = (u: UserProfile) => {
-        setEditingUserId(u.id)
-        setRowDrafts(u)
-    }
-
-    const saveEditRow = async (e: React.MouseEvent) => {
-        e.stopPropagation()
-        if (!editingUserId) return
-
-        const toastId = toast.loading('Salvataggio in corso...')
-        try {
-            // Route through server actions (service-role): the browser/authenticated
-            // role can only update name/address/city by column grant, so a direct
-            // client update of email/CF/etc. returns 403.
-            const res = await updateUser(editingUserId, {
-                name: rowDrafts.fullName,
-                email: rowDrafts.email,
-                codice_fiscale: rowDrafts.codiceFiscale,
-                partita_iva: rowDrafts.partitaIva,
-                pec: rowDrafts.pec,
-                codice_cliente: rowDrafts.clientCode,
-            })
-            if (res?.error) throw new Error(res.error)
-
-            // Update supply addresses (correct columns: address/city). Run in
-            // parallel — sequential awaits made saving slow for multi-supply users.
-            const supplies = (rowDrafts.userSupplies || []).filter((s: any) => s.cif)
-            if (supplies.length > 0) {
-                await Promise.all(supplies.map((s: any) =>
-                    updateUserSupply(s.cif, { address: s.indirizzo_fornitura, city: s.citta }, editingUserId)
-                ))
-            }
-
-            toast.success('Utente aggiornato con successo', { id: toastId })
-
-            setUsers(users.map(u => u.id === editingUserId ? { ...u, ...rowDrafts } as UserProfile : u))
-            setEditingUserId(null)
-        } catch (error) {
-            console.error('Error saving user:', error)
-            toast.error('Errore durante il salvataggio', { id: toastId })
-        }
     }
 
     const handleViewMore = () => {
@@ -1024,16 +978,14 @@ export default function AdminUsersPage() {
                                     return (
                                         <div
                                             key={u.id}
-                                            onClick={() => { if (editingUserId !== u.id) router.push(`/admin/users/${u.id}`); }}
+                                            onClick={() => { router.push(`/admin/users/${u.id}`); }}
                                             className={cn(
                                                 'group grid grid-cols-[48px_1.5fr_1.5fr_1fr_2.2fr_0.6fr_0.6fr_160px] gap-4 items-center px-6 py-3 cursor-pointer transition-colors relative border-l-2',
-                                                editingUserId === u.id
-                                                    ? 'bg-slate-50 dark:bg-white/[0.04] border-indigo-500'
-                                                    : isActive
-                                                        ? 'bg-slate-100 dark:bg-white/[0.06] border-transparent'
-                                                        : isSel
-                                                            ? 'bg-slate-100/70 dark:bg-white/[0.04] border-transparent'
-                                                            : 'hover:bg-slate-100/50 dark:hover:bg-white/[0.02] border-transparent'
+                                                isActive
+                                                    ? 'bg-slate-100 dark:bg-white/[0.06] border-transparent'
+                                                    : isSel
+                                                        ? 'bg-slate-100/70 dark:bg-white/[0.04] border-transparent'
+                                                        : 'hover:bg-slate-100/50 dark:hover:bg-white/[0.02] border-transparent'
                                             )}
                                         >
                                             {/* Checkbox */}
@@ -1055,101 +1007,47 @@ export default function AdminUsersPage() {
                                                     {u.isShadow ? <Ghost size={13} strokeWidth={2.5} /> : initialsOf(u.fullName)}
                                                 </div>
                                                 <div className="flex flex-col min-w-0 w-full gap-1">
-                                                    {editingUserId === u.id ? (
-                                                        <>
-                                                            <input
-                                                                className="h-6 px-2 text-[12px] font-bold border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                                value={rowDrafts.fullName || ''}
-                                                                onChange={e => setRowDrafts({ ...rowDrafts, fullName: e.target.value })}
-                                                                placeholder="Nome"
-                                                                onClick={e => e.stopPropagation()}
-                                                            />
-                                                            <input
-                                                                className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                                value={rowDrafts.clientCode || ''}
-                                                                onChange={e => setRowDrafts({ ...rowDrafts, clientCode: e.target.value })}
-                                                                placeholder="Codice Cliente"
-                                                                onClick={e => e.stopPropagation()}
-                                                            />
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <span className={cn(
-                                                                'text-[13px] truncate font-medium',
-                                                                u.isShadow ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'
-                                                            )}>
-                                                                {u.fullName}
-                                                            </span>
-                                                            {u.clientCode && (
-                                                                <div className="mt-0.5">
-                                                                    <CodeBadge value={u.clientCode} label="CODICE CLIENTE" copyable />
-                                                                </div>
-                                                            )}
-                                                        </>
+                                                    <span className={cn(
+                                                        'text-[13px] truncate font-medium',
+                                                        u.isShadow ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'
+                                                    )}>
+                                                        {u.fullName}
+                                                    </span>
+                                                    {u.clientCode && (
+                                                        <div className="mt-0.5">
+                                                            <CodeBadge value={u.clientCode} label="CODICE CLIENTE" copyable />
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            {/* Identificativi (copy-able) / Editable fields */}
+                                            {/* Identificativi (copy-able) */}
                                             <div className="flex flex-col gap-2 min-w-0">
-                                                {editingUserId === u.id ? (
-                                                    <>
-                                                        <input
-                                                            className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                            value={rowDrafts.codiceFiscale || ''}
-                                                            onChange={e => setRowDrafts({ ...rowDrafts, codiceFiscale: e.target.value })}
-                                                            placeholder="Codice Fiscale"
-                                                            onClick={e => e.stopPropagation()}
-                                                        />
-                                                        <input
-                                                            className="h-6 px-2 text-[11px] font-mono border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                            value={rowDrafts.partitaIva || ''}
-                                                            onChange={e => setRowDrafts({ ...rowDrafts, partitaIva: e.target.value })}
-                                                            placeholder="P.IVA"
-                                                            onClick={e => e.stopPropagation()}
-                                                        />
-                                                        <input
-                                                            className="h-6 px-2 text-[11px] border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                            value={rowDrafts.pec || ''}
-                                                            onChange={e => setRowDrafts({ ...rowDrafts, pec: e.target.value })}
-                                                            placeholder="PEC"
-                                                            onClick={e => e.stopPropagation()}
-                                                        />
-                                                        <input
-                                                            className="h-6 px-2 text-[11px] border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                            value={rowDrafts.email || ''}
-                                                            onChange={e => setRowDrafts({ ...rowDrafts, email: e.target.value })}
-                                                            placeholder="Email"
-                                                            onClick={e => e.stopPropagation()}
-                                                        />
-                                                    </>
-                                                ) : (
-                                                    <div className="flex flex-col gap-2">
-                                                        {u.codiceFiscale && (
-                                                            <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.codiceFiscale} label="CF" copyable />
-                                                            </div>
-                                                        )}
-                                                        {u.partitaIva && (
-                                                            <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.partitaIva} label="P.IVA" copyable />
-                                                            </div>
-                                                        )}
-                                                        {u.pec && (
-                                                            <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.pec} label="PEC" copyable mono={false} />
-                                                            </div>
-                                                        )}
-                                                        {u.email && (
-                                                            <div className="h-6 flex items-center">
-                                                                <CodeBadge value={u.email} label="EMAIL" copyable mono={false} />
-                                                            </div>
-                                                        )}
-                                                        {!u.codiceFiscale && !u.partitaIva && !u.pec && !u.email && (
-                                                            <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                <div className="flex flex-col gap-2">
+                                                    {u.codiceFiscale && (
+                                                        <div className="h-6 flex items-center">
+                                                            <CodeBadge value={u.codiceFiscale} label="CF" copyable />
+                                                        </div>
+                                                    )}
+                                                    {u.partitaIva && (
+                                                        <div className="h-6 flex items-center">
+                                                            <CodeBadge value={u.partitaIva} label="P.IVA" copyable />
+                                                        </div>
+                                                    )}
+                                                    {u.pec && (
+                                                        <div className="h-6 flex items-center">
+                                                            <CodeBadge value={u.pec} label="PEC" copyable mono={false} />
+                                                        </div>
+                                                    )}
+                                                    {u.email && (
+                                                        <div className="h-6 flex items-center">
+                                                            <CodeBadge value={u.email} label="EMAIL" copyable mono={false} />
+                                                        </div>
+                                                    )}
+                                                    {!u.codiceFiscale && !u.partitaIva && !u.pec && !u.email && (
+                                                        <span className="text-[12px] text-slate-300 dark:text-slate-600">—</span>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             {/* Dettagli Fornitura (CIFs) */}
@@ -1181,27 +1079,6 @@ export default function AdminUsersPage() {
                                                         const addr = s?.indirizzo_fornitura || s?.address;
                                                         const cty = s?.citta || s?.city;
 
-                                                        if (editingUserId === u.id) {
-                                                            const draftSup = rowDrafts.userSupplies?.find((ds: any) => ds.cif === cif) || s;
-                                                            return (
-                                                                <div className="h-6 flex items-center gap-1.5 text-[11px] w-full">
-                                                                    <input
-                                                                        className="flex-[2] min-w-0 h-6 px-1.5 border border-indigo-200 dark:border-indigo-500/30 rounded bg-white dark:bg-[#1A1F2A] outline-none"
-                                                                        value={draftSup?.indirizzo_fornitura || addr || ''}
-                                                                        onChange={e => {
-                                                                            const newSups = [...(rowDrafts.userSupplies || u.userSupplies || [])];
-                                                                            const supIdx = newSups.findIndex(ns => ns.cif === cif);
-                                                                            if (supIdx > -1) newSups[supIdx] = { ...newSups[supIdx], indirizzo_fornitura: e.target.value };
-                                                                            else newSups.push({ cif, indirizzo_fornitura: e.target.value });
-                                                                            setRowDrafts({ ...rowDrafts, userSupplies: newSups });
-                                                                        }}
-                                                                        placeholder="Indirizzo"
-                                                                        onClick={e => e.stopPropagation()}
-                                                                    />
-                                                                </div>
-                                                            );
-                                                        }
-
                                                         return (
                                                             <div className="flex flex-col min-w-0">
                                                                 <span className="text-[12px] text-slate-700 dark:text-slate-300 truncate">
@@ -1231,55 +1108,28 @@ export default function AdminUsersPage() {
                                             </div>
 
                                             {/* Actions */}
-                                            <div className={cn(
-                                                "flex items-center justify-end pr-2 gap-1.5 transition-all duration-200",
-                                                editingUserId === u.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                                            )}>
-                                                {editingUserId === u.id ? (
-                                                    <div className="flex items-center rounded-full h-9 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+                                            <div className="flex items-center justify-end pr-2 gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
                                                         <button
-                                                            onClick={saveEditRow}
-                                                            className="flex items-center gap-2 pl-2 pr-4 h-full hover:bg-slate-50 dark:hover:bg-white/10 transition-colors active:opacity-80"
-                                                            title="Salva"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
+                                                            className="w-9 h-9 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white transition-all active:scale-90"
+                                                            title="Elimina utente"
                                                         >
-                                                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                                                                <Check size={11} strokeWidth={3} />
-                                                            </div>
-                                                            <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 tracking-tight">Salva</span>
+                                                            <Trash2 size={14} />
                                                         </button>
-                                                        <div className="w-px h-4 bg-slate-200 dark:bg-white/10" />
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); setEditingUserId(null); }}
-                                                            className="group/x w-10 h-full flex items-center justify-center transition-all active:opacity-80"
-                                                            title="Annulla"
-                                                        >
-                                                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 group-hover/x:bg-rose-500 group-hover/x:text-white transition-all duration-300">
-                                                                <X size={14} strokeWidth={2.5} className="group-hover/x:rotate-90 transition-transform duration-300" />
-                                                            </div>
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
-                                                                className="w-9 h-9 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white transition-all active:scale-90"
-                                                                title="Elimina utente"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); startEditRow(u); }}
-                                                            className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
-                                                        >
-                                                            <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
-                                                                <Edit2 size={11} strokeWidth={3} />
-                                                            </div>
-                                                            <span className="text-[12px] font-semibold tracking-tight">Modifica</span>
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); router.push(`/admin/users/${u.id}`); }}
+                                                        className="group h-9 pl-2 pr-4 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
+                                                        title="Apri scheda utente"
+                                                    >
+                                                        <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-[#1A1F2A] flex items-center justify-center transition-transform">
+                                                            <Edit2 size={11} strokeWidth={3} />
+                                                        </div>
+                                                        <span className="text-[12px] font-semibold tracking-tight">Gestisci</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     )
