@@ -48,7 +48,7 @@ export async function GET() {
         admin
             .from('payments')
             .select('bill_id, amount, status, created_at')
-            .eq('user_id', user.id)
+            .eq('user_id', profileId)
             .order('created_at', { ascending: false }),
     ])
 

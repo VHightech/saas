@@ -19,6 +19,14 @@ export async function initiatePagoPAPayment(billId: number, amount: number) {
 
     if (!user) return { error: 'Unauthorized' }
 
+    // Resolve the caller's profile id. bills.user_id and payments.user_id are
+    // keyed on profiles.id, NOT the auth user id — the two differ for
+    // shadow-claimed profiles, so comparing against user.id was wrong.
+    const { data: profile } = await supabase
+        .from('profiles').select('id').eq('auth_user_id', user.id).maybeSingle()
+    if (!profile) return { error: 'Profilo non trovato.' }
+    const profileId = profile.id as string
+
     if (!Number.isFinite(billId) || billId <= 0) {
         return { error: 'Bolletta non valida.' }
     }
@@ -37,7 +45,7 @@ export async function initiatePagoPAPayment(billId: number, amount: number) {
         return { error: 'Bolletta non trovata o accesso negato.' }
     }
 
-    if (bill.user_id !== user.id) {
+    if (bill.user_id !== profileId) {
         return { error: 'Non sei autorizzato a pagare questa bolletta.' }
     }
 
@@ -55,12 +63,12 @@ export async function initiatePagoPAPayment(billId: number, amount: number) {
 
     const noticeCode = `30200${billId.toString().padStart(13, '0')}`
 
-    // Create a pending payment row (RLS allows: user_id = auth.uid() AND status = 'pending').
+    // Create a pending payment row (RLS allows: user_id = current_profile_id() AND status = 'pending').
     const { data: payment, error: paymentError } = await supabase
         .from('payments')
         .insert({
             bill_id: billId,
-            user_id: user.id,
+            user_id: profileId,
             amount,
             method: 'pagopa',
             type: 'saldo',
