@@ -921,7 +921,7 @@ export default function AdminUsersPage() {
                                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="text"
-                                    placeholder="Cerca..."
+                                    placeholder="Cerca per nome, codice cliente, email, CIF, CF/P.IVA..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full h-9 pl-9 pr-4 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[13px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:border-slate-300 dark:focus:border-white/20 transition-all"
