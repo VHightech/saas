@@ -163,7 +163,7 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                                 )}
                             >
                                 <span className={cn(
-                                    "shrink-0 flex items-center justify-center transition-colors",
+                                    "shrink-0 w-8 flex items-center justify-center transition-colors",
                                     collapsed && (isDark ? 'text-amber-400' : 'text-sky-300')
                                 )}>
                                     {mounted && (isDark ? <Sun size={20} strokeWidth={2.6} /> : <Moon size={20} strokeWidth={2.6} />)}
