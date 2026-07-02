@@ -22,10 +22,10 @@ export async function initiatePagoPAPayment(billId: number, amount: number) {
     // Resolve the caller's profile id. bills.user_id and payments.user_id are
     // keyed on profiles.id, NOT the auth user id — the two differ for
     // shadow-claimed profiles, so comparing against user.id was wrong.
-    const { data: profile } = await supabase
+    const { data: callerProfile } = await supabase
         .from('profiles').select('id').eq('auth_user_id', user.id).maybeSingle()
-    if (!profile) return { error: 'Profilo non trovato.' }
-    const profileId = profile.id as string
+    if (!callerProfile) return { error: 'Profilo non trovato.' }
+    const profileId = callerProfile.id as string
 
     if (!Number.isFinite(billId) || billId <= 0) {
         return { error: 'Bolletta non valida.' }
