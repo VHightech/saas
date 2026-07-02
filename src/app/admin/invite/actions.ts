@@ -1,5 +1,6 @@
 'use server'
 
+import { randomInt } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
@@ -37,7 +38,7 @@ async function generateAdminCodice(
     admin: ReturnType<typeof createAdminClient>
 ): Promise<string | null> {
     for (let attempt = 0; attempt < 25; attempt++) {
-        const code = String(900000 + Math.floor(Math.random() * 100000)) // 900000..999999
+        const code = String(randomInt(900000, 1000000)) // 900000..999999, CSPRNG
         const { data } = await admin
             .from('profiles').select('id').eq('codice_cliente', code).maybeSingle()
         if (!data) return code
