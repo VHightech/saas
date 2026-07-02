@@ -79,6 +79,19 @@ export async function POST(req: NextRequest) {
 
         const clean = (v: unknown) => (v == null ? null : String(v).trim() || null)
 
+        // Protect admin accounts from CSV collisions: never let an import row
+        // touch a profile (or its supply/bill linkage) whose codice_cliente
+        // belongs to an admin. Admin codes live in the reserved 900000-999999
+        // band, but we guard by role regardless — so even a stray matching CIF
+        // prefix can never overwrite or attach data to an admin.
+        const { data: adminRows } = await supabase
+            .from('profiles')
+            .select('codice_cliente')
+            .in('role', ['admin', 'super_admin', 'superadmin'])
+            .not('codice_cliente', 'is', null)
+        const adminCodes = new Set<string>((adminRows ?? []).map((r: any) => r.codice_cliente as string))
+        let skippedAdmin = 0
+
         for (const row of records as any[]) {
             const cif = clean(row['CIF'])
             const name = clean(row['RagioneSociale'])
@@ -106,6 +119,13 @@ export async function POST(req: NextRequest) {
                 skippedShortCif++
                 errors.push(`Excluded: CIF troppo corto: ${cif}`)
                 errorCount++
+                continue
+            }
+
+            // Reserved admin code collision → skip the whole row (profile + supply).
+            if (adminCodes.has(clientCode)) {
+                skippedAdmin++
+                errors.push(`Saltato: codice ${clientCode} è riservato a un amministratore.`)
                 continue
             }
 
@@ -249,7 +269,8 @@ export async function POST(req: NextRequest) {
             skipped: {
                 contrattoAnnullato: skippedAnnullato,
                 noCif: skippedNoCif,
-                shortCif: skippedShortCif
+                shortCif: skippedShortCif,
+                adminCollision: skippedAdmin
             },
             errors: errors,
             errorCount: errorCount,
