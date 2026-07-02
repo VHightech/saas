@@ -13,7 +13,6 @@ import {
     Droplet,
     PanelLeftClose,
     PanelLeftOpen,
-    MoreHorizontal,
     LayoutGrid,
     ChevronLeft,
     ChevronRight,
@@ -44,7 +43,6 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
     const { setTheme, resolvedTheme } = useTheme()
     const [mounted, setMounted] = useState(false)
     const [collapsed, setCollapsed] = useState(true)
-    const [userMenuOpen, setUserMenuOpen] = useState(false)
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -61,10 +59,7 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                 {/* SIDEBAR */}
                 <aside
                     onMouseEnter={() => setCollapsed(false)}
-                    onMouseLeave={() => {
-                        setCollapsed(true)
-                        setUserMenuOpen(false)
-                    }}
+                    onMouseLeave={() => setCollapsed(true)}
                     className={cn(
                         'sticky top-0 h-screen shrink-0 flex flex-col text-white z-40 border-r border-white/5 transition-[width] duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] overflow-hidden relative',
                         collapsed ? 'w-16' : 'w-64'
@@ -156,22 +151,40 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                         </nav>
 
                         {/* User Profile pinned bottom */}
-                        <div className="px-3 pb-6 pt-4">
-                            <div className="relative">
-                                <button
-                                    onClick={() => setUserMenuOpen(o => !o)}
-                                    className={cn(
-                                        'w-full flex items-center h-12 rounded-xl transition-all duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] group overflow-hidden',
-                                        collapsed ? 'justify-center px-0' : 'px-2 hover:bg-white/15 hover:backdrop-blur-md'
-                                    )}
-                                >
-                                    <div className="relative shrink-0">
-                                        <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-[11px] font-bold text-white border border-white/10 group-hover:scale-105 transition-transform duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]">
-                                            {initials}
-                                        </div>
-                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#065F46]" />
+                        <div className="px-3 pb-6 pt-4 space-y-2">
+                            {/* Theme toggle — sits on top of the profile */}
+                            <button
+                                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                                aria-label={isDark ? 'Passa al tema chiaro' : 'Passa al tema scuro'}
+                                title={isDark ? 'Tema chiaro' : 'Tema scuro'}
+                                className={cn(
+                                    'w-full flex items-center h-9 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all duration-300 overflow-hidden',
+                                    collapsed ? 'justify-center px-0' : 'px-2 gap-3'
+                                )}
+                            >
+                                <span className="shrink-0 flex items-center justify-center">
+                                    {mounted && (isDark ? <Sun size={16} /> : <Moon size={16} />)}
+                                </span>
+                                <span className={cn(
+                                    'text-[12px] font-medium whitespace-nowrap transition-all duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] overflow-hidden',
+                                    collapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'
+                                )}>
+                                    {isDark ? 'Tema chiaro' : 'Tema scuro'}
+                                </span>
+                            </button>
+
+                            {/* Profile row — logout icon replaces the old 3-dots and only shows when open */}
+                            <div className={cn(
+                                'w-full flex items-center h-12 rounded-xl overflow-hidden',
+                                collapsed ? 'justify-center px-0' : 'px-2'
+                            )}>
+                                <div className="relative shrink-0">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-[11px] font-bold text-white border border-white/10">
+                                        {initials}
                                     </div>
-                                
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#065F46]" />
+                                </div>
+
                                 <div className={cn(
                                     "flex items-center justify-between transition-all duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] overflow-hidden",
                                     collapsed ? "max-w-0 opacity-0 ml-0" : "flex-1 max-w-[160px] opacity-100 ml-3"
@@ -184,31 +197,15 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                                             {userRole || 'Administrator'}
                                         </p>
                                     </div>
-                                    <MoreHorizontal size={14} className="text-white/40 shrink-0 group-hover:text-white/70 ml-2" />
-                                </div>
-                            </button>
-
-
-
-
-                            {userMenuOpen && (
-                                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#14181F] border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden shadow-lg animate-in slide-in-from-bottom-2 duration-200">
-                                    <button
-                                        onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-[12px] text-slate-700 dark:text-white/70 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border-b border-slate-100 dark:border-white/5"
-                                    >
-                                        {isDark ? <Sun size={14} /> : <Moon size={14} />}
-                                        Cambia Tema
-                                    </button>
                                     <button
                                         onClick={async () => { await logout() }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-[12px] text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-white/5 transition-colors"
+                                        aria-label="Esci"
+                                        title="Esci"
+                                        className="shrink-0 ml-2 p-1.5 rounded-lg text-white/40 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
                                     >
-                                        <LogOut size={14} />
-                                        Esci
+                                        <LogOut size={15} />
                                     </button>
                                 </div>
-                            )}
                             </div>
                         </div>
                     </div>
