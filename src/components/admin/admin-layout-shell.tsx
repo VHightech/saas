@@ -166,7 +166,7 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                                     "shrink-0 flex items-center justify-center transition-colors",
                                     collapsed && (isDark ? 'text-amber-400' : 'text-sky-300')
                                 )}>
-                                    {mounted && (isDark ? <Sun size={16} /> : <Moon size={16} />)}
+                                    {mounted && (isDark ? <Sun size={20} strokeWidth={2.6} /> : <Moon size={20} strokeWidth={2.6} />)}
                                 </span>
                                 <span className={cn(
                                     'text-[12px] font-medium whitespace-nowrap transition-all duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] overflow-hidden',
@@ -204,9 +204,9 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                                         onClick={async () => { await logout() }}
                                         aria-label="Esci"
                                         title="Esci"
-                                        className="shrink-0 ml-2 p-1.5 rounded-lg text-white/40 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                                        className="shrink-0 ml-2 p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/15 transition-colors"
                                     >
-                                        <LogOut size={15} />
+                                        <LogOut size={18} strokeWidth={2.6} />
                                     </button>
                                 </div>
                             </div>
