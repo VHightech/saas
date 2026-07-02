@@ -81,9 +81,9 @@ export async function POST(req: NextRequest) {
 
         // Protect admin accounts from CSV collisions: never let an import row
         // touch a profile (or its supply/bill linkage) whose codice_cliente
-        // belongs to an admin. Admin codes live in the reserved 900000-999999
-        // band, but we guard by role regardless — so even a stray matching CIF
-        // prefix can never overwrite or attach data to an admin.
+        // belongs to an admin. Admin codes live in the reserved low band
+        // 000001-000010; we guard by role regardless — so even a CIF whose first
+        // 6 digits land on an admin code can never overwrite or attach data to it.
         const { data: adminRows } = await supabase
             .from('profiles')
             .select('codice_cliente')

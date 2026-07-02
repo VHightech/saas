@@ -1,6 +1,5 @@
 'use server'
 
-import { randomInt } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
@@ -30,15 +29,15 @@ function createStandardClient() {
 }
 
 // Admins log in with a 6-digit codice_cliente like everyone else (the login form
-// is a 6-digit numeric input). Customer codes run 000001–514019, so admin codes
-// are drawn from the reserved 900000–999999 band — collision-free now and against
-// future customer imports (which upsert by codice_cliente). Uniqueness is still
-// re-checked to be safe.
+// is a 6-digit numeric input). Admins draw from a small reserved LOW band,
+// 000001–000010 (there are never more than ~10 admins). Customers have priority
+// on the codice namespace, so we return the first code in the band not already
+// used by ANY profile — we never take a code a customer (or existing admin) holds.
 async function generateAdminCodice(
     admin: ReturnType<typeof createAdminClient>
 ): Promise<string | null> {
-    for (let attempt = 0; attempt < 25; attempt++) {
-        const code = String(randomInt(900000, 1000000)) // 900000..999999, CSPRNG
+    for (let n = 1; n <= 10; n++) {
+        const code = String(n).padStart(6, '0') // 000001..000010
         const { data } = await admin
             .from('profiles').select('id').eq('codice_cliente', code).maybeSingle()
         if (!data) return code
