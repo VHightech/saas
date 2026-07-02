@@ -155,9 +155,11 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
         [graphBills, selectedYear]
     )
 
-    // Confronto is only meaningful for a single fornitura; surface its advice as
-    // an alert badge on the quick action, and disable it on the "all" overview.
-    const confrontoDisabled = !currentSupply?.ulm || currentSupply.ulm === 'all'
+    // Confronto is only meaningful for a single fornitura that actually has
+    // bills: disable it on the "all" overview and when the selected fornitura
+    // has no data to compare. Surface its advice as an alert badge otherwise.
+    const confrontoDisabled =
+        !currentSupply?.ulm || currentSupply.ulm === 'all' || graphBills.length === 0
     const advice = useMemo(() => consumptionAdvice(graphBills), [graphBills])
     const confrontoAlert: AdviceLevel | null = confrontoDisabled
         ? null
