@@ -28,7 +28,24 @@ function createStandardClient() {
     )
 }
 
-export async function inviteAdmin(formData: FormData): Promise<{ success: boolean; error?: string }> {
+// Admins log in with a 6-digit codice_cliente like everyone else (the login form
+// is a 6-digit numeric input). Customer codes run 000001–514019, so admin codes
+// are drawn from the reserved 900000–999999 band — collision-free now and against
+// future customer imports (which upsert by codice_cliente). Uniqueness is still
+// re-checked to be safe.
+async function generateAdminCodice(
+    admin: ReturnType<typeof createAdminClient>
+): Promise<string | null> {
+    for (let attempt = 0; attempt < 25; attempt++) {
+        const code = String(900000 + Math.floor(Math.random() * 100000)) // 900000..999999
+        const { data } = await admin
+            .from('profiles').select('id').eq('codice_cliente', code).maybeSingle()
+        if (!data) return code
+    }
+    return null
+}
+
+export async function inviteAdmin(formData: FormData): Promise<{ success: boolean; error?: string; codice?: string }> {
     // super_admin, or an admin granted can_invite_admins.
     const authCheck = await requireAdminInvite()
     if (authCheck.error) return { success: false, error: authCheck.error }
@@ -69,6 +86,18 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
             return { success: false, error: 'Utente non creato' }
         }
 
+        // Assign a login code automatically. Reuse an existing one on re-invite so
+        // we never overwrite a code the admin already uses.
+        const { data: existingProf } = await supabaseAdmin
+            .from('profiles').select('codice_cliente').eq('id', data.user.id).maybeSingle()
+        let codiceCliente = (existingProf?.codice_cliente as string | null) || null
+        if (!codiceCliente) {
+            codiceCliente = await generateAdminCodice(supabaseAdmin)
+            if (!codiceCliente) {
+                return { success: false, error: 'Impossibile generare un codice di accesso univoco. Riprova.' }
+            }
+        }
+
         // 2. Insert/Update into profiles
         const { error: insertError } = await supabaseAdmin
             .from('profiles')
@@ -78,7 +107,8 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
                 email: email,
                 name: fullName || 'Admin',
                 role: 'admin',
-                is_shadow: false
+                is_shadow: false,
+                codice_cliente: codiceCliente,
             })
 
         if (insertError) {
@@ -101,7 +131,7 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
         }
 
         revalidatePath('/admin/admins')
-        return { success: true }
+        return { success: true, codice: codiceCliente }
     } catch (e) {
         return { success: false, error: 'Errore imprevisto' }
     }

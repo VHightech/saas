@@ -68,7 +68,14 @@ export default function AdminManagementPage() {
         startTransition(async () => {
             const res = await inviteAdmin(formData)
             if (res.success) {
-                toast.success("Invito inviato con successo!")
+                if (res.codice) {
+                    toast.success(`Invito inviato. Codice di accesso: ${res.codice}`, {
+                        description: 'Comunica questo Codice Cliente all\'amministratore: gli serve per accedere.',
+                        duration: 15000,
+                    })
+                } else {
+                    toast.success("Invito inviato con successo!")
+                }
                 setEmail('')
                 loadAdmins()
             } else {
@@ -274,6 +281,11 @@ export default function AdminManagementPage() {
                                                         <span className="text-[12px] text-slate-500 dark:text-slate-400 font-mono truncate">
                                                             {admin.email}
                                                         </span>
+                                                        {admin.codice_cliente && (
+                                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                                                                Codice accesso: <span className="font-bold text-slate-600 dark:text-slate-300">{admin.codice_cliente}</span>
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
 
