@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
-import { ShieldCheck, Mail, UserPlus, Loader2, X, Check, ArrowRight } from 'lucide-react'
-import { inviteAdmin, getAdmins, removeAdmin, setAdminPermissions, getMyAdminContext, resendAdminInvite } from './actions'
+import { ShieldCheck, Mail, UserPlus, Loader2, X, Check, ArrowRight, RotateCcw } from 'lucide-react'
+import { inviteAdmin, getAdmins, removeAdmin, setAdminPermissions, getMyAdminContext, resendAdminInvite, revertAdminToShadow } from './actions'
 import { toast } from 'sonner'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { cn } from '@/lib/utils'
@@ -100,6 +100,18 @@ export default function AdminManagementPage() {
         const res = await resendAdminInvite(userId)
         if (res.success) toast.success('Email con link aggiornato inviata.')
         else toast.error(res.error || "Errore durante l'invio")
+    }
+
+    const handleRevert = async (userId: string) => {
+        if (!confirm("Ripristinare la registrazione di questo amministratore? L'account di accesso verrà rimosso e il profilo tornerà 'da attivare' (mantiene ruolo e codice). Potrà rifare il primo accesso con il suo codice.")) return
+
+        const res = await revertAdminToShadow(userId)
+        if (res.success) {
+            toast.success("Registrazione ripristinata. L'amministratore può rifare il primo accesso.")
+            loadAdmins()
+        } else {
+            toast.error(res.error || "Errore durante il ripristino")
+        }
     }
 
     const handleRemove = async (userId: string) => {
@@ -260,7 +272,7 @@ export default function AdminManagementPage() {
                                         <div className="w-64 text-center shrink-0">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Permessi</span>
                                         </div>
-                                        <div className="w-28 text-right shrink-0">
+                                        <div className="w-36 text-right shrink-0">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Azioni</span>
                                         </div>
                                     </div>
@@ -349,7 +361,7 @@ export default function AdminManagementPage() {
                                                 </div>
 
                                                 {/* Actions Column */}
-                                                <div className="w-28 shrink-0 flex justify-end items-center gap-2">
+                                                <div className="w-36 shrink-0 flex justify-end items-center gap-1.5">
                                                     {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && (
                                                         <button
                                                             onClick={() => handleResend(admin.id)}
@@ -361,9 +373,18 @@ export default function AdminManagementPage() {
                                                     )}
                                                     {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && admin.id !== currentUser?.id && (
                                                         <button
+                                                            onClick={() => handleRevert(admin.id)}
+                                                            className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-500 transition-all group/revert"
+                                                            title="Ripristina registrazione (torna a profilo da attivare)"
+                                                        >
+                                                            <RotateCcw size={16} strokeWidth={2} className="group-hover/revert:-rotate-45 transition-transform" />
+                                                        </button>
+                                                    )}
+                                                    {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && admin.id !== currentUser?.id && (
+                                                        <button
                                                             onClick={() => handleRemove(admin.id)}
                                                             className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 transition-all group/trash"
-                                                            title="Revoca Accesso Utenza"
+                                                            title="Elimina amministratore"
                                                         >
                                                             <Trash2 size={18} strokeWidth={2} className="group-hover/trash:scale-110 transition-transform" />
                                                         </button>

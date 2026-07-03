@@ -236,6 +236,55 @@ export async function removeAdmin(userId: string) {
     return { success: true }
 }
 
+/**
+ * Revert an admin's registration back to a "shadow" profile: delete the auth
+ * account and null auth_user_id + is_shadow=true, but KEEP the profile (role,
+ * codice_cliente, email, name). The admin can then re-activate via "primo
+ * accesso" with their codice — the shadow profile is re-linked, role preserved.
+ * Super_admin only. Differs from removeAdmin, which deletes the profile entirely.
+ */
+export async function revertAdminToShadow(userId: string): Promise<{ success: boolean; error?: string }> {
+    const authCheck = await requireSuperadmin()
+    if (authCheck.error) return { success: false, error: authCheck.error }
+    if (authCheck.user?.id === userId) return { success: false, error: 'Non puoi ripristinare il tuo stesso account.' }
+
+    const supabaseAdmin = createAdminClient()
+
+    const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('auth_user_id, role')
+        .eq('id', userId)
+        .maybeSingle()
+
+    if (!prof) return { success: false, error: 'Amministratore non trovato.' }
+    if (!['admin', 'super_admin', 'superadmin'].includes(prof.role as string)) {
+        return { success: false, error: 'Questo profilo non è un amministratore.' }
+    }
+
+    // Break the profile -> auth link FIRST, otherwise deleting the auth user would
+    // cascade-delete this profile (FK is ON DELETE CASCADE). Role/codice/email stay.
+    const { error: updErr } = await supabaseAdmin
+        .from('profiles')
+        .update({ auth_user_id: null, is_shadow: true })
+        .eq('id', userId)
+
+    if (updErr) {
+        console.error('revertAdminToShadow update:', updErr.code)
+        return { success: false, error: 'Errore durante il ripristino del profilo.' }
+    }
+
+    if (prof.auth_user_id) {
+        const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(prof.auth_user_id as string)
+        if (delErr && !/not.?found|user.?not.?found/i.test(delErr.message)) {
+            console.error('revertAdminToShadow deleteUser:', delErr.message)
+            return { success: false, error: `Profilo ripristinato, ma account di accesso non rimosso: ${delErr.message}` }
+        }
+    }
+
+    revalidatePath('/admin/invite')
+    return { success: true }
+}
+
 // Super_admin grants/revokes granular permissions on a regular admin.
 export async function setAdminPermissions(
     userId: string,
