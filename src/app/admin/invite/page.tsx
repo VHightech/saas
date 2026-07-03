@@ -18,6 +18,7 @@ export default function AdminManagementPage() {
 
     // Form State
     const [email, setEmail] = useState('')
+    const [name, setName] = useState('')
 
     const supabase = createClient()
 
@@ -63,7 +64,7 @@ export default function AdminManagementPage() {
 
         const formData = new FormData()
         formData.append('email', email)
-        formData.append('fullName', 'Amministratore') // Default name
+        formData.append('fullName', name.trim() || 'Amministratore')
 
         startTransition(async () => {
             const res = await inviteAdmin(formData)
@@ -77,6 +78,7 @@ export default function AdminManagementPage() {
                     toast.success("Invito inviato con successo!")
                 }
                 setEmail('')
+                setName('')
                 loadAdmins()
             } else {
                 toast.error(res.error || "Errore durante l'invio dell'invito")
@@ -144,7 +146,19 @@ export default function AdminManagementPage() {
                         </div>
 
                         <form onSubmit={handleInvite} className="space-y-2">
-                            <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 ml-4">Indirizzo Email</label>
+                            <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 ml-4">Nome e Cognome</label>
+                            <div className="group/input relative flex items-center bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full p-1 pl-12 focus-within:border-sky-300 dark:focus-within:border-sky-500/50 transition-all duration-300">
+                                <UserPlus className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-sky-500 transition-colors" size={16} />
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Es. Mario Rossi"
+                                    className="flex-1 h-9 bg-transparent border-none outline-none text-[13px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+                                />
+                            </div>
+
+                            <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 ml-4 pt-1">Indirizzo Email</label>
                             <div className="group/input relative flex items-center bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full p-1 pl-12 focus-within:border-sky-300 dark:focus-within:border-sky-500/50 transition-all duration-300">
                                 <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-sky-500 transition-colors" size={16} />
                                 <input
