@@ -142,7 +142,8 @@ export async function inviteAdmin(formData: FormData): Promise<{ success: boolea
 // so inviteUserByEmail would fail — send a recovery email instead (service-role
 // bypasses the captcha; Supabase delivers it).
 export async function resendAdminInvite(userId: string): Promise<{ success: boolean; error?: string }> {
-    const authCheck = await requireAdminInvite()
+    // Resending an admin activation link is a super_admin-only action.
+    const authCheck = await requireSuperadmin()
     if (authCheck.error) return { success: false, error: authCheck.error }
 
     const supabaseAdmin = createAdminClient()

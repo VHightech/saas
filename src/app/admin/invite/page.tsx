@@ -350,13 +350,15 @@ export default function AdminManagementPage() {
 
                                                 {/* Actions Column */}
                                                 <div className="w-24 flex justify-end items-center gap-2">
-                                                    <button
-                                                        onClick={() => handleResend(admin.id)}
-                                                        className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:text-sky-500 transition-all group/send"
-                                                        title="Reinvia email con link aggiornato"
-                                                    >
-                                                        <Mail size={17} strokeWidth={2} className="group-hover/send:scale-110 transition-transform" />
-                                                    </button>
+                                                    {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && (
+                                                        <button
+                                                            onClick={() => handleResend(admin.id)}
+                                                            className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:text-sky-500 transition-all group/send"
+                                                            title="Reinvia email con link aggiornato"
+                                                        >
+                                                            <Mail size={17} strokeWidth={2} className="group-hover/send:scale-110 transition-transform" />
+                                                        </button>
+                                                    )}
                                                     {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && admin.id !== currentUser?.id && (
                                                         <button
                                                             onClick={() => handleRemove(admin.id)}
