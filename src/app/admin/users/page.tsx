@@ -1133,11 +1133,19 @@ export default function AdminUsersPage() {
 
                                             {/* Actions — delete (super admin) on hover; the whole row opens the detail page */}
                                             <div className="flex items-center justify-end pr-2 gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-                                                {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && !u.isShadow && (
+                                                {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); handleResetActivation(u); }}
-                                                        className="w-9 h-9 flex items-center justify-center rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white"
-                                                        title="Ripristina attivazione (torna a 'da attivare')"
+                                                        onClick={(e) => { e.stopPropagation(); if (!u.isShadow) handleResetActivation(u); }}
+                                                        disabled={u.isShadow}
+                                                        className={cn(
+                                                            "w-9 h-9 flex items-center justify-center rounded-full transition-colors",
+                                                            u.isShadow
+                                                                ? "bg-slate-50 dark:bg-white/5 text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                                                : "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white"
+                                                        )}
+                                                        title={u.isShadow
+                                                            ? "Utente non ancora registrato: niente da ripristinare"
+                                                            : "Ripristina attivazione (torna a 'da attivare')"}
                                                     >
                                                         <RotateCcw size={14} />
                                                     </button>

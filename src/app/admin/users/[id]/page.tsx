@@ -373,10 +373,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                             <div className="flex items-center gap-2.5">
                                 <button
                                     onClick={handleResetActivation}
-                                    className="group h-9 pl-2 pr-4 rounded-full border border-amber-200 dark:border-amber-500/20 bg-white dark:bg-amber-500/5 text-amber-600 dark:text-amber-400 flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all active:scale-[0.98]"
-                                    title="Rimuove l'account di accesso e riporta il profilo a 'da attivare'"
+                                    disabled={!!profile?.is_shadow}
+                                    className={cn(
+                                        "group h-9 pl-2 pr-4 rounded-full border flex items-center gap-2 transition-all",
+                                        profile?.is_shadow
+                                            ? "border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                            : "border-amber-200 dark:border-amber-500/20 bg-white dark:bg-amber-500/5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 active:scale-[0.98]"
+                                    )}
+                                    title={profile?.is_shadow
+                                        ? "Utente non ancora registrato: niente da ripristinare"
+                                        : "Rimuove l'account di accesso e riporta il profilo a 'da attivare'"}
                                 >
-                                    <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center transition-transform group-hover:rotate-[-90deg]">
+                                    <div className={cn(
+                                        "w-5 h-5 rounded-full text-white flex items-center justify-center transition-transform",
+                                        profile?.is_shadow ? "bg-slate-300 dark:bg-slate-600" : "bg-amber-500 group-hover:rotate-[-90deg]"
+                                    )}>
                                         <RotateCcw size={11} strokeWidth={3} />
                                     </div>
                                     <span className="text-[12px] font-semibold tracking-tight">Reset Attivazione</span>
