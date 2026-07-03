@@ -254,13 +254,13 @@ export default function AdminManagementPage() {
                                         <div className="flex-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Utenza</span>
                                         </div>
-                                        <div className="w-24 text-center">
+                                        <div className="w-28 text-center shrink-0">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ruolo</span>
                                         </div>
-                                        <div className="flex items-center justify-center mr-3">
+                                        <div className="w-64 text-center shrink-0">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Permessi</span>
                                         </div>
-                                        <div className="w-24 text-right">
+                                        <div className="w-28 text-right shrink-0">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Azioni</span>
                                         </div>
                                     </div>
@@ -304,14 +304,14 @@ export default function AdminManagementPage() {
                                                 </div>
 
                                                 {/* Role Column */}
-                                                <div className="w-24 text-center">
+                                                <div className="w-28 text-center shrink-0">
                                                     <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 capitalize tracking-tight">
                                                         {admin.role}
                                                     </p>
                                                 </div>
 
                                                 {/* Permissions Column (super_admin only) */}
-                                                <div className="flex items-center justify-center gap-1.5 mr-3">
+                                                <div className="w-64 shrink-0 flex items-center justify-center gap-1.5">
                                                     {ctx?.isSuperadmin && (
                                                         admin.role === 'admin' ? (
                                                             <>
@@ -349,7 +349,7 @@ export default function AdminManagementPage() {
                                                 </div>
 
                                                 {/* Actions Column */}
-                                                <div className="w-24 flex justify-end items-center gap-2">
+                                                <div className="w-28 shrink-0 flex justify-end items-center gap-2">
                                                     {(currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin') && (
                                                         <button
                                                             onClick={() => handleResend(admin.id)}
