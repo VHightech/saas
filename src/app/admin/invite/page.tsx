@@ -101,14 +101,14 @@ export default function AdminManagementPage() {
     }
 
     const handleRemove = async (userId: string) => {
-        if (!confirm("Sei sicuro di voler revocare l'accesso a questo amministratore?")) return
+        if (!confirm("Eliminare definitivamente questo amministratore? L'account di accesso verrà rimosso e il codice tornerà disponibile. Potrai reinvitare la stessa email in seguito.")) return
 
         const res = await removeAdmin(userId)
         if (res.success) {
-            toast.success("Accesso revocato con successo")
+            toast.success("Amministratore eliminato")
             loadAdmins()
         } else {
-            toast.error(res.error || "Errore durante la revoca")
+            toast.error(res.error || "Errore durante l'eliminazione")
         }
     }
 

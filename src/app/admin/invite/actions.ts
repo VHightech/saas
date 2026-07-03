@@ -195,17 +195,40 @@ export async function removeAdmin(userId: string) {
 
     const supabaseAdmin = createAdminClient()
 
-    // Remove admin role (downgrade) instead of delete? 
-    // Or delete user completely?
-    // Let's just remove the role for safety, creating a "soft ban" from admin.
-
-    // Remove admin role (downgrade to user)
-    // We update the profile role
-    const { error } = await supabaseAdmin.from('profiles')
-        .update({ role: 'user' })
+    // Hard-delete the admin (auth account + profile). A soft downgrade left the
+    // auth account alive, so re-inviting the same email failed with "already
+    // registered" and the admin's codice (000001–000010) stayed occupied.
+    const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('auth_user_id, role')
         .eq('id', userId)
+        .maybeSingle()
 
-    if (error) return { success: false, error: error.message }
+    if (!prof) return { success: false, error: 'Amministratore non trovato.' }
+    if (!['admin', 'super_admin', 'superadmin'].includes(prof.role as string)) {
+        return { success: false, error: 'Questo profilo non è un amministratore.' }
+    }
+
+    // Safety net: never destroy a profile that owns bills (would take customer
+    // data with it). Admins never do, but if somehow linked, downgrade instead.
+    const { count: billCount } = await supabaseAdmin
+        .from('bills').select('id', { count: 'exact', head: true }).eq('user_id', userId)
+    if (billCount && billCount > 0) {
+        await supabaseAdmin.from('profiles').update({ role: 'user' }).eq('id', userId)
+        revalidatePath('/admin/invite')
+        return { success: true }
+    }
+
+    // Delete the auth account (FK profiles.auth_user_id -> auth.users is ON DELETE
+    // CASCADE, so the profile goes with it), then make sure the profile is gone
+    // even in the edge case where auth_user_id was never linked.
+    const authId = (prof.auth_user_id as string | null) || userId
+    const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(authId)
+    if (authErr && !/not.?found|user.?not.?found/i.test(authErr.message)) {
+        console.error('removeAdmin auth delete:', authErr.message)
+        return { success: false, error: `Impossibile eliminare l'account di accesso: ${authErr.message}` }
+    }
+    await supabaseAdmin.from('profiles').delete().eq('id', userId)
 
     revalidatePath('/admin/admins')
     revalidatePath('/admin/invite')
