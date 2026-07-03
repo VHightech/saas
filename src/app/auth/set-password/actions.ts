@@ -42,27 +42,42 @@ export async function setFirstPassword(formData: FormData) {
         return { error: 'Impossibile salvare la password. Riprova.' }
     }
 
+    // Admin client for role resolution + shadow-profile activation.
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminClient = createAdminClient()
+
+    // Post-activation destination: admins go to the admin area, everyone else to
+    // /profile. Resolve by auth_user_id, falling back to id (invite/script-created
+    // profiles link via id). This is why admins were landing on the user view.
+    const destForRole = async (): Promise<string> => {
+        let { data: roleRow } = await adminClient
+            .from('profiles').select('role').eq('auth_user_id', user.id).maybeSingle()
+        if (!roleRow) {
+            const byId = await adminClient.from('profiles').select('role').eq('id', user.id).maybeSingle()
+            roleRow = byId.data
+        }
+        const role = roleRow?.role
+        return role === 'admin' || role === 'super_admin' || role === 'superadmin'
+            ? '/admin/users'
+            : '/profile'
+    }
+
     // 2. Get codice_cliente from metadata.
     // IMPORTANT: inviteUserByEmail({ data: { codice_cliente } }) stores the payload
     // in app_metadata (raw_app_meta_data), NOT user_metadata (raw_user_meta_data).
-    // We read app_metadata first, with user_metadata as a safe fallback.
     const codiceCliente = user.app_metadata?.codice_cliente
                        ?? user.user_metadata?.codice_cliente
 
     if (!codiceCliente) {
-        // Direct signup — the handle_new_user trigger already created a
-        // profile row with auth_user_id = user.id. Nothing further to do.
-        console.info('[setFirstPassword] No codice_cliente in metadata for user:', user.id)
+        // Admin invites carry no codice_cliente (this is the admin path), as do
+        // direct signups already profile-linked by the handle_new_user trigger.
         revalidatePath('/', 'layout')
-        redirect('/profile')
+        redirect(await destForRole())
     }
 
     // 3. Idempotent activation: links the existing shadow profile to this
     //    auth user by setting auth_user_id. No row migration, no FK ordering
     //    concerns — bills/supplies/payments already FK the shadow's profiles.id.
-    const { createAdminClient } = await import('@/lib/supabase/admin')
-    const adminClient = createAdminClient()
-
     const { data: activationResult, error: activationError } = await adminClient
         .rpc('activate_shadow_profile', {
             p_real_user_id:   user.id,
@@ -84,5 +99,5 @@ export async function setFirstPassword(formData: FormData) {
     }
 
     revalidatePath('/', 'layout')
-    redirect('/profile')
+    redirect(await destForRole())
 }

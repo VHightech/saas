@@ -118,7 +118,8 @@ export default function SetPasswordPage() {
             setError(result.error)
             setLoading(false)
         }
-        // On success, the server action calls redirect('/profile') — no extra handling needed
+        // On success, the server action redirects by role (/admin/users for admins,
+        // otherwise /profile) — no extra client handling needed.
     }
 
     if (!ready) {
