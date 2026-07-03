@@ -5,9 +5,9 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
     Ghost, Search, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, X,
     Printer, Download,
-    TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2
+    TrendingUp, Calendar, User, Mail, Hash, MapPin, Map, CreditCard, Activity, Droplets, AlertCircle, Trash2, RotateCcw
 } from 'lucide-react'
-import { deleteUser } from './actions'
+import { deleteUser, resetActivation } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'
@@ -85,6 +85,22 @@ export default function AdminUsersPage() {
             if (next.has(id)) next.delete(id)
             else next.add(id)
             return next
+        })
+    }
+
+    const handleResetActivation = (u: UserProfile) => {
+        toast("Ripristinare l'attivazione di questo utente?", {
+            description: "L'account di accesso verrà rimosso e il profilo torna 'da attivare'. Bollette e forniture restano. Potrai inviare un nuovo link di registrazione.",
+            action: {
+                label: 'Ripristina',
+                onClick: async () => {
+                    const res = await resetActivation(u.id)
+                    if (res?.error) { toast.error('Errore: ' + res.error); return }
+                    toast.success('Attivazione ripristinata.')
+                    fetchUsers()
+                    refreshHeaderStats()
+                }
+            }
         })
     }
 
@@ -1117,6 +1133,15 @@ export default function AdminUsersPage() {
 
                                             {/* Actions — delete (super admin) on hover; the whole row opens the detail page */}
                                             <div className="flex items-center justify-end pr-2 gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                                                {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && !u.isShadow && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleResetActivation(u); }}
+                                                        className="w-9 h-9 flex items-center justify-center rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white"
+                                                        title="Ripristina attivazione (torna a 'da attivare')"
+                                                    >
+                                                        <RotateCcw size={14} />
+                                                    </button>
+                                                )}
                                                 {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleDeleteUser(u); }}
