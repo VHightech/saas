@@ -6,7 +6,12 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['injured-maddie-imperfectly.ngrok-free.dev'],
   experimental: {
     serverActions: {
-      bodySizeLimit: '500mb',
+      // Server Actions only carry small form payloads (login, register,
+      // password reset, admin edits). Keep this tight: a high limit is a DoS
+      // amplifier on unauthenticated actions. Large file ingestion does NOT
+      // pass through here — it uses the /api/upload and /api/upload-users Route
+      // Handlers (req.formData()), which are not governed by this setting.
+      bodySizeLimit: '2mb',
     },
   },
   // The admin upload route uses path.join(process.cwd(), …) at runtime to
