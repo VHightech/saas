@@ -122,7 +122,15 @@ the **history/recap stays fully functional**.
   `requireSuperadmin` route → cascades bills + R2 purge).
 - The admin sidebar link to this page stays.
 
-**Kept elsewhere:** batch delete route, `GlobalProgressBar`.
+**Also removed (discovered during planning):** `GlobalProgressBar` and
+`AdminUploadProvider`. The progress bar is driven entirely by the client-side upload
+provider's state, not by polling `import_logs`; with web uploads gone it can never
+display anything, so both it and the provider (which exist only to drive/report web
+uploads) are removed, and their mount in `admin-layout-shell.tsx` is unwired. This
+supersedes the earlier "keep GlobalProgressBar" note.
+
+**Kept elsewhere:** batch delete route (`/api/upload/[id]` DELETE), the import history
+read + Esporta CSV + per-row delete on the page.
 
 **Dependencies:** `7zip-bin` / `node-7z` remain in `package.json` but are now a
 local-script concern only; they no longer ship in a Vercel function bundle.
