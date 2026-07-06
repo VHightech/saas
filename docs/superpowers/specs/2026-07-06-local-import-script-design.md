@@ -99,15 +99,19 @@ behavior so a re-run after interruption does not re-upload.
 **Removed:**
 - `src/app/api/upload/route.ts`.
 - `src/app/api/upload-users/route.ts`.
-- Upload UI: `src/app/admin/upload/page.tsx`, `BulkUploader`, and the
-  `admin-upload-provider` parts that exist only to drive the upload POST / generate
-  `importId`.
+- The upload *action* UI: `BulkUploader` and the `admin-upload-provider` parts that
+  exist only to drive the upload POST / generate `importId`.
 - `experimental.serverActions.bodySizeLimit` and the `/api/upload`
   `outputFileTracingExcludes` entry in `next.config.ts` (both existed only for the
   upload route). This supersedes the interim `2mb` change — the override is removed
   entirely, reverting to the safe 1 MB default.
-- Admin sidebar "Upload / Importa" nav link (or replace with a short static note that
-  imports run via the local `npm run import` script).
+
+**Repurposed:**
+- `src/app/admin/upload/page.tsx` is **kept as a static info page** that explains how
+  bulk import now works — i.e. that imports run locally via `npm run import`, the
+  interactive steps (mode → files → preview → confirm), and where results appear
+  (history / batch list). No file inputs, no POST, no client upload logic. The admin
+  sidebar "Upload / Importa" link stays and points to this info page.
 
 **Kept:** import history / batch list page, batch delete route, `GlobalProgressBar`.
 
