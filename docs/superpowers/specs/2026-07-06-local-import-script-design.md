@@ -106,14 +106,23 @@ behavior so a re-run after interruption does not re-upload.
   upload route). This supersedes the interim `2mb` change — the override is removed
   entirely, reverting to the safe 1 MB default.
 
-**Repurposed:**
-- `src/app/admin/upload/page.tsx` is **kept as a static info page** that explains how
-  bulk import now works — i.e. that imports run locally via `npm run import`, the
-  interactive steps (mode → files → preview → confirm), and where results appear
-  (history / batch list). No file inputs, no POST, no client upload logic. The admin
-  sidebar "Upload / Importa" link stays and points to this info page.
+**Repurposed — the "Centro Caricamento" page (`src/app/admin/upload/page.tsx`):**
+The page stays and keeps its current look, but the **upload actions are removed** while
+the **history/recap stays fully functional**.
 
-**Kept:** import history / batch list page, batch delete route, `GlobalProgressBar`.
+- **Removed from the page:** the three top upload cards — *Flusso Dati CSV* (Scegli i
+  file), *Archivio Fatture* (Scegli i file), and *Anagrafica Utenti* (Scegli CSV Clienti
+  / Esegui). All file inputs, POST calls, and `admin-upload-provider` upload logic go.
+- **Replaced with:** a short static info banner in that top area explaining that bulk
+  imports now run locally via `npm run import` (mode → files → preview → confirm) and
+  that results appear below in the history.
+- **Kept and fully working:** the **Storico Caricamenti** section — total-records
+  counter (e.g. "115.878 record totali"), the "importazioni" count, **search**
+  ("Cerca archivio…"), **Esporta CSV**, and the per-row **delete** (batch delete via the
+  `requireSuperadmin` route → cascades bills + R2 purge).
+- The admin sidebar link to this page stays.
+
+**Kept elsewhere:** batch delete route, `GlobalProgressBar`.
 
 **Dependencies:** `7zip-bin` / `node-7z` remain in `package.json` but are now a
 local-script concern only; they no longer ship in a Vercel function bundle.
