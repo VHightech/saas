@@ -56,7 +56,7 @@ async function main() {
             }
             const res = await users.commitUsers(sb, a, onProgress)
             process.stdout.write('\n')
-            await logs.completeImportLog(sb, importId, a.records, a.records, { errors: res.errors })
+            await logs.completeImportLog(sb, importId, a.records, a.records, { errors: [...a.skipMessages, ...res.errors] })
             console.log(`\nFatto. Profili: ${res.imported}, Forniture: ${res.suppliesUpserted}, Errori: ${res.errors.length}`)
             if (res.link) console.log(`Bollette agganciate: ${JSON.stringify(res.link)}`)
             if (res.errors.length) console.log(res.errors.slice(0, 20).join('\n'))

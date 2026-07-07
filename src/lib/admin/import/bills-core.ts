@@ -91,7 +91,7 @@ export async function insertBills(
         // Strip fields that aren't columns on bills; attach the FK.
         const rows = chunk.map(({ original_row_index, cfpi, ...rest }) => ({
             ...rest,
-            import_log_id: importId,
+            import_log_id: importId || null,
         }))
         const { error } = await sb.from('bills').insert(rows)
         if (error) errors.push(`Batch @${processed}: ${error.message}`)

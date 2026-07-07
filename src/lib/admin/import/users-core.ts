@@ -27,6 +27,7 @@ export interface UsersAnalysis {
     profiles: number
     supplies: number
     skipped: { annullato: number; noCif: number; shortCif: number; admin: number }
+    skipMessages: string[]
     profilePayloads: Map<string, ProfilePayload>
     supplyPayloads: Map<string, SupplyPayload>
 }
@@ -53,6 +54,7 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
     const profilePayloads = new Map<string, ProfilePayload>()
     const supplyPayloads = new Map<string, SupplyPayload>()
     const skipped = { annullato: 0, noCif: 0, shortCif: 0, admin: 0 }
+    const skipMessages: string[] = []
 
     for (const row of records) {
         const cif = clean(row['CIF'])
@@ -62,8 +64,16 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
         if (!cif) { skipped.noCif++; continue }
 
         const clientCode = cif.length >= 6 ? cif.substring(0, 6) : null
-        if (!clientCode) { skipped.shortCif++; continue }
-        if (adminCodes.has(clientCode)) { skipped.admin++; continue }
+        if (!clientCode) {
+            skipped.shortCif++
+            skipMessages.push(`Escluso: CIF troppo corto: ${cif}`)
+            continue
+        }
+        if (adminCodes.has(clientCode)) {
+            skipped.admin++
+            skipMessages.push(`Saltato: codice ${clientCode} riservato a un amministratore.`)
+            continue
+        }
 
         const emailRaw = clean(row['Mail'])
         if (!isAnnullato) {
@@ -93,6 +103,7 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
         profiles: profilePayloads.size,
         supplies: supplyPayloads.size,
         skipped,
+        skipMessages,
         profilePayloads,
         supplyPayloads,
     }

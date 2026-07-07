@@ -6,7 +6,6 @@ import sevenBin from '7zip-bin'
 import {
     buildInvoiceKey,
     uploadPdfToR2,
-    pdfExistsOnR2,
     listKeysWithPrefix,
     isR2Configured,
 } from '@/lib/r2'
@@ -171,7 +170,7 @@ export async function processArchive(
 
                     const r2Key = buildInvoiceKey(filename, importId)
                     try {
-                        const onR2 = existingR2.has(r2Key) || (await pdfExistsOnR2(r2Key))
+                        const onR2 = existingR2.has(r2Key)
                         if (!onR2) {
                             await uploadPdfToR2(r2Key, fs.readFileSync(filePath))
                             uploaded++
@@ -192,6 +191,8 @@ export async function processArchive(
                 await onProgress(`Upload PDF ${processed}/${total}…`, processed, total)
             }
         }
+    } catch (err) {
+        errors.push(`Archive Error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
         // Cleanup tmp copy + extraction dir.
         try { if (fs.existsSync(archiveCopy)) fs.unlinkSync(archiveCopy) } catch { /* ignore */ }
