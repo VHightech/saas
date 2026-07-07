@@ -18,8 +18,6 @@ import {
     ChevronRight,
     Command,
 } from 'lucide-react'
-import { AdminUploadProvider } from '@/components/providers/admin-upload-provider'
-import { GlobalProgressBar } from '@/components/ui/global-progress-bar'
 import { useTheme } from 'next-themes'
 import { logout } from '@/app/login/actions'
 import { cn } from '@/lib/utils'
@@ -54,7 +52,7 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
     const isDark = mounted && resolvedTheme === 'dark'
 
     return (
-        <AdminUploadProvider>
+        <>
             <div className="min-h-screen w-full bg-white dark:bg-[#0F1115] text-slate-700 dark:text-slate-200 font-sans flex">
                 {/* SIDEBAR */}
                 <aside
@@ -225,12 +223,7 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                         </div>
                     </div>
                 </main>
-
-
-
-
-                <GlobalProgressBar />
             </div>
-        </AdminUploadProvider>
+        </>
     )
 }
