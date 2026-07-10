@@ -929,7 +929,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
 
 
-                        {scopedBills.length > 0 && (
+                        {selectedUlm !== 'all' && scopedBills.length > 0 && (
                             <div className="bg-white dark:bg-[#1A1D23] rounded-xl border border-slate-200/70 dark:border-white/5 p-4">
                                 <MiniSpendChart bills={scopedBills} />
                             </div>

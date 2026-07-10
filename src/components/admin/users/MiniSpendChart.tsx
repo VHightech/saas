@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { buildYearlyChartData, availableBillYears } from '@/lib/bill-chart'
 
 /** Minimal structural shape the chart needs — accepts both the dashboard and admin Bill types. */
 interface MiniSpendBill {
@@ -11,42 +12,55 @@ interface MiniSpendBill {
     consumo?: number | string | null
 }
 
-/** Dual-line (spesa + consumo) sparkline with scrub interaction, used on the admin user detail. */
+/**
+ * Dual-line (spesa + consumo) sparkline with scrub interaction, used on the admin
+ * user detail. Data is grouped BY YEAR (like the user-facing yearly chart): a year
+ * selector picks the year, and each point is a month of that year that has bills,
+ * with spesa (€) and consumo (mc) summed per month.
+ */
 export function MiniSpendChart({ bills }: { bills: MiniSpendBill[] }) {
+    const years = useMemo(() => availableBillYears(bills), [bills])
+    const [selectedYear, setSelectedYear] = useState<number | null>(null)
+
+    // Default to the most recent year with data; keep the current pick if still valid.
+    useEffect(() => {
+        setSelectedYear(prev => (prev != null && years.includes(prev)) ? prev : (years[0] ?? null))
+    }, [years])
+
     const data = useMemo(() => {
-        const sorted = [...bills]
-            .filter(b => b.data_emissione)
-            .sort((a, b) => new Date(a.data_emissione!).getTime() - new Date(b.data_emissione!).getTime())
-            .slice(-6)
+        if (selectedYear == null) return { points: [], sorted: [] as ReturnType<typeof buildYearlyChartData>['months'] }
 
-        const monthLabel = (d: Date) => d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '')
+        // Aggregate the selected year into 12 months (spesa + consumo), then keep
+        // only the months that actually have a bill — same yearly logic as the
+        // user graph, rendered as points on this sparkline.
+        const monthsWithData = buildYearlyChartData(bills, selectedYear).months.filter(m => m.count > 0)
 
-        const maxImporto = Math.max(...sorted.map(b => Number(b.importo) || 0), 1)
-        const maxConsumo = Math.max(...sorted.map(b => Number(b.consumo) || 0), 1)
+        const maxImporto = Math.max(...monthsWithData.map(m => m.spesa), 1)
+        const maxConsumo = Math.max(...monthsWithData.map(m => m.consumo), 1)
 
         const margin = 12
         const w = 300 - margin * 2
 
-        const points = sorted.map((b, i) => {
-            const valI = Number(b.importo) || 0
-            const valC = Number(b.consumo) || 0
+        const points = monthsWithData.map((m, i) => {
+            const valI = m.spesa
+            const valC = m.consumo
 
             // Normalized Y (0-100)
             const yI = valI > 0 ? 100 - ((valI / maxImporto) * 65 + 15) : 85
             const yC = valC > 0 ? 100 - ((valC / maxConsumo) * 65 + 15) : 85
 
-            const x = sorted.length > 1 ? margin + i * (w / (sorted.length - 1)) : margin + w / 2
+            const x = monthsWithData.length > 1 ? margin + i * (w / (monthsWithData.length - 1)) : margin + w / 2
 
-            return { x, yI, yC, valI, valC, label: monthLabel(new Date(b.data_emissione!)), key: b.id }
+            return { x, yI, yC, valI, valC, label: m.label, key: `${selectedYear}-${m.month}` }
         })
 
-        return { points, sorted }
-    }, [bills])
+        return { points, sorted: monthsWithData }
+    }, [bills, selectedYear])
 
     const [active, setActive] = useState<number | null>(null)
     useEffect(() => {
         setActive(data.points.length > 0 ? data.points.length - 1 : null)
-    }, [data.points.length])
+    }, [data.points.length, selectedYear])
 
     const containerRef = useRef<HTMLDivElement>(null)
     const [size, setSize] = useState({ width: 0, height: 0 })
@@ -102,7 +116,29 @@ export function MiniSpendChart({ bills }: { bills: MiniSpendBill[] }) {
     return (
         <div>
             <div className="mb-4">
-                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 mb-3">Andamento spesa & consumo</p>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400">Andamento spesa & consumo</p>
+                    {years.length > 1 ? (
+                        <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg shrink-0">
+                            {years.map(y => (
+                                <button
+                                    key={y}
+                                    onClick={() => setSelectedYear(y)}
+                                    className={cn(
+                                        "px-2 h-6 rounded-md text-[11px] font-bold tabular-nums transition-colors",
+                                        y === selectedYear
+                                            ? "bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-sm"
+                                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                    )}
+                                >
+                                    {y}
+                                </button>
+                            ))}
+                        </div>
+                    ) : selectedYear != null ? (
+                        <span className="text-[11px] font-bold tabular-nums text-slate-400 shrink-0">{selectedYear}</span>
+                    ) : null}
+                </div>
                 <div className="flex items-baseline justify-between gap-2 min-h-[22px]">
                     {isEmpty ? (
                         <span className="text-[12px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-white/5 px-3 py-1 rounded-lg border border-slate-100 dark:border-white/5">
@@ -114,7 +150,7 @@ export function MiniSpendChart({ bills }: { bills: MiniSpendBill[] }) {
                                 € {curI.toFixed(2).replace('.', ',')}
                             </h3>
                             <span className="text-[13px] font-bold text-indigo-500 dark:text-indigo-400 tabular-nums">
-                                {curC} mc
+                                {curC.toLocaleString('it-IT', { maximumFractionDigits: 1 })} mc
                             </span>
                         </>
                     )}
