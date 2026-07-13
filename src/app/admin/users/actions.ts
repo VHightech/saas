@@ -279,36 +279,6 @@ export async function updateUserSupply(cif: string, data: { address?: string; ci
     return { success: true }
 }
 
-/**
- * Sets the same contact email on every fornitura of a user in one shot.
- * Pass an empty string to clear the email on all supplies.
- */
-export async function updateAllSuppliesEmail(userId: string, email: string) {
-    const authCheck = await requireUserManagement()
-    if (authCheck.error) return { error: authCheck.error }
-
-    const normalized = normalizeSupplyEmail(email)
-    if ('invalid' in normalized) return { error: 'Indirizzo email non valido.' }
-
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-
-    const { error, count } = await supabaseAdmin
-        .from('user_supplies')
-        .update({ email: normalized.value }, { count: 'exact' })
-        .eq('user_id', userId)
-
-    if (error) {
-        console.error('Error updating supplies email:', error.code)
-        return { error: 'Errore durante l\'aggiornamento delle email delle forniture.' }
-    }
-
-    return { success: true, updated: count ?? 0 }
-}
-
 export async function deleteSupply(cif: string, userId?: string) {
     const authCheck = await requireSuperadmin()
     if (authCheck.error) return { error: authCheck.error }
