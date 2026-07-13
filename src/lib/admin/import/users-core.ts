@@ -60,7 +60,9 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
     for (const row of records) {
         const cif = clean(row['CIF'])
         const statoContratto = clean(row['statoContratto'])
-        const isAnnullato = statoContratto === '08'
+        // The export has used both numeric codes ('08') and text labels
+        // ('ANNULLATO') for cancelled contracts, depending on its version.
+        const isAnnullato = statoContratto === '08' || (statoContratto ?? '').toUpperCase() === 'ANNULLATO'
         if (isAnnullato) skipped.annullato++
         if (!cif) { skipped.noCif++; continue }
 
@@ -74,6 +76,10 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
             skipped.admin++
             skipMessages.push(`Saltato: codice ${clientCode} riservato a un amministratore.`)
             continue
+        }
+
+        if (supplyPayloads.has(cif)) {
+            skipMessages.push(`Attenzione: CIF duplicato nel CSV (${cif}): la riga successiva sovrascrive la precedente.`)
         }
 
         const emailRaw = clean(row['Mail'])
