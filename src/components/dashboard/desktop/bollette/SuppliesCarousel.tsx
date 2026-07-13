@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect, useMemo, type PointerEvent as ReactPointerEvent } from 'react'
-import { Search, X } from 'lucide-react'
+import { Mail, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CodeBadge } from '@/components/ui/CodeBadge'
 import { getContractStatus, STATUS_SOFT_CLASS, STATUS_GLASS_CLASS } from '@/lib/contract-status'
@@ -371,6 +371,12 @@ export function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supply
                                             {s.city && (
                                                 <p className="text-[11px] font-medium opacity-70 truncate">
                                                     {s.city}
+                                                </p>
+                                            )}
+                                            {s.email && (
+                                                <p className="flex items-center gap-1 text-[10px] font-medium opacity-70 truncate mt-0.5" title={`Email fornitura: ${s.email}`}>
+                                                    <Mail size={10} className="shrink-0" />
+                                                    <span className="truncate">{s.email}</span>
                                                 </p>
                                             )}
                                         </div>

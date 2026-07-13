@@ -1102,6 +1102,7 @@ export default function AdminUsersPage() {
                                                         const s = u.userSupplies?.find((us: any) => us.cif === cif);
                                                         const addr = s?.indirizzo_fornitura || s?.address;
                                                         const cty = s?.citta || s?.city;
+                                                        const supEmail = s?.email;
 
                                                         return (
                                                             <div className="flex flex-col min-w-0">
@@ -1109,6 +1110,11 @@ export default function AdminUsersPage() {
                                                                     {addr || '—'}
                                                                 </span>
                                                                 {cty && <span className="text-[10px] text-slate-400 truncate">{cty}</span>}
+                                                                {supEmail && (
+                                                                    <span className="text-[10px] text-indigo-500/80 dark:text-indigo-400/80 truncate" title={`Email fornitura: ${supEmail}`}>
+                                                                        {supEmail}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         );
                                                     })()

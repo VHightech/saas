@@ -20,6 +20,7 @@ interface SupplyPayload {
     city: string | null
     stadio: string | null
     stato_contratto: string | null
+    email: string | null
 }
 
 export interface UsersAnalysis {
@@ -95,6 +96,9 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
             city: clean(row['comune']),
             stadio: clean(row['stadio']),
             stato_contratto: statoContratto,
+            // Each CSV row is one fornitura: its Mail belongs to the supply,
+            // not to the profile (where multiple rows would overwrite it).
+            email: emailRaw ? emailRaw.toLowerCase() : null,
         })
     }
 

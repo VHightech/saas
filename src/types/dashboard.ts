@@ -49,5 +49,6 @@ export interface UserSupply {
     address?: string
     city?: string
     ulm?: string
+    email?: string | null
     [key: string]: any
 }

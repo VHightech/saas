@@ -159,7 +159,7 @@ export function MobileProfilo({ profile, stats, supplies = [], onBack, onLogout 
             <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-1">Dati personali</p>
                 <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] overflow-hidden divide-y divide-slate-100 dark:divide-white/5">
-                    <InfoRow icon={<Mail size={18} className="text-[#1E5BFF]" />} label="Email" value={stats.email || 'N/A'} />
+                    <InfoRow icon={<Mail size={18} className="text-[#1E5BFF]" />} label="Email di accesso" value={stats.email || 'N/A'} />
                     <InfoRow icon={<Smartphone size={18} className="text-[#1E5BFF]" />} label="Telefono" value={stats.phone || 'N/A'} />
                     <InfoRow icon={<FileText size={18} className="text-[#1E5BFF]" />} label="Codice fiscale / P.IVA" value={stats.fiscalCode || 'N/A'} mono />
                 </div>
@@ -193,6 +193,12 @@ export function MobileProfilo({ profile, stats, supplies = [], onBack, onLogout 
                                     <div className="min-w-0 flex-1">
                                         <p className="text-sm font-bold text-[#0A2540] dark:text-white truncate">{s.address || `Fornitura ${i + 1}`}</p>
                                         {s.city && <p className="text-[11px] text-slate-400 truncate mt-0.5">{s.city}</p>}
+                                        {s.email && (
+                                            <p className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 truncate mt-1">
+                                                <Mail size={11} className="shrink-0 text-[#1E5BFF]" />
+                                                <span className="truncate">{s.email}</span>
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             )

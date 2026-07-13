@@ -42,7 +42,7 @@ export async function GET() {
             .order('data_emissione', { ascending: false }),
         admin
             .from('user_supplies')
-            .select('cif, address, city, codice_cliente, stadio, stato_contratto, created_at')
+            .select('cif, address, city, codice_cliente, email, stadio, stato_contratto, created_at')
             .eq('user_id', profileId)
             .order('created_at', { ascending: true }),
         admin

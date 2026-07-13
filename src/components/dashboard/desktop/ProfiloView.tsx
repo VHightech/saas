@@ -50,7 +50,7 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
         <>
             {/* MOBILE */}
             <div className="lg:hidden min-h-screen bg-[#F8FAFC] dark:bg-[#0F1115]">
-                <MobileProfilo profile={profile} stats={stats} onBack={() => history.back()} onLogout={handleLogout} />
+                <MobileProfilo profile={profile} stats={stats} supplies={supplies} onBack={() => history.back()} onLogout={handleLogout} />
             </div>
 
             {/* DESKTOP */}
@@ -134,7 +134,7 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                         <div className="bg-white dark:bg-[#1A1D23] rounded-[2rem] p-5">
                             <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Dati di contatto</h3>
                             <div className="space-y-2">
-                                <Row icon={<Mail size={16} />} label="Email" value={stats.email} />
+                                <Row icon={<Mail size={16} />} label="Email di accesso" value={stats.email} />
                                 <Row icon={<Smartphone size={16} />} label="Telefono" value={stats.phone} />
                                 <Row icon={<FileText size={16} />} label="Codice Fiscale / P.IVA" value={stats.fiscalCode} mono />
                             </div>
@@ -167,6 +167,12 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-[12px] font-bold text-[#0A2540] dark:text-white truncate">{s.address || `Fornitura ${i + 1}`}</p>
                                                 {s.city && <p className="text-[10px] text-slate-400 truncate">{s.city}</p>}
+                                                {s.email && (
+                                                    <p className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                                        <Mail size={10} className="shrink-0 text-[#1E5BFF]" />
+                                                        <span className="truncate">{s.email}</span>
+                                                    </p>
+                                                )}
                                             </div>
                                             {s.ulm && <span className="text-[9px] font-mono font-bold text-slate-400 uppercase shrink-0">{s.ulm}</span>}
                                         </div>

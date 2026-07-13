@@ -4,12 +4,12 @@ import { use, useMemo, useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     ArrowLeft, Download, Eye, Edit2, ChevronLeft, ChevronRight,
-    Search, FileText, X, Check, Calendar, ChevronDown, Droplets, Trash2, RotateCcw
+    Search, FileText, X, Check, Calendar, ChevronDown, Droplets, Trash2, RotateCcw, Mail
 } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { format, startOfDay, endOfDay } from 'date-fns'
-import { updateUser, deleteUser, deleteSupply, resetActivation } from '../actions'
+import { updateUser, deleteUser, deleteSupply, resetActivation, updateUserSupply, updateAllSuppliesEmail } from '../actions'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { CodeBadge } from '@/components/ui/CodeBadge'
 import { MiniSpendChart } from '@/components/admin/users/MiniSpendChart'
@@ -43,6 +43,7 @@ interface UserSupply {
     address: string | null
     city: string | null
     codice_cliente: string
+    email?: string | null
     ulm?: string
     stadio?: string | null
     stato_contratto?: string | null
@@ -202,6 +203,36 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
             },
             error: (err) => `Errore: ${err.message}`
         })
+    }
+
+    // Per-fornitura email editing (inline) + bulk "same email everywhere".
+    const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null)
+    const [supplyEmailDraft, setSupplyEmailDraft] = useState('')
+    const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
+    const [bulkEmailDraft, setBulkEmailDraft] = useState('')
+    const [savingSupplyEmail, setSavingSupplyEmail] = useState(false)
+
+    const handleSaveSupplyEmail = async (supply: UserSupply) => {
+        setSavingSupplyEmail(true)
+        const res = await updateUserSupply(supply.cif, { email: supplyEmailDraft }, id)
+        setSavingSupplyEmail(false)
+        if (res.error) { toast.error(res.error); return }
+        const saved = supplyEmailDraft.trim().toLowerCase() || null
+        setUserSupplies(prev => prev.map(s => s.id === supply.id ? { ...s, email: saved } : s))
+        setEditingSupplyId(null)
+        toast.success('Email fornitura aggiornata')
+    }
+
+    const handleBulkEmail = async () => {
+        setSavingSupplyEmail(true)
+        const res = await updateAllSuppliesEmail(id, bulkEmailDraft)
+        setSavingSupplyEmail(false)
+        if (res.error) { toast.error(res.error); return }
+        const saved = bulkEmailDraft.trim().toLowerCase() || null
+        setUserSupplies(prev => prev.map(s => ({ ...s, email: saved })))
+        setBulkEmailOpen(false)
+        setBulkEmailDraft('')
+        toast.success(`Email aggiornata su ${res.updated ?? userSupplies.length} forniture`)
     }
 
     const handleDeleteSupply = async (cif: string) => {
@@ -444,7 +475,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                             <div className="px-6 py-3 bg-slate-50/60 dark:bg-white/[0.02] border-t border-slate-200/70 dark:border-white/5 grid grid-cols-2 md:grid-cols-3 gap-3">
                                 {[
                                     { key: 'name', label: 'Nome' },
-                                    { key: 'email', label: 'Email' },
+                                    { key: 'email', label: 'Email (accesso)' },
                                     { key: 'phone', label: 'Telefono' },
                                     { key: 'codiceFiscale', label: 'Codice Fiscale' },
                                     { key: 'partitaIva', label: 'P.IVA' },
@@ -838,7 +869,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                     <CodeBadge value={profile.pec} label="PEC" copyable mono={false} />
                                 )}
                                 {profile.email && (
-                                    <CodeBadge value={profile.email} label="EMAIL" copyable mono={false} />
+                                    <CodeBadge value={profile.email} label="EMAIL ACCESSO" copyable mono={false} />
                                 )}
                                 {profile.phone && (
                                     <CodeBadge value={profile.phone} label="TEL" copyable />
@@ -880,47 +911,144 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                                 })}
                                             </div>
 
-                                            {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
-                                                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
-                                                    <div
-                                                        onClick={userSupplies.length > 5 ? () => setSuppliesActionsOpen(o => !o) : undefined}
-                                                        className={cn(
-                                                            "w-full flex items-center justify-between mb-3 group/toggle",
-                                                            userSupplies.length > 5 && "cursor-pointer"
-                                                        )}
-                                                        title={userSupplies.length > 5 ? (suppliesActionsOpen ? 'Comprimi' : 'Espandi') : undefined}
-                                                    >
-                                                        <span className="flex items-center gap-2">
-                                                            <span className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400">Forniture</span>
-                                                            <span className="bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px] font-bold">{userSupplies.length}</span>
+                                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
+                                                <div
+                                                    onClick={userSupplies.length > 5 ? () => setSuppliesActionsOpen(o => !o) : undefined}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-between mb-3 group/toggle",
+                                                        userSupplies.length > 5 && "cursor-pointer"
+                                                    )}
+                                                    title={userSupplies.length > 5 ? (suppliesActionsOpen ? 'Comprimi' : 'Espandi') : undefined}
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400">Forniture</span>
+                                                        <span className="bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px] font-bold">{userSupplies.length}</span>
+                                                    </span>
+                                                    {userSupplies.length > 5 && (
+                                                        <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-400 group-hover/toggle:bg-slate-200 dark:group-hover/toggle:bg-white/20 transition-all shrink-0">
+                                                            <ChevronDown size={14} className={cn("transition-transform duration-200", suppliesActionsOpen && "rotate-180")} />
                                                         </span>
-                                                        {userSupplies.length > 5 && (
-                                                            <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-400 group-hover/toggle:bg-slate-200 dark:group-hover/toggle:bg-white/20 transition-all shrink-0">
-                                                                <ChevronDown size={14} className={cn("transition-transform duration-200", suppliesActionsOpen && "rotate-180")} />
-                                                            </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Bulk: same email on every fornitura (admins with user management) */}
+                                                {canManage && userSupplies.length > 1 && (
+                                                    <div className="mb-3">
+                                                        {bulkEmailOpen ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <input
+                                                                    autoFocus
+                                                                    type="email"
+                                                                    placeholder="email@esempio.it"
+                                                                    value={bulkEmailDraft}
+                                                                    onChange={(e) => setBulkEmailDraft(e.target.value)}
+                                                                    onKeyDown={(e) => { if (e.key === 'Enter') handleBulkEmail(); if (e.key === 'Escape') setBulkEmailOpen(false) }}
+                                                                    className="flex-1 min-w-0 h-8 px-2 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
+                                                                />
+                                                                <button
+                                                                    onClick={handleBulkEmail}
+                                                                    disabled={savingSupplyEmail}
+                                                                    className="h-8 px-2.5 rounded-md bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors shrink-0"
+                                                                >
+                                                                    Applica a tutte
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setBulkEmailOpen(false)}
+                                                                    className="w-8 h-8 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors shrink-0"
+                                                                    title="Annulla"
+                                                                >
+                                                                    <X size={13} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => { setBulkEmailDraft(''); setBulkEmailOpen(true); setEditingSupplyId(null) }}
+                                                                className="w-full h-8 rounded-md border border-dashed border-slate-300 dark:border-white/15 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center justify-center gap-1.5 transition-colors"
+                                                            >
+                                                                <Mail size={12} />
+                                                                Stessa email su tutte le forniture
+                                                            </button>
                                                         )}
                                                     </div>
-                                                    {(userSupplies.length <= 5 || suppliesActionsOpen) && (
-                                                    <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
-                                                        {userSupplies.map(s => (
-                                                            <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 group/s shrink-0">
+                                                )}
+
+                                                {(userSupplies.length <= 5 || suppliesActionsOpen) && (
+                                                <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                                                    {userSupplies.map(s => (
+                                                        <div key={s.id} className="p-2 rounded-lg bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 group/s shrink-0">
+                                                            <div className="flex items-center justify-between">
                                                                 <div className="flex flex-col min-w-0">
                                                                     <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">{s.ulm || s.cif.slice(-6)}</span>
                                                                     <span className="text-[9px] text-slate-400 truncate">{s.address}</span>
                                                                 </div>
-                                                                <button
-                                                                    onClick={() => handleDeleteSupply(s.cif)}
-                                                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-500 hover:text-white transition-all shrink-0"
-                                                                    title="Elimina fornitura"
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
+                                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                                    {canManage && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setBulkEmailOpen(false)
+                                                                                setEditingSupplyId(s.id)
+                                                                                setSupplyEmailDraft(s.email || '')
+                                                                            }}
+                                                                            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-indigo-500 hover:text-white transition-all"
+                                                                            title="Modifica email fornitura"
+                                                                        >
+                                                                            <Edit2 size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                    {(currentUserRole === 'super_admin' || currentUserRole === 'superadmin') && (
+                                                                        <button
+                                                                            onClick={() => handleDeleteSupply(s.cif)}
+                                                                            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-500 hover:text-white transition-all"
+                                                                            title="Elimina fornitura"
+                                                                        >
+                                                                            <Trash2 size={13} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                    )}
+                                                            {editingSupplyId === s.id ? (
+                                                                <div className="flex items-center gap-1.5 mt-1.5">
+                                                                    <input
+                                                                        autoFocus
+                                                                        type="email"
+                                                                        placeholder="email@esempio.it (vuoto per rimuovere)"
+                                                                        value={supplyEmailDraft}
+                                                                        onChange={(e) => setSupplyEmailDraft(e.target.value)}
+                                                                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveSupplyEmail(s); if (e.key === 'Escape') setEditingSupplyId(null) }}
+                                                                        className="flex-1 min-w-0 h-7 px-2 rounded-md bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => handleSaveSupplyEmail(s)}
+                                                                        disabled={savingSupplyEmail}
+                                                                        className="w-7 h-7 rounded-md bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 disabled:opacity-50 transition-colors shrink-0"
+                                                                        title="Salva"
+                                                                    >
+                                                                        <Check size={12} strokeWidth={3} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setEditingSupplyId(null)}
+                                                                        className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors shrink-0"
+                                                                        title="Annulla"
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1 mt-1.5 min-w-0" title={s.email ? `Email fornitura: ${s.email}` : 'Nessuna email associata'}>
+                                                                    <Mail size={10} className={cn("shrink-0", s.email ? "text-indigo-500" : "text-slate-300 dark:text-slate-600")} />
+                                                                    <span className={cn(
+                                                                        "text-[10px] truncate",
+                                                                        s.email ? "text-slate-600 dark:text-slate-300 font-medium" : "text-slate-400 italic"
+                                                                    )}>
+                                                                        {s.email || 'Nessuna email'}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            )}
+                                                )}
+                                            </div>
                                         </div>
                                     )
                                 })()}

@@ -232,9 +232,27 @@ export async function resetActivation(userId: string) {
     return { success: true }
 }
 
-export async function updateUserSupply(cif: string, data: { address?: string; city?: string }, userId?: string) {
+// Per-supply contact email. Distinct from profiles.email (the login email):
+// each fornitura can have its own recipient address.
+const SUPPLY_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/
+
+function normalizeSupplyEmail(raw: string): { value: string | null } | { invalid: true } {
+    const trimmed = raw.trim().toLowerCase()
+    if (!trimmed) return { value: null }
+    if (!SUPPLY_EMAIL_REGEX.test(trimmed)) return { invalid: true }
+    return { value: trimmed }
+}
+
+export async function updateUserSupply(cif: string, data: { address?: string; city?: string; email?: string }, userId?: string) {
     const authCheck = await requireUserManagement()
     if (authCheck.error) return { error: authCheck.error }
+
+    let email: string | null | undefined
+    if (data.email !== undefined) {
+        const normalized = normalizeSupplyEmail(data.email)
+        if ('invalid' in normalized) return { error: 'Indirizzo email non valido.' }
+        email = normalized.value
+    }
 
     const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -247,6 +265,7 @@ export async function updateUserSupply(cif: string, data: { address?: string; ci
         .update({
             ...(data.address !== undefined ? { address: data.address } : {}),
             ...(data.city !== undefined ? { city: data.city } : {}),
+            ...(email !== undefined ? { email } : {}),
         })
         .eq('cif', cif)
 
@@ -258,6 +277,36 @@ export async function updateUserSupply(cif: string, data: { address?: string; ci
     // No revalidatePath (see updateUser): avoids the layout-refresh round-trip.
     void userId
     return { success: true }
+}
+
+/**
+ * Sets the same contact email on every fornitura of a user in one shot.
+ * Pass an empty string to clear the email on all supplies.
+ */
+export async function updateAllSuppliesEmail(userId: string, email: string) {
+    const authCheck = await requireUserManagement()
+    if (authCheck.error) return { error: authCheck.error }
+
+    const normalized = normalizeSupplyEmail(email)
+    if ('invalid' in normalized) return { error: 'Indirizzo email non valido.' }
+
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const { error, count } = await supabaseAdmin
+        .from('user_supplies')
+        .update({ email: normalized.value }, { count: 'exact' })
+        .eq('user_id', userId)
+
+    if (error) {
+        console.error('Error updating supplies email:', error.code)
+        return { error: 'Errore durante l\'aggiornamento delle email delle forniture.' }
+    }
+
+    return { success: true, updated: count ?? 0 }
 }
 
 export async function deleteSupply(cif: string, userId?: string) {
