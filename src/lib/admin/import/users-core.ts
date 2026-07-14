@@ -35,6 +35,24 @@ export interface UsersAnalysis {
 
 const clean = (v: unknown): string | null => (v == null ? null : String(v).trim() || null)
 
+/**
+ * Case-insensitive column access: the export changed header casing between
+ * versions (stadio/statoContratto vs Stadio/StatoContratto), and a literal
+ * row['statoContratto'] silently reads undefined on the newer files.
+ */
+function buildColumnGetter(sample: Record<string, string>) {
+    const byLower = new Map<string, string>()
+    for (const k of Object.keys(sample)) byLower.set(k.toLowerCase(), k)
+    return (row: Record<string, string>, name: string): string | null =>
+        clean(row[byLower.get(name.toLowerCase()) ?? name])
+}
+
+// Duplicate-CIF resolution: the export can list the same CIF twice (e.g. old
+// CHIUSO contract + its ATTIVO renewal). Prefer the row whose stato ranks
+// higher; ties keep the later row (previous behaviour).
+const STATO_RANK: Record<string, number> = { 'ATTIVO': 4, 'IN LAVORAZIONE': 3, 'CHIUSO': 2, 'ANNULLATO': 1 }
+const statoRank = (s: string | null): number => STATO_RANK[(s ?? '').toUpperCase()] ?? 0
+
 export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise<UsersAnalysis> {
     const records = parse(csvText, {
         columns: true,
@@ -57,9 +75,12 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
     const skipped = { annullato: 0, noCif: 0, shortCif: 0, admin: 0 }
     const skipMessages: string[] = []
 
+    const col = records.length > 0 ? buildColumnGetter(records[0]) : null
+
     for (const row of records) {
-        const cif = clean(row['CIF'])
-        const statoContratto = clean(row['statoContratto'])
+        if (!col) break
+        const cif = col(row, 'CIF')
+        const statoContratto = col(row, 'statoContratto')
         // The export has used both numeric codes ('08') and text labels
         // ('ANNULLATO') for cancelled contracts, depending on its version.
         const isAnnullato = statoContratto === '08' || (statoContratto ?? '').toUpperCase() === 'ANNULLATO'
@@ -78,34 +99,46 @@ export async function analyzeUsers(sb: SupabaseClient, csvText: string): Promise
             continue
         }
 
-        if (supplyPayloads.has(cif)) {
-            skipMessages.push(`Attenzione: CIF duplicato nel CSV (${cif}): la riga successiva sovrascrive la precedente.`)
-        }
-
-        const emailRaw = clean(row['Mail'])
+        const emailRaw = col(row, 'Mail')
         if (!isAnnullato) {
             profilePayloads.set(clientCode, {
                 codice_cliente: clientCode,
-                name: clean(row['RagioneSociale']),
-                codice_fiscale: clean(row['CodiceFiscale']),
-                partita_iva: clean(row['PartitaIva']),
+                name: col(row, 'RagioneSociale'),
+                codice_fiscale: col(row, 'CodiceFiscale'),
+                partita_iva: col(row, 'PartitaIva'),
                 email: emailRaw ? emailRaw.toLowerCase() : null,
-                pec: clean(row['PEC'])?.toLowerCase() ?? null,
+                pec: col(row, 'PEC')?.toLowerCase() ?? null,
                 is_shadow: true,
                 role: 'user',
             })
         }
-        supplyPayloads.set(cif, {
+
+        const payload: SupplyPayload = {
             codice_cliente: clientCode,
             cif,
-            address: clean(row['indirizzo']),
-            city: clean(row['comune']),
-            stadio: clean(row['stadio']),
+            address: col(row, 'indirizzo'),
+            city: col(row, 'comune'),
+            stadio: col(row, 'stadio'),
             stato_contratto: statoContratto,
             // Each CSV row is one fornitura: its Mail belongs to the supply,
             // not to the profile (where multiple rows would overwrite it).
             email: emailRaw ? emailRaw.toLowerCase() : null,
-        })
+        }
+
+        const existing = supplyPayloads.get(cif)
+        if (!existing) {
+            supplyPayloads.set(cif, payload)
+        } else {
+            const keepNew = statoRank(payload.stato_contratto) >= statoRank(existing.stato_contratto)
+            const winner = keepNew ? payload : existing
+            const loser = keepNew ? existing : payload
+            // Never lose contact data to a duplicate row without an email.
+            supplyPayloads.set(cif, winner.email ? winner : { ...winner, email: loser.email })
+            skipMessages.push(
+                `CIF duplicato nel CSV (${cif}): tenuta la riga con stato ${winner.stato_contratto ?? '?'}`
+                + (loser.address !== winner.address ? ` — ATTENZIONE indirizzi diversi ("${loser.address}" scartato)` : '')
+            )
+        }
     }
 
     return {
