@@ -12,6 +12,17 @@ import dotenv from 'dotenv'
 import path from 'node:path'
 import fs from 'node:fs'
 
+/**
+ * The gestionale exports CSVs in cp1252, not UTF-8: decoding them as UTF-8
+ * turns accented letters (Società, CIUCCIOVÈ…) into U+FFFD. Try UTF-8 first;
+ * if replacement characters appear, fall back to latin1.
+ */
+function readCsvText(filePath: string): string {
+    const buf = fs.readFileSync(filePath)
+    const utf8 = buf.toString('utf8')
+    return utf8.includes('�') ? buf.toString('latin1') : utf8
+}
+
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
 
@@ -36,7 +47,7 @@ async function main() {
         if (mode === 0) {
             // ---- USERS ----
             const csvPath = requireExistingFile(await p.ask('Percorso CSV anagrafiche: '), 'CSV')
-            const csvText = fs.readFileSync(csvPath, 'utf8')
+            const csvText = readCsvText(csvPath)
 
             console.log('\nAnalisi in corso…')
             const a = await users.analyzeUsers(sb, csvText)
@@ -64,7 +75,7 @@ async function main() {
             // ---- BILLS + PDF ----
             const csvPath = requireExistingFile(await p.ask('Percorso CSV bollette (Xml…): '), 'CSV')
             const archivePath = requireExistingFile(await p.ask('Percorso archivio 7z: '), 'Archivio')
-            const csvText = fs.readFileSync(csvPath, 'utf8')
+            const csvText = readCsvText(csvPath)
 
             console.log('\nAnalisi CSV…')
             const a = await bills.analyzeBills(sb, csvText)
