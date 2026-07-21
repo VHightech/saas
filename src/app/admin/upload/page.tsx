@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
+import { DbHealthCard } from '@/components/admin/db-health-card'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -87,6 +88,7 @@ export default function AdminUploadPage() {
         <>
             <AdminPageHero title="Centro Caricamento" />
             <div className="h-full overflow-y-auto custom-scrollbar flex flex-col gap-6 px-6 py-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <DbHealthCard />
                 <ImportInfoBanner />
                 <UploadHistory logs={logs} loading={loadingLogs} onDelete={handleDeleteImport} />
             </div>
