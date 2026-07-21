@@ -19,45 +19,60 @@ export interface BatchDiscovery {
     unmatchedArchives: string[]
 }
 
+/** First run of 8 consecutive digits in a name — the export's YYYYMMDD batch date. */
+const DATE_KEY_RE = /(\d{8})/
+function extractDateKey(name: string): string | null {
+    return DATE_KEY_RE.exec(name)?.[1] ?? null
+}
+
+interface ArchiveCandidate { key: string; path: string }
+
 /**
- * Pairs every CSV directly inside `folderPath` with a same-named archive —
- * either a `.7z` file or a folder containing the PDFs directly (both match
- * the CSV's basename, case-insensitive). Meant for a "one file/folder per
- * month" layout so a whole year can be queued in a single run.
+ * Pairs every CSV directly inside `folderPath` with an archive — either a
+ * `.7z` file or a folder containing the PDFs directly. Two matching
+ * strategies, tried in order:
+ *   1. Same basename, case-insensitive (e.g. Gennaio2026.csv + Gennaio2026/).
+ *   2. Same embedded 8-digit date (e.g. Xml20240108.csv pairs with
+ *      Clienti_Singoli_Xml20240108.7z — this is the real Acquambiente export
+ *      naming, where the CSV and archive share a date but not a basename).
+ * Meant for a "one export per day/month" layout so a whole year can be
+ * queued in a single run.
  */
 export function discoverBatchPairs(folderPath: string): BatchDiscovery {
     const entries = fs.readdirSync(folderPath, { withFileTypes: true })
-    const csvFiles = new Map<string, string>()
-    const archiveFiles = new Map<string, string>()
-    const dirEntries = new Map<string, string>()
+    const csvPaths: string[] = []
+    const archives: ArchiveCandidate[] = []
 
     for (const e of entries) {
         const full = path.join(folderPath, e.name)
         if (e.isDirectory()) {
-            dirEntries.set(e.name.toLowerCase(), full)
+            archives.push({ key: e.name.toLowerCase(), path: full })
         } else if (e.isFile()) {
             const ext = path.extname(e.name).toLowerCase()
-            const key = path.basename(e.name, ext).toLowerCase()
-            if (ext === '.csv') csvFiles.set(key, full)
-            else if (ext === '.7z') archiveFiles.set(key, full)
+            if (ext === '.csv') csvPaths.push(full)
+            else if (ext === '.7z') archives.push({ key: path.basename(e.name, ext).toLowerCase(), path: full })
         }
     }
 
     const pairs: BatchPair[] = []
     const unmatchedCsv: string[] = []
-    const usedKeys = new Set<string>()
+    const usedArchives = new Set<number>()
 
-    for (const [key, csvPath] of csvFiles) {
-        const archivePath = archiveFiles.get(key) ?? dirEntries.get(key)
-        if (!archivePath) { unmatchedCsv.push(csvPath); continue }
-        usedKeys.add(key)
-        pairs.push({ label: path.basename(csvPath, path.extname(csvPath)), csvPath, archivePath })
+    for (const csvPath of csvPaths) {
+        const csvKey = path.basename(csvPath, path.extname(csvPath)).toLowerCase()
+        let archiveIndex = archives.findIndex((a, i) => !usedArchives.has(i) && a.key === csvKey)
+        if (archiveIndex === -1) {
+            const csvDate = extractDateKey(csvKey)
+            if (csvDate) {
+                archiveIndex = archives.findIndex((a, i) => !usedArchives.has(i) && extractDateKey(a.key) === csvDate)
+            }
+        }
+        if (archiveIndex === -1) { unmatchedCsv.push(csvPath); continue }
+        usedArchives.add(archiveIndex)
+        pairs.push({ label: path.basename(csvPath, path.extname(csvPath)), csvPath, archivePath: archives[archiveIndex].path })
     }
 
-    const unmatchedArchives = [
-        ...[...archiveFiles.entries()].filter(([k]) => !usedKeys.has(k)).map(([, v]) => v),
-        ...[...dirEntries.entries()].filter(([k]) => !usedKeys.has(k)).map(([, v]) => v),
-    ]
+    const unmatchedArchives = archives.filter((_, i) => !usedArchives.has(i)).map((a) => a.path)
 
     pairs.sort((a, b) => a.label.localeCompare(b.label))
     return { pairs, unmatchedCsv, unmatchedArchives }
