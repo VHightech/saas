@@ -197,10 +197,14 @@ export async function processArchive(
                             await uploadPdfToR2(r2Key, fs.readFileSync(filePath))
                             uploaded++
                         }
+                        // Case-insensitive match via the generated+indexed
+                        // nome_pdf_lower column — `ilike('nome_pdf', ...)` had
+                        // no usable index and was ~99% of tracked DB CPU at
+                        // 55k calls/run (one per PDF).
                         const { data, error } = await sb
                             .from('bills')
                             .update({ pdf_url: r2Key })
-                            .ilike('nome_pdf', filename)
+                            .eq('nome_pdf_lower', lower)
                             .select('id')
                         if (error) errors.push(`Link ${filename}: ${error.message}`)
                         else if (data && data.length > 0) linked++
