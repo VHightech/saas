@@ -46,7 +46,17 @@ async function loadExistingIdbolls(sb: SupabaseClient, idbolls: number[]): Promi
     return existing
 }
 
-export async function analyzeBills(sb: SupabaseClient, csvText: string): Promise<BillsAnalysis> {
+/**
+ * @param extraExisting Extra idboll values to treat as already-taken on top of
+ * what's in the DB — used when analyzing several CSVs in one batch run, so a
+ * bill re-listed in a later month's file isn't staged twice before either has
+ * actually been inserted.
+ */
+export async function analyzeBills(
+    sb: SupabaseClient,
+    csvText: string,
+    extraExisting?: Set<number>,
+): Promise<BillsAnalysis> {
     const adapter = new StandardCsvAdapter()
     const { bills: parsed, errors: parseErrors } = await adapter.parse(csvText)
 
@@ -54,6 +64,7 @@ export async function analyzeBills(sb: SupabaseClient, csvText: string): Promise
         .map((b) => b.idboll)
         .filter((n): n is number => typeof n === 'number' && n > 0)
     const existing = idbolls.length ? await loadExistingIdbolls(sb, idbolls) : new Set<number>()
+    if (extraExisting) for (const n of extraExisting) existing.add(n)
 
     const { toInsert, duplicateCount } = dedupeNewBills(parsed, existing)
 

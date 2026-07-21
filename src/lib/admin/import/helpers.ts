@@ -1,3 +1,37 @@
+import fs from 'node:fs'
+
+/**
+ * The gestionale exports CSVs in cp1252, not UTF-8: decoding them as UTF-8
+ * turns accented letters (Società, CIUCCIOVÈ…) into U+FFFD. Try UTF-8 first;
+ * if replacement characters appear, fall back to latin1.
+ */
+export function readCsvText(filePath: string): string {
+    const buf = fs.readFileSync(filePath)
+    const utf8 = buf.toString('utf8')
+    return utf8.includes('�') ? buf.toString('latin1') : utf8
+}
+
+/**
+ * Runs `fn` over `items` with at most `limit` running concurrently. Unlike
+ * fixed-size chunking, a finished item is immediately replaced by the next
+ * one instead of waiting for its whole pair/chunk to finish.
+ */
+export async function runWithConcurrency<T>(
+    items: T[],
+    limit: number,
+    fn: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+    let next = 0
+    async function worker(): Promise<void> {
+        while (next < items.length) {
+            const i = next++
+            await fn(items[i], i)
+        }
+    }
+    const workerCount = Math.max(1, Math.min(limit, items.length))
+    await Promise.all(Array.from({ length: workerCount }, () => worker()))
+}
+
 /** True for y/yes/s/si (Italian + English), case-insensitive, trimmed. */
 export function isAffirmative(answer: string): boolean {
     const a = answer.trim().toLowerCase()

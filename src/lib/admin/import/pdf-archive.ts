@@ -36,6 +36,19 @@ function tempPaths(archivePath: string): { archiveCopy: string; extractDir: stri
     }
 }
 
+/** True when `p` is a plain folder rather than a .7z archive file. */
+function isDirSource(p: string): boolean {
+    return fs.existsSync(p) && fs.statSync(p).isDirectory()
+}
+
+/** List all *.pdf entries under a source, which may be a .7z archive or a plain folder. */
+async function listSourcePdfNames(sourcePath: string): Promise<string[]> {
+    if (isDirSource(sourcePath)) {
+        return walkFiles(sourcePath).filter((f) => f.toLowerCase().endsWith('.pdf'))
+    }
+    return list7zPdfNames(sourcePath, resolve7zaPath())
+}
+
 /** List all *.pdf entries inside a 7z without extracting. */
 function list7zPdfNames(archivePath: string, bin: string): Promise<string[]> {
     return new Promise((resolve, reject) => {
@@ -77,8 +90,7 @@ export async function analyzeArchive(
     archivePath: string,
     csvPdfNames: string[],
 ): Promise<ArchiveAnalysis> {
-    const bin = resolve7zaPath()
-    const pdfPaths = await list7zPdfNames(archivePath, bin)
+    const pdfPaths = await listSourcePdfNames(archivePath)
     const zipNames = pdfPaths.map((p) => path.basename(p).toLowerCase())
 
     const dbMap = await loadLinkedPdfMap(sb)
@@ -124,9 +136,14 @@ export async function processArchive(
     if (!isR2Configured()) {
         throw new Error('R2 non configurato: imposta R2_ACCOUNT_ENDPOINT/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET in .env.local')
     }
-    const bin = resolve7zaPath()
-    const { tmpDir, archiveCopy, extractDir } = tempPaths(archivePath)
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+    // A folder with the same name as the CSV, containing the PDFs directly,
+    // is accepted in place of a .7z archive — no extraction step needed, and
+    // (crucially) it must never be deleted by the cleanup below.
+    const isDir = isDirSource(archivePath)
+    const { tmpDir, archiveCopy, extractDir } = isDir
+        ? { tmpDir: null, archiveCopy: null, extractDir: archivePath }
+        : tempPaths(archivePath)
+    if (tmpDir && !fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
 
     let uploaded = 0
     let skipped = 0
@@ -134,10 +151,15 @@ export async function processArchive(
     const errors: string[] = []
 
     try {
-        // Copy into tmp then extract (node-7z reads from a real path).
-        fs.copyFileSync(archivePath, archiveCopy)
-        await onProgress('Estrazione archivio…', 0, 0)
-        await extract7z(archiveCopy, extractDir, bin)
+        if (isDir) {
+            await onProgress('Lettura cartella PDF…', 0, 0)
+        } else {
+            // Copy into tmp then extract (node-7z reads from a real path).
+            const bin = resolve7zaPath()
+            fs.copyFileSync(archivePath, archiveCopy as string)
+            await onProgress('Estrazione archivio…', 0, 0)
+            await extract7z(archiveCopy as string, extractDir, bin)
+        }
 
         const pdfFiles = walkFiles(extractDir).filter((f) => f.toLowerCase().endsWith('.pdf'))
         const total = pdfFiles.length
@@ -194,9 +216,12 @@ export async function processArchive(
     } catch (err) {
         errors.push(`Archive Error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
-        // Cleanup tmp copy + extraction dir.
-        try { if (fs.existsSync(archiveCopy)) fs.unlinkSync(archiveCopy) } catch { /* ignore */ }
-        try { if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true }) } catch { /* ignore */ }
+        // Cleanup the tmp copy + extraction dir we created — never touch the
+        // source when it's the user's own PDF folder (isDir).
+        if (!isDir) {
+            try { if (archiveCopy && fs.existsSync(archiveCopy)) fs.unlinkSync(archiveCopy) } catch { /* ignore */ }
+            try { if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true }) } catch { /* ignore */ }
+        }
     }
 
     return { uploaded, skipped, linked, errors }

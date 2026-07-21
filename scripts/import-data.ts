@@ -2,26 +2,16 @@
  * Interactive local bulk-import tool. Run: `npm run import`
  *
  * Modes:
- *   1) Anagrafiche utenti (CSV)         → profiles + user_supplies + mass-link
- *   2) Bollette + PDF (CSV + 7z)        → bills insert + PDF upload to R2 + link
+ *   1) Anagrafiche utenti (CSV)              → profiles + user_supplies + mass-link
+ *   2) Bollette + PDF (CSV + 7z/cartella)    → bills insert + PDF upload to R2 + link
+ *   3) Bollette + PDF — batch (intero anno)  → stessa cosa per più coppie CSV+archivio
+ *      trovate in una cartella, 2 alla volta
  *
  * Each run: pick mode → pick file(s) → PREVIEW (nothing written) → confirm → COMMIT.
  * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, R2_* (.env / .env.local)
  */
 import dotenv from 'dotenv'
 import path from 'node:path'
-import fs from 'node:fs'
-
-/**
- * The gestionale exports CSVs in cp1252, not UTF-8: decoding them as UTF-8
- * turns accented letters (Società, CIUCCIOVÈ…) into U+FFFD. Try UTF-8 first;
- * if replacement characters appear, fall back to latin1.
- */
-function readCsvText(filePath: string): string {
-    const buf = fs.readFileSync(filePath)
-    const utf8 = buf.toString('utf8')
-    return utf8.includes('�') ? buf.toString('latin1') : utf8
-}
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
@@ -33,6 +23,8 @@ async function main() {
     const bills = await import('../src/lib/admin/import/bills-core')
     const pdf = await import('../src/lib/admin/import/pdf-archive')
     const users = await import('../src/lib/admin/import/users-core')
+    const { readCsvText } = await import('../src/lib/admin/import/helpers')
+    const batch = await import('../src/lib/admin/import/batch-core')
     const { createPrompter, requireExistingFile } = await import('../src/lib/admin/import/prompts')
 
     const sb = createServiceClient()
@@ -41,7 +33,8 @@ async function main() {
     try {
         const mode = await p.choose('Cosa vuoi importare?', [
             'Anagrafiche utenti (CSV)',
-            'Bollette + PDF (CSV + 7z)',
+            'Bollette + PDF (CSV + 7z/cartella)',
+            'Bollette + PDF — batch (cartella con tutto l\'anno)',
         ])
 
         if (mode === 0) {
@@ -71,10 +64,10 @@ async function main() {
             console.log(`\nFatto. Profili: ${res.imported}, Forniture: ${res.suppliesUpserted}, Errori: ${res.errors.length}`)
             if (res.link) console.log(`Bollette agganciate: ${JSON.stringify(res.link)}`)
             if (res.errors.length) console.log(res.errors.slice(0, 20).join('\n'))
-        } else {
-            // ---- BILLS + PDF ----
+        } else if (mode === 1) {
+            // ---- BILLS + PDF (single pair) ----
             const csvPath = requireExistingFile(await p.ask('Percorso CSV bollette (Xml…): '), 'CSV')
-            const archivePath = requireExistingFile(await p.ask('Percorso archivio 7z: '), 'Archivio')
+            const archivePath = requireExistingFile(await p.ask('Percorso archivio 7z o cartella PDF: '), 'Archivio')
             const csvText = readCsvText(csvPath)
 
             console.log('\nAnalisi CSV…')
@@ -108,6 +101,58 @@ async function main() {
             await logs.completeImportLog(sb, importId, pr.uploaded + pr.skipped, arch.pdfTotal, { errors: allErrors })
             console.log(`\nFatto. Bollette inserite: ${ins.inserted}, PDF caricati: ${pr.uploaded}, collegati: ${pr.linked}, saltati: ${pr.skipped}, errori: ${allErrors.length}`)
             if (allErrors.length) console.log(allErrors.slice(0, 20).join('\n'))
+        } else {
+            // ---- BILLS + PDF (batch: whole-year folder, 2 pairs at a time) ----
+            const folderPath = requireExistingFile(
+                await p.ask('Cartella con le coppie CSV + archivio/cartella (es. una per mese): '),
+                'Cartella',
+            )
+
+            const { pairs, unmatchedCsv, unmatchedArchives } = batch.discoverBatchPairs(folderPath)
+            if (pairs.length === 0) {
+                console.log('Nessuna coppia CSV + archivio/cartella trovata (stesso nome, estensioni .csv e .7z o sottocartella).')
+                return
+            }
+
+            console.log(`\nTrovate ${pairs.length} coppie:`)
+            for (const pr of pairs) console.log(`  - ${pr.label}  (${path.basename(pr.csvPath)} + ${path.basename(pr.archivePath)})`)
+            if (unmatchedCsv.length) {
+                console.log(`\nCSV senza archivio corrispondente (ignorati): ${unmatchedCsv.map((f) => path.basename(f)).join(', ')}`)
+            }
+            if (unmatchedArchives.length) {
+                console.log(`Archivi/cartelle senza CSV corrispondente (ignorati): ${unmatchedArchives.map((f) => path.basename(f)).join(', ')}`)
+            }
+
+            console.log('\nAnalisi di tutte le coppie…')
+            const staged = await batch.analyzeBatch(sb, pairs, (item) => {
+                console.log(`  [${item.label}] nuove=${item.billsAnalysis.toInsert} duplicati=${item.billsAnalysis.duplicateBills} pdf_nuovi=${item.archAnalysis.matches - item.archAnalysis.alreadyLinked}`)
+            })
+
+            const totalNew = staged.reduce((s, x) => s + x.billsAnalysis.toInsert, 0)
+            const totalDup = staged.reduce((s, x) => s + x.billsAnalysis.duplicateBills, 0)
+            const totalPdfNew = staged.reduce((s, x) => s + (x.archAnalysis.matches - x.archAnalysis.alreadyLinked), 0)
+            console.log(`\n— Totale batch — Bollette nuove: ${totalNew}  Duplicati: ${totalDup}  PDF nuovi: ${totalPdfNew}\n`)
+
+            if (!(await p.confirm(`Procedere con la scrittura di tutte le ${staged.length} coppie?`))) { console.log('Annullato.'); return }
+
+            console.log('\nElaborazione (2 coppie alla volta)…')
+            const results = await batch.processBatch(sb, staged, 2, (label, message) => {
+                console.log(`  [${label}] ${message}`)
+            })
+
+            console.log('\n=== Riepilogo batch ===')
+            let grandInserted = 0, grandUploaded = 0, grandLinked = 0, grandSkipped = 0
+            const allBatchErrors: string[] = []
+            for (const r of results) {
+                console.log(`${r.label}: inserite=${r.inserted} caricati=${r.uploaded} collegati=${r.linked} saltati=${r.skipped} errori=${r.errors.length}`)
+                grandInserted += r.inserted
+                grandUploaded += r.uploaded
+                grandLinked += r.linked
+                grandSkipped += r.skipped
+                allBatchErrors.push(...r.errors.map((e) => `[${r.label}] ${e}`))
+            }
+            console.log(`\nTOTALE: inserite=${grandInserted} caricati=${grandUploaded} collegati=${grandLinked} saltati=${grandSkipped} errori=${allBatchErrors.length}`)
+            if (allBatchErrors.length) console.log('\n' + allBatchErrors.slice(0, 40).join('\n'))
         }
     } finally {
         p.close()
