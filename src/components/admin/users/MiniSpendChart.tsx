@@ -117,23 +117,25 @@ export function MiniSpendChart({ bills }: { bills: MiniSpendBill[] }) {
         <div>
             <div className="mb-4">
                 <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400">Andamento spesa & consumo</p>
+                    <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 shrink-0">Andamento spesa & consumo</p>
                     {years.length > 1 ? (
-                        <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg shrink-0">
-                            {years.map(y => (
-                                <button
-                                    key={y}
-                                    onClick={() => setSelectedYear(y)}
-                                    className={cn(
-                                        "px-2 h-6 rounded-md text-[11px] font-bold tabular-nums transition-colors",
-                                        y === selectedYear
-                                            ? "bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-sm"
-                                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                                    )}
-                                >
-                                    {y}
-                                </button>
-                            ))}
+                        <div className="min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+                            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg w-max">
+                                {years.map(y => (
+                                    <button
+                                        key={y}
+                                        onClick={() => setSelectedYear(y)}
+                                        className={cn(
+                                            "px-2 h-6 rounded-md text-[11px] font-bold tabular-nums transition-colors shrink-0",
+                                            y === selectedYear
+                                                ? "bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-sm"
+                                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                        )}
+                                    >
+                                        {y}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     ) : selectedYear != null ? (
                         <span className="text-[11px] font-bold tabular-nums text-slate-400 shrink-0">{selectedYear}</span>
