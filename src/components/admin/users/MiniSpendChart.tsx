@@ -116,31 +116,27 @@ export function MiniSpendChart({ bills }: { bills: MiniSpendBill[] }) {
     return (
         <div>
             <div className="mb-4">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 shrink-0">Andamento spesa & consumo</p>
-                    {years.length > 1 ? (
-                        <div className="min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg w-max">
-                                {years.map(y => (
-                                    <button
-                                        key={y}
-                                        onClick={() => setSelectedYear(y)}
-                                        className={cn(
-                                            "px-2 h-6 rounded-md text-[11px] font-bold tabular-nums transition-colors shrink-0",
-                                            y === selectedYear
-                                                ? "bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-sm"
-                                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                                        )}
-                                    >
-                                        {y}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    ) : selectedYear != null ? (
-                        <span className="text-[11px] font-bold tabular-nums text-slate-400 shrink-0">{selectedYear}</span>
-                    ) : null}
-                </div>
+                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-slate-400 mb-2">Andamento spesa & consumo</p>
+                {years.length > 1 ? (
+                    <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg w-full mb-3">
+                        {years.map(y => (
+                            <button
+                                key={y}
+                                onClick={() => setSelectedYear(y)}
+                                className={cn(
+                                    "flex-1 h-6 rounded-md text-[11px] font-bold tabular-nums transition-colors",
+                                    y === selectedYear
+                                        ? "bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-sm"
+                                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                )}
+                            >
+                                {y}
+                            </button>
+                        ))}
+                    </div>
+                ) : selectedYear != null ? (
+                    <span className="text-[11px] font-bold tabular-nums text-slate-400 block mb-3">{selectedYear}</span>
+                ) : null}
                 <div className="flex items-baseline justify-between gap-2 min-h-[22px]">
                     {isEmpty ? (
                         <span className="text-[12px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-white/5 px-3 py-1 rounded-lg border border-slate-100 dark:border-white/5">
