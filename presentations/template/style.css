@@ -1,0 +1,401 @@
+/* Presentazione commerciale — foglio di stile per stampa A4.
+   I colori del prospect arrivano da build-presentation.mjs come CSS variables. */
+
+@page {
+    size: A4;
+    margin: 0;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --ink: #10151c;
+    --muted: #5c6a7a;
+    --line: #dfe5ec;
+    --wash: #f4f7fa;
+    --paper: #ffffff;
+}
+
+html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    font-size: 10.5pt;
+    line-height: 1.55;
+}
+
+/* ---------- impaginazione ---------- */
+
+.page {
+    position: relative;
+    width: 210mm;
+    height: 296.8mm;
+    padding: 20mm 18mm 16mm;
+    overflow: hidden;
+    page-break-after: always;
+    background: var(--paper);
+}
+
+.page:last-child {
+    page-break-after: auto;
+}
+
+.page-num {
+    position: absolute;
+    bottom: 9mm;
+    right: 18mm;
+    font-size: 8pt;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+}
+
+.page-tag {
+    position: absolute;
+    bottom: 9mm;
+    left: 18mm;
+    font-size: 8pt;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* ---------- copertina ---------- */
+
+.cover {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    background: linear-gradient(150deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 55%, #05080d) 100%);
+}
+
+.cover-top {
+    padding: 26mm 18mm 10mm;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.cover-logo {
+    max-height: 20mm;
+    max-width: 70mm;
+    object-fit: contain;
+    margin-bottom: 18mm;
+}
+
+.cover h1 {
+    font-size: 34pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+}
+
+.cover .tagline {
+    font-size: 13pt;
+    font-weight: 400;
+    opacity: 0.85;
+    margin-top: 6mm;
+    max-width: 130mm;
+}
+
+.cover-rule {
+    width: 28mm;
+    height: 3px;
+    background: var(--accent);
+    margin: 12mm 0;
+}
+
+.cover .prepared-label {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    opacity: 0.7;
+}
+
+.cover .prepared-for {
+    font-size: 19pt;
+    font-weight: 700;
+    margin-top: 3mm;
+}
+
+.cover .recipient {
+    font-size: 11pt;
+    opacity: 0.85;
+    margin-top: 1.5mm;
+}
+
+.cover-foot {
+    padding: 0 18mm 18mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 9pt;
+    opacity: 0.8;
+}
+
+/* ---------- tipografia ---------- */
+
+.eyebrow {
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--primary);
+    margin-bottom: 3mm;
+}
+
+h2 {
+    font-size: 21pt;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+    margin-bottom: 6mm;
+}
+
+h3 {
+    font-size: 12pt;
+    font-weight: 700;
+    margin: 7mm 0 3mm;
+}
+
+p {
+    margin-bottom: 3.5mm;
+    color: var(--ink);
+}
+
+p.lead {
+    font-size: 12pt;
+    line-height: 1.5;
+    color: var(--muted);
+    margin-bottom: 7mm;
+}
+
+strong {
+    font-weight: 700;
+}
+
+/* ---------- elementi ---------- */
+
+.pain-list {
+    list-style: none;
+}
+
+.pain-list li {
+    position: relative;
+    padding: 4mm 0 4mm 9mm;
+    border-bottom: 1px solid var(--line);
+}
+
+.pain-list li:before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6.4mm;
+    width: 4mm;
+    height: 4mm;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.pain-list li:last-child {
+    border-bottom: none;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin-bottom: 5mm;
+}
+
+th {
+    text-align: left;
+    font-weight: 700;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 0 3mm 2.5mm 0;
+    border-bottom: 1.5px solid var(--primary);
+}
+
+td {
+    padding: 2.8mm 3mm 2.8mm 0;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+}
+
+td:first-child {
+    font-weight: 600;
+    width: 42%;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5mm;
+    margin-top: 6mm;
+}
+
+.kpi {
+    background: var(--wash);
+    border-left: 3px solid var(--accent);
+    padding: 5mm;
+}
+
+.kpi .figure {
+    font-size: 22pt;
+    font-weight: 800;
+    color: var(--primary);
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.kpi .caption {
+    font-size: 9pt;
+    color: var(--muted);
+    margin-top: 2.5mm;
+}
+
+.callout {
+    background: var(--wash);
+    border-left: 3px solid var(--primary);
+    padding: 5mm 6mm;
+    margin: 6mm 0;
+    font-size: 10.5pt;
+}
+
+.callout em {
+    color: var(--muted);
+}
+
+/* ---------- screenshot ---------- */
+
+.shot {
+    margin: 5mm 0;
+}
+
+.shot img {
+    width: 100%;
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 2mm;
+}
+
+.shot .cap {
+    font-size: 8.5pt;
+    color: var(--muted);
+    margin-top: 2.5mm;
+}
+
+/* Pagine con due screenshot impilati: l'altezza è vincolata invece della
+   larghezza, così la pagina non trabocca qualunque sia il rapporto di forma
+   dello screenshot fornito. Le proporzioni restano intatte. */
+.duo .shot {
+    margin: 4mm 0;
+    text-align: center;
+}
+
+.duo .shot img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 96mm;
+    display: inline-block;
+}
+
+.duo .shot .cap {
+    text-align: left;
+}
+
+.phones {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6mm;
+    margin: 6mm 0;
+}
+
+.phone img {
+    width: 100%;
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 4mm;
+}
+
+.phone .cap {
+    font-size: 8.5pt;
+    color: var(--muted);
+    margin-top: 2.5mm;
+    text-align: center;
+}
+
+/* ---------- allegato tecnico ---------- */
+
+.annex .eyebrow {
+    color: var(--muted);
+}
+
+pre {
+    background: var(--wash);
+    border: 1px solid var(--line);
+    padding: 4mm;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 7.5pt;
+    line-height: 1.45;
+    white-space: pre;
+    overflow: hidden;
+    margin-bottom: 4mm;
+}
+
+.stack-list {
+    list-style: none;
+    columns: 2;
+    column-gap: 8mm;
+}
+
+.stack-list li {
+    padding: 2mm 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 9.5pt;
+    break-inside: avoid;
+}
+
+/* ---------- chiusura ---------- */
+
+.closing {
+    background: var(--wash);
+}
+
+.closing .big {
+    font-size: 17pt;
+    font-weight: 700;
+    line-height: 1.3;
+    max-width: 140mm;
+    margin-bottom: 10mm;
+}
+
+.contact-block {
+    border-top: 2px solid var(--primary);
+    padding-top: 5mm;
+    margin-top: 10mm;
+}
+
+.contact-block .who {
+    font-weight: 700;
+    font-size: 11pt;
+}
+
+.contact-block .what {
+    color: var(--muted);
+    font-size: 9.5pt;
+}

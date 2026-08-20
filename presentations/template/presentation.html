@@ -1,0 +1,422 @@
+<!-- Template presentazione commerciale.
+     Segnaposto: {{chiave}} sostituiti da scripts/build-presentation.mjs.
+     Blocchi opzionali: {{#if chiave}} ... {{/if}}
+     {{PAGE}} viene numerato progressivamente in fase di build. -->
+
+<!-- ============ COPERTINA ============ -->
+<section class="page cover">
+    <div class="cover-top">
+        <div class="cover-head">
+            {{#if logo}}<img class="cover-logo" src="{{logo}}" alt="{{company}}">{{/if}}
+            <h1>{{productName}}</h1>
+            <div class="tagline">{{tagline}}</div>
+        </div>
+        <div class="cover-who">
+            <div class="cover-rule"></div>
+            <div class="prepared-label">Preparato per</div>
+            <div class="prepared-for">{{company}}</div>
+            {{#if recipient}}<div class="recipient">All'attenzione di {{recipient}}</div>{{/if}}
+        </div>
+    </div>
+    <div class="cover-foot">
+        <div>{{vendor}}</div>
+        <div>{{date}}</div>
+    </div>
+</section>
+
+<!-- ============ EXECUTIVE SUMMARY ============ -->
+<section class="page">
+    <div class="eyebrow">In sintesi</div>
+    <h2>Un unico portale fra voi e i vostri clienti</h2>
+
+    <p class="lead">
+        {{productName}} digitalizza il rapporto fra {{company}} e i suoi clienti finali:
+        le bollette smettono di essere allegati e-mail da rincorrere e diventano un
+        archivio consultabile in autonomia, ventiquattro ore su ventiquattro.
+    </p>
+
+    <table>
+        <tr><td>Anagrafica clienti</td><td>Unificata, ricercabile, allineata alle forniture</td></tr>
+        <tr><td>Archivio bollette</td><td>Accesso self-service protetto, storico completo</td></tr>
+        <tr><td>Pagamenti elettronici</td><td>Integrazione con il nodo nazionale PagoPA</td></tr>
+        <tr><td>Pannello amministrativo</td><td>Caricamento massivo, ricerca, operatività quotidiana</td></tr>
+        <tr><td>Sicurezza e conformità</td><td>Progettata sul GDPR, dati ospitati in Unione Europea</td></tr>
+    </table>
+
+    <div class="callout">
+        <em>Una sola dashboard, conformità garantita, costi infrastrutturali ridotti.</em>
+    </div>
+
+    <p>
+        La piattaforma è già in esercizio. Quanto segue non è un concept: sono schermate
+        del prodotto funzionante, presentate nei colori di {{company}}.
+    </p>
+
+    <div class="page-tag">{{productName}}</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ IL PROBLEMA ============ -->
+<section class="page">
+    <div class="eyebrow">Il contesto</div>
+    <h2>Cosa costa oggi gestire le bollette</h2>
+
+    <p class="lead">
+        I gestori del servizio idrico ed energetico affrontano tutti la stessa serie di
+        attriti, che pesano soprattutto sul front-office.
+    </p>
+
+    <ul class="pain-list">
+        <li><strong>Frammentazione documentale.</strong> Bollette in PDF sparse fra
+            file-server e caselle e-mail, difficili da reperire e da riconsegnare al cliente.</li>
+        <li><strong>Customer care saturo.</strong> Fra il 40 e il 60 per cento delle
+            richieste allo sportello riguarda una copia della bolletta o le modalità di pagamento.</li>
+        <li><strong>Onboarding lento.</strong> Anagrafiche disperse e allineamento manuale
+            fra gestionale, ERP e portali esterni.</li>
+        <li><strong>Pressione regolatoria.</strong> GDPR, PagoPA, SDI, conservazione decennale
+            dei documenti fiscali.</li>
+        <li><strong>Costi cloud crescenti</strong> su piattaforme proprietarie poco modulari.</li>
+    </ul>
+
+    <p style="margin-top:8mm">
+        {{productName}} risponde a tutto questo con una sola applicazione web, accessibile
+        da browser, integrabile con i flussi già in uso presso {{company}}.
+    </p>
+
+    <div class="page-tag">Il contesto</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ LATO CLIENTE — PANORAMICA ============ -->
+<section class="page">
+    <div class="eyebrow">Per il cliente finale</div>
+    <h2>Un portale che si spiega da solo</h2>
+
+    <table>
+        <thead><tr><th>Funzione</th><th>Beneficio</th></tr></thead>
+        <tr><td>Consultazione bollette in PDF</td><td>Storico completo sempre disponibile</td></tr>
+        <tr><td>Download protetto con URL firmati</td><td>Sicurezza enterprise senza attriti</td></tr>
+        <tr><td>Pagamento PagoPA in pochi click</td><td>Ricevuta immediata, stato in tempo reale</td></tr>
+        <tr><td>Recupero password con OTP</td><td>Identificazione robusta su codice cliente</td></tr>
+        <tr><td>Modifica dati di contatto</td><td>Meno richieste al call-center</td></tr>
+    </table>
+
+    <div class="shot">
+        <img src="{{shot_01_home}}" alt="Home del portale cliente">
+        <div class="cap">Riepilogo cliente: ultima bolletta, andamento dei consumi e scadenze in evidenza.</div>
+    </div>
+
+    <div class="page-tag">Portale cliente</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ LATO CLIENTE — BOLLETTE E CONFRONTO ============ -->
+<section class="page duo">
+    <div class="eyebrow">Per il cliente finale</div>
+    <h2>Archivio e lettura dei consumi</h2>
+
+    <div class="shot">
+        <img src="{{shot_02_bollette}}" alt="Elenco bollette">
+        <div class="cap">Elenco bollette con filtri per fornitura, periodo e stato di pagamento.
+            Ogni riga apre il PDF originale tramite un link firmato a scadenza breve.</div>
+    </div>
+
+    <div class="shot">
+        <img src="{{shot_03_confronto}}" alt="Confronto consumi">
+        <div class="cap">Confronto dei consumi fra periodi e fra forniture diverse: il cliente
+            capisce da solo perché la bolletta è cambiata, e non chiama.</div>
+    </div>
+
+    <div class="page-tag">Portale cliente</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ LATO CLIENTE — MOBILE ============ -->
+<section class="page">
+    <div class="eyebrow">Per il cliente finale</div>
+    <h2>Pensato prima per il telefono</h2>
+
+    <p class="lead">
+        L'interfaccia mobile non è la versione desktop rimpicciolita: è una applicazione
+        dedicata, con navigazione a schede e schermate costruite per lo schermo del telefono,
+        da dove arriva la maggioranza degli accessi.
+    </p>
+
+    <div class="phones">
+        <div class="phone">
+            <img src="{{shot_04_mobile_home}}" alt="Home mobile">
+            <div class="cap">Riepilogo</div>
+        </div>
+        <div class="phone">
+            <img src="{{shot_05_mobile_bollette}}" alt="Bollette mobile">
+            <div class="cap">Bollette</div>
+        </div>
+        <div class="phone">
+            <img src="{{shot_06_mobile_dettaglio}}" alt="Dettaglio bolletta mobile">
+            <div class="cap">Dettaglio e pagamento</div>
+        </div>
+    </div>
+
+    <p>
+        Nessuna app da installare e nessuno store da presidiare: il portale funziona nel
+        browser del telefono e si aggiorna insieme al resto della piattaforma.
+    </p>
+
+    <div class="page-tag">Portale cliente</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ LATO GESTORE — PANORAMICA ============ -->
+<section class="page">
+    <div class="eyebrow">Per il gestore</div>
+    <h2>Il pannello di chi ci lavora tutti i giorni</h2>
+
+    <table>
+        <thead><tr><th>Funzione</th><th>Beneficio</th></tr></thead>
+        <tr><td>Caricamento massivo bollette</td><td>Migliaia di documenti in pochi minuti da archivio e CSV</td></tr>
+        <tr><td>Profili shadow da CSV</td><td>Il cliente al primo accesso trova già il proprio storico</td></tr>
+        <tr><td>Ricerca su nome, codice fiscale, indirizzo</td><td>Operatori sensibilmente più rapidi allo sportello</td></tr>
+        <tr><td>Collegamento massivo bollette e profili</td><td>Riconciliazione di interi lotti con un comando</td></tr>
+        <tr><td>Cancellazione di un intero caricamento</td><td>Operazioni reversibili e tracciate</td></tr>
+        <tr><td>Inviti via e-mail</td><td>Comunicazioni curate nel vostro marchio</td></tr>
+    </table>
+
+    <div class="shot">
+        <img src="{{shot_07_admin_utenti}}" alt="Elenco utenti amministrazione">
+        <div class="cap">Anagrafica unificata con ricerca, filtri per stato del contratto e insoluto per cliente.</div>
+    </div>
+
+    <div class="page-tag">Pannello gestore</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ LATO GESTORE — OPERATIVITÀ ============ -->
+<section class="page duo">
+    <div class="eyebrow">Per il gestore</div>
+    <h2>Dalla scheda cliente al caricamento massivo</h2>
+
+    <div class="shot">
+        <img src="{{shot_08_admin_dettaglio}}" alt="Scheda cliente">
+        <div class="cap">Scheda cliente: forniture collegate, storico bollette e andamento della
+            spesa per anno, tutto in una schermata sola.</div>
+    </div>
+
+    <div class="shot">
+        <img src="{{shot_09_admin_upload}}" alt="Caricamento massivo">
+        <div class="cap">Caricamento massivo e storico dei lotti: ogni importazione resta tracciata
+            e può essere annullata integralmente, documenti compresi.</div>
+    </div>
+
+    <div class="page-tag">Pannello gestore</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ SICUREZZA ============ -->
+<section class="page">
+    <div class="eyebrow">Sicurezza e conformità</div>
+    <h2>Progettata per reggere un audit</h2>
+
+    <p class="lead">
+        La piattaforma è stata sottoposta a una revisione di sicurezza formale, con le
+        correzioni tracciate e verificate.
+    </p>
+
+    <table>
+        <thead><tr><th>Misura</th><th>Implementazione</th></tr></thead>
+        <tr><td>Isolamento dei dati per utente</td><td>Row-Level Security Postgres su tutte le tabelle</td></tr>
+        <tr><td>Cifratura</td><td>A riposo sul database e sullo storage, TLS 1.2+ in transito</td></tr>
+        <tr><td>Documenti mai pubblici</td><td>Link firmati con scadenza a cinque minuti</td></tr>
+        <tr><td>Protezione anti-bot</td><td>Captcha su accesso e registrazione</td></tr>
+        <tr><td>Difese sul browser</td><td>Content Security Policy stretta, HSTS, header difensivi</td></tr>
+        <tr><td>Pagamenti non alterabili</td><td>Scrittura revocata agli utenti, stato gestito da trigger</td></tr>
+        <tr><td>Separazione dei privilegi</td><td>Ruoli utente, amministratore e super amministratore</td></tr>
+        <tr><td>Tracciamento operazioni</td><td>Registro dei caricamenti e log della piattaforma</td></tr>
+    </table>
+
+    <h3>Conformità GDPR</h3>
+    <table>
+        <tr><td>Hosting dei dati</td><td>Unione Europea, database e storage</td></tr>
+        <tr><td>Sub-responsabili</td><td>Coperti da accordi ex art. 28 GDPR</td></tr>
+        <tr><td>Conservazione</td><td>Dieci anni per i dati fiscali, dodici mesi per i log tecnici</td></tr>
+        <tr><td>Profilazione</td><td>Non effettuata</td></tr>
+        <tr><td>Cookie</td><td>Solo tecnici di sessione e sicurezza</td></tr>
+    </table>
+
+    <div class="page-tag">Sicurezza</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<!-- ============ VANTAGGI ============ -->
+<section class="page">
+    <div class="eyebrow">Perché questa e non un'altra</div>
+    <h2>Il confronto, senza giri di parole</h2>
+
+    <table>
+        <thead><tr><th>Aspetto</th><th>{{productName}}</th></tr></thead>
+        <tr><td>Costi infrastrutturali</td><td>Consumo effettivo, non server dedicati a canone</td></tr>
+        <tr><td>Tempo di attivazione</td><td>Meno di trenta giorni per l'integrazione</td></tr>
+        <tr><td>Residenza dei dati</td><td>Unione Europea, dichiarata e verificabile</td></tr>
+        <tr><td>Conformità GDPR</td><td>Documentata e sottoposta a revisione</td></tr>
+        <tr><td>PagoPA</td><td>Nativo, non un modulo aggiuntivo a listino</td></tr>
+        <tr><td>Attivazione del cliente</td><td>Autonoma, senza intervento dell'operatore</td></tr>
+        <tr><td>Audit di sicurezza</td><td>Eseguito, con esiti tracciati</td></tr>
+    </table>
+
+    <h3>Risultati attesi entro novanta giorni</h3>
+    <div class="kpi-grid">
+        <div class="kpi">
+            <div class="figure">&minus;40%</div>
+            <div class="caption">chiamate al call-center per richiesta copia bolletta</div>
+        </div>
+        <div class="kpi">
+            <div class="figure">+25%</div>
+            <div class="caption">quota di pagamenti elettronici sul totale incassato</div>
+        </div>
+        <div class="kpi">
+            <div class="figure">&lt;3s</div>
+            <div class="caption">tempo medio di accesso a una bolletta</div>
+        </div>
+        <div class="kpi">
+            <div class="figure">&gt;95%</div>
+            <div class="caption">clienti che attivano da soli il proprio profilo</div>
+        </div>
+    </div>
+
+    <div class="page-tag">Vantaggi</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+{{#if pricing}}
+<!-- ============ CONDIZIONI ECONOMICHE (opzionale) ============ -->
+<section class="page">
+    <div class="eyebrow">Proposta economica</div>
+    <h2>Condizioni per {{company}}</h2>
+
+    <table>
+        <thead><tr><th>Voce</th><th>Condizione</th></tr></thead>
+        <tr><td>Attivazione e configurazione</td><td>{{price_setup}}</td></tr>
+        <tr><td>Canone ricorrente</td><td>{{price_recurring}}</td></tr>
+        <tr><td>Migrazione dello storico</td><td>{{price_migration}}</td></tr>
+        <tr><td>Assistenza e manutenzione</td><td>{{price_support}}</td></tr>
+    </table>
+
+    <p style="margin-top:6mm">{{price_notes}}</p>
+
+    <div class="page-tag">Proposta economica</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+{{/if}}
+
+<!-- ============ ROADMAP + CONTATTI ============ -->
+<section class="page closing">
+    <div class="eyebrow">Prossimi sviluppi</div>
+    <h2>Dove sta andando la piattaforma</h2>
+
+    <table>
+        <thead><tr><th>Periodo</th><th>In lavorazione</th></tr></thead>
+        <tr><td>In corso</td><td>Webhook PagoPA in produzione, rinforzo dei privilegi sui pagamenti</td></tr>
+        <tr><td>Prossimo trimestre</td><td>Secondo fattore per gli amministratori, cruscotto analitico,
+            notifiche di scadenza, cestino con recupero a trenta giorni</td></tr>
+        <tr><td>Fine anno</td><td>Esportazione report cliente, integrazione SDI per la fatturazione
+            elettronica, applicazione mobile installabile</td></tr>
+    </table>
+
+    <div class="contact-block">
+        <div class="big">Pronti a digitalizzare il rapporto con i vostri clienti.</div>
+        <div class="who">{{vendor}}</div>
+        <div class="what">{{vendorContact}} &middot; {{vendorEmail}}</div>
+    </div>
+
+    <div class="page-tag">Contatti</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+{{#if technicalAnnex}}
+<!-- ============ ALLEGATO TECNICO ============ -->
+<section class="page annex">
+    <div class="eyebrow">Allegato tecnico</div>
+    <h2>Architettura</h2>
+
+    <pre>
+        Browser (cliente / amministratore)
+                    |  HTTPS, Content Security Policy stretta
+                    v
+        Next.js 16 App Router - React 19
+        Server Actions - API Routes
+             |            |             |
+             v            v             v
+        Postgres     Object storage   Nodo PagoPA
+        + Auth (EU)   PDF (EU)        pagamenti
+             |
+             v
+        Backup giornalieri
+    </pre>
+
+    <h3>Componenti principali</h3>
+    <ul class="stack-list">
+        <li>Next.js 16 con React 19</li>
+        <li>Postgres gestito, regione UE</li>
+        <li>Autenticazione integrata</li>
+        <li>Object storage S3-compatibile, regione UE</li>
+        <li>Protezione anti-bot sul login</li>
+        <li>Invio e-mail transazionali</li>
+        <li>Nodo nazionale PagoPA</li>
+        <li>Row-Level Security su tutte le tabelle</li>
+    </ul>
+
+    <h3>Modello dati</h3>
+    <pre>
+        profiles ------+------ bills (numero, importo, scadenza, stato)
+                       |
+                       +------ user_supplies (piu forniture per cliente)
+                       |
+                       +------ payments (stato sigillato via trigger)
+
+        import_logs ---------- tracciamento dei lotti di caricamento
+    </pre>
+
+    <div class="page-tag">Allegato tecnico</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+
+<section class="page annex">
+    <div class="eyebrow">Allegato tecnico</div>
+    <h2>Flussi caratteristici</h2>
+
+    <h3>Attivazione autonoma del cliente</h3>
+    <p>
+        L'operatore carica l'anagrafica da CSV e la piattaforma crea profili preliminari.
+        Quando il cliente si registra, il sistema riconosce la corrispondenza fra codice
+        cliente e codice fiscale, trasferisce sul profilo reale bollette, forniture e
+        pagamenti già presenti, ed elimina il profilo preliminare. Al primo accesso il
+        cliente trova il proprio storico completo, senza che nessuno sia intervenuto.
+    </p>
+
+    <h3>Caricamento massivo</h3>
+    <p>
+        L'operatore seleziona il file anagrafico e l'archivio compresso dei PDF. Il sistema
+        estrae l'archivio, normalizza i nomi dei file, deposita i documenti sullo storage e
+        inserisce le righe corrispondenti eliminando i duplicati. Ogni lotto resta
+        registrato e può essere annullato integralmente, documenti compresi.
+    </p>
+
+    <h3>Pagamento</h3>
+    <p>
+        Il cliente seleziona la bolletta da saldare. La piattaforma verifica che sia
+        effettivamente sua e che l'importo corrisponda, poi registra il pagamento in stato
+        di attesa. La conferma dal nodo dei pagamenti aggiorna lo stato della bolletta
+        tramite un meccanismo automatico interno al database, non modificabile dall'utente.
+    </p>
+
+    <h3>Consegna dei documenti</h3>
+    <p>
+        I PDF non sono mai raggiungibili da un indirizzo pubblico. Ogni richiesta viene
+        autorizzata verificando che chi la effettua sia il proprietario del documento o un
+        amministratore; solo allora viene generato un collegamento firmato, valido cinque
+        minuti.
+    </p>
+
+    <div class="page-tag">Allegato tecnico</div>
+    <div class="page-num">{{PAGE}}</div>
+</section>
+{{/if}}
