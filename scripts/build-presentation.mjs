@@ -9,7 +9,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadClientConfig, contrastWarning, ConfigError } from './presentation/config.mjs'
+import { loadClientConfig, contrastWarning, ConfigError, PLACEHOLDER_NAME } from './presentation/config.mjs'
 import { renderDocument } from './presentation/render.mjs'
 import { printToPdf } from './presentation/pdf.mjs'
 import { checkOverflow } from './presentation/verify.mjs'
@@ -29,6 +29,11 @@ async function main() {
 
     const cfg = await loadClientConfig(slug, ROOT)
     console.log(`${c.bold(cfg.productName)} per ${c.bold(cfg.company)}`)
+
+    if (cfg.productName === PLACEHOLDER_NAME) {
+        console.log(c.yellow(`  avviso: il nome del prodotto e ancora il segnaposto "${PLACEHOLDER_NAME}".`))
+        console.log(c.dim('          Impostare "productName" prima di inviare il PDF a un cliente.'))
+    }
 
     const warning = contrastWarning(cfg.primary)
     if (warning) console.log(c.yellow(`  avviso: ${warning}`))

@@ -10,9 +10,14 @@ import path from 'node:path'
 const HEX = /^#[0-9a-fA-F]{6}$/
 const SECTORS = ['idrico', 'energia', 'misto']
 
+// "ACQDASH" e il nome della singola installazione per Acquambiente, non del
+// prodotto. Finche il nome commerciale non e deciso, il segnaposto resta
+// visibile in copertina: e un promemoria difficile da ignorare.
+export const PLACEHOLDER_NAME = 'NOME DA DEFINIRE'
+
 const DEFAULTS = {
-    productName: 'ACQDASH',
-    tagline: 'Piattaforma di gestione bollette per gestori idrici ed energetici',
+    productName: PLACEHOLDER_NAME,
+    tagline: 'Il portale bollette per i clienti dei servizi idrici ed energetici',
     vendor: 'Grafiche Valdelsa S.r.l.',
     vendorContact: 'Matteo Volterrani',
     vendorEmail: 'matteo.volterrani@valdelsahightech.com',
@@ -22,7 +27,6 @@ const DEFAULTS = {
 
 const DEFAULT_SECTIONS = {
     pricing: false,
-    technicalAnnex: true,
 }
 
 class ConfigError extends Error {}

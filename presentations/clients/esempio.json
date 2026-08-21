@@ -8,15 +8,11 @@
   "accent": "#22C55E",
   "sector": "idrico",
 
-  "productName": "ACQDASH",
-  "tagline": "Piattaforma di gestione bollette per gestori idrici ed energetici",
-
   "vendor": "Grafiche Valdelsa S.r.l.",
   "vendorContact": "Matteo Volterrani",
   "vendorEmail": "matteo.volterrani@valdelsahightech.com",
 
   "sections": {
-    "pricing": false,
-    "technicalAnnex": true
+    "pricing": false
   }
 }

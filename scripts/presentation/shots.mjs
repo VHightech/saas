@@ -70,7 +70,11 @@ export const SHOTS = [
     },
 ]
 
+// `scale` e la densita di cattura. Serve a bilanciare nitidezza e peso del PDF:
+// una schermata desktop occupa 174mm di pagina, quindi 1440px danno gia circa
+// 210 DPI e raddoppiare gonfierebbe il file senza guadagno visibile. Le
+// schermate del telefono invece stanno in 54mm, dove 390px sarebbero pochi.
 export const VIEWPORTS = {
-    desktop: { width: 1440, height: 900, label: 'finestra 1440 × 900' },
-    mobile: { width: 390, height: 844, label: 'telefono 390 × 844' },
+    desktop: { width: 1440, height: 900, scale: 1, label: 'finestra 1440 × 900' },
+    mobile: { width: 390, height: 844, scale: 2, label: 'telefono 390 × 844' },
 }

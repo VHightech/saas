@@ -62,3 +62,4 @@ docs/*.csv
 # presentazioni generate
 /out
 presentations/shots/
+presentations/.env.capture

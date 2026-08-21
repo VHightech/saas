@@ -1,4 +1,8 @@
 <!-- Template presentazione commerciale.
+     Destinatario: chi decide, non chi implementa. Nessun riferimento tecnico:
+     niente stack, niente architettura, niente nomi di tecnologie.
+     Se un concetto non si puo spiegare senza gergo, non entra in questo documento.
+
      Segnaposto: {{chiave}} sostituiti da scripts/build-presentation.mjs.
      Blocchi opzionali: {{#if chiave}} ... {{/if}}
      {{PAGE}} viene numerato progressivamente in fase di build. -->
@@ -24,32 +28,32 @@
     </div>
 </section>
 
-<!-- ============ EXECUTIVE SUMMARY ============ -->
+<!-- ============ IN SINTESI ============ -->
 <section class="page">
     <div class="eyebrow">In sintesi</div>
     <h2>Un unico portale fra voi e i vostri clienti</h2>
 
     <p class="lead">
-        {{productName}} digitalizza il rapporto fra {{company}} e i suoi clienti finali:
-        le bollette smettono di essere allegati e-mail da rincorrere e diventano un
-        archivio consultabile in autonomia, ventiquattro ore su ventiquattro.
+        Oggi una bolletta viene richiesta allo sportello, cercata in archivio, rispedita
+        via e-mail. Con {{productName}} il cliente se la trova da solo, quando vuole,
+        dal telefono o dal computer. Chi lavora allo sportello smette di fare da archivio.
     </p>
 
     <table>
-        <tr><td>Anagrafica clienti</td><td>Unificata, ricercabile, allineata alle forniture</td></tr>
-        <tr><td>Archivio bollette</td><td>Accesso self-service protetto, storico completo</td></tr>
-        <tr><td>Pagamenti elettronici</td><td>Integrazione con il nodo nazionale PagoPA</td></tr>
-        <tr><td>Pannello amministrativo</td><td>Caricamento massivo, ricerca, operatività quotidiana</td></tr>
-        <tr><td>Sicurezza e conformità</td><td>Progettata sul GDPR, dati ospitati in Unione Europea</td></tr>
+        <tr><td>I vostri clienti</td><td>Consultano e scaricano le proprie bollette in autonomia, a qualsiasi ora</td></tr>
+        <tr><td>I vostri operatori</td><td>Caricano migliaia di bollette in una volta sola e trovano un cliente in pochi secondi</td></tr>
+        <tr><td>I pagamenti</td><td>Si incassano online tramite PagoPA, con ricevuta immediata</td></tr>
+        <tr><td>L'anagrafica</td><td>Una sola, allineata, con tutte le forniture di ogni cliente</td></tr>
+        <tr><td>La conformita</td><td>Dati trattati secondo il GDPR e conservati in Unione Europea</td></tr>
     </table>
 
     <div class="callout">
-        <em>Una sola dashboard, conformità garantita, costi infrastrutturali ridotti.</em>
+        <em>Meno telefonate, piu pagamenti online, nessun documento che si perde.</em>
     </div>
 
     <p>
-        La piattaforma è già in esercizio. Quanto segue non è un concept: sono schermate
-        del prodotto funzionante, presentate nei colori di {{company}}.
+        Quelle che seguono non sono simulazioni: sono schermate del portale gia in
+        funzione, mostrate nei colori di {{company}}.
     </p>
 
     <div class="page-tag">{{productName}}</div>
@@ -59,28 +63,31 @@
 <!-- ============ IL PROBLEMA ============ -->
 <section class="page">
     <div class="eyebrow">Il contesto</div>
-    <h2>Cosa costa oggi gestire le bollette</h2>
+    <h2>Quanto costa oggi consegnare una bolletta</h2>
 
     <p class="lead">
-        I gestori del servizio idrico ed energetico affrontano tutti la stessa serie di
-        attriti, che pesano soprattutto sul front-office.
+        Chi gestisce un servizio idrico o energetico si scontra sempre con gli stessi
+        attriti, e a pagarne il prezzo e soprattutto chi sta al banco.
     </p>
 
     <ul class="pain-list">
-        <li><strong>Frammentazione documentale.</strong> Bollette in PDF sparse fra
-            file-server e caselle e-mail, difficili da reperire e da riconsegnare al cliente.</li>
-        <li><strong>Customer care saturo.</strong> Fra il 40 e il 60 per cento delle
-            richieste allo sportello riguarda una copia della bolletta o le modalità di pagamento.</li>
-        <li><strong>Onboarding lento.</strong> Anagrafiche disperse e allineamento manuale
-            fra gestionale, ERP e portali esterni.</li>
-        <li><strong>Pressione regolatoria.</strong> GDPR, PagoPA, SDI, conservazione decennale
-            dei documenti fiscali.</li>
-        <li><strong>Costi cloud crescenti</strong> su piattaforme proprietarie poco modulari.</li>
+        <li><strong>I documenti sono sparsi.</strong> Bollette conservate un po' in
+            archivio, un po' nelle caselle di posta: ritrovarne una richiede tempo,
+            e a volte non si ritrova affatto.</li>
+        <li><strong>Lo sportello e intasato.</strong> Una richiesta su due riguarda una
+            copia della bolletta o come pagarla. Sono domande che nessuno dovrebbe
+            dover fare a una persona.</li>
+        <li><strong>Attivare un cliente e lento.</strong> Anagrafiche su piu sistemi che
+            non si parlano, allineate a mano.</li>
+        <li><strong>Le regole si moltiplicano.</strong> Privacy, pagamenti elettronici,
+            fatturazione, obbligo di conservare i documenti per dieci anni.</li>
+        <li><strong>I costi crescono</strong> su piattaforme rigide, dove ogni
+            personalizzazione e un preventivo a parte.</li>
     </ul>
 
     <p style="margin-top:8mm">
-        {{productName}} risponde a tutto questo con una sola applicazione web, accessibile
-        da browser, integrabile con i flussi già in uso presso {{company}}.
+        {{productName}} risponde a tutto questo con un solo indirizzo web, che si apre da
+        qualsiasi browser e si affianca a quello che {{company}} usa gia.
     </p>
 
     <div class="page-tag">Il contesto</div>
@@ -93,17 +100,17 @@
     <h2>Un portale che si spiega da solo</h2>
 
     <table>
-        <thead><tr><th>Funzione</th><th>Beneficio</th></tr></thead>
-        <tr><td>Consultazione bollette in PDF</td><td>Storico completo sempre disponibile</td></tr>
-        <tr><td>Download protetto con URL firmati</td><td>Sicurezza enterprise senza attriti</td></tr>
-        <tr><td>Pagamento PagoPA in pochi click</td><td>Ricevuta immediata, stato in tempo reale</td></tr>
-        <tr><td>Recupero password con OTP</td><td>Identificazione robusta su codice cliente</td></tr>
-        <tr><td>Modifica dati di contatto</td><td>Meno richieste al call-center</td></tr>
+        <thead><tr><th>Cosa puo fare</th><th>Cosa cambia</th></tr></thead>
+        <tr><td>Vedere e scaricare tutte le sue bollette</td><td>Storico completo, disponibile ventiquattro ore su ventiquattro</td></tr>
+        <tr><td>Pagare direttamente dal portale</td><td>Incasso piu rapido, ricevuta immediata</td></tr>
+        <tr><td>Confrontare i propri consumi</td><td>Capisce da solo perche la bolletta e cambiata, e non chiama</td></tr>
+        <tr><td>Recuperare la password da solo</td><td>Nessuna richiesta di sblocco allo sportello</td></tr>
+        <tr><td>Aggiornare i propri recapiti</td><td>Anagrafica sempre corretta, senza lavoro per voi</td></tr>
     </table>
 
     <div class="shot">
         <img src="{{shot_01_home}}" alt="Home del portale cliente">
-        <div class="cap">Riepilogo cliente: ultima bolletta, andamento dei consumi e scadenze in evidenza.</div>
+        <div class="cap">La schermata iniziale: ultima bolletta, andamento dei consumi e scadenze in evidenza.</div>
     </div>
 
     <div class="page-tag">Portale cliente</div>
@@ -113,18 +120,18 @@
 <!-- ============ LATO CLIENTE — BOLLETTE E CONFRONTO ============ -->
 <section class="page duo">
     <div class="eyebrow">Per il cliente finale</div>
-    <h2>Archivio e lettura dei consumi</h2>
+    <h2>L'archivio e la lettura dei consumi</h2>
 
     <div class="shot">
         <img src="{{shot_02_bollette}}" alt="Elenco bollette">
-        <div class="cap">Elenco bollette con filtri per fornitura, periodo e stato di pagamento.
-            Ogni riga apre il PDF originale tramite un link firmato a scadenza breve.</div>
+        <div class="cap">Tutte le bollette in un elenco, filtrabili per fornitura, periodo e stato di
+            pagamento. Ogni riga apre il documento originale.</div>
     </div>
 
     <div class="shot">
         <img src="{{shot_03_confronto}}" alt="Confronto consumi">
-        <div class="cap">Confronto dei consumi fra periodi e fra forniture diverse: il cliente
-            capisce da solo perché la bolletta è cambiata, e non chiama.</div>
+        <div class="cap">Il confronto fra periodi e fra forniture diverse. E la schermata che
+            risponde alla domanda piu frequente allo sportello: perche ho speso di piu.</div>
     </div>
 
     <div class="page-tag">Portale cliente</div>
@@ -137,9 +144,9 @@
     <h2>Pensato prima per il telefono</h2>
 
     <p class="lead">
-        L'interfaccia mobile non è la versione desktop rimpicciolita: è una applicazione
-        dedicata, con navigazione a schede e schermate costruite per lo schermo del telefono,
-        da dove arriva la maggioranza degli accessi.
+        La versione per telefono non e il sito rimpicciolito: e un'interfaccia costruita
+        apposta, con i comandi in basso a portata di pollice. E da li che arriva la
+        maggior parte degli accessi.
     </p>
 
     <div class="phones">
@@ -149,7 +156,7 @@
         </div>
         <div class="phone">
             <img src="{{shot_05_mobile_bollette}}" alt="Bollette mobile">
-            <div class="cap">Bollette</div>
+            <div class="cap">Le bollette</div>
         </div>
         <div class="phone">
             <img src="{{shot_06_mobile_dettaglio}}" alt="Dettaglio bolletta mobile">
@@ -158,8 +165,8 @@
     </div>
 
     <p>
-        Nessuna app da installare e nessuno store da presidiare: il portale funziona nel
-        browser del telefono e si aggiorna insieme al resto della piattaforma.
+        Non c'e nessuna applicazione da installare e nessuno store da gestire: il portale
+        funziona nel browser del telefono e si aggiorna insieme a tutto il resto.
     </p>
 
     <div class="page-tag">Portale cliente</div>
@@ -168,78 +175,78 @@
 
 <!-- ============ LATO GESTORE — PANORAMICA ============ -->
 <section class="page">
-    <div class="eyebrow">Per il gestore</div>
-    <h2>Il pannello di chi ci lavora tutti i giorni</h2>
+    <div class="eyebrow">Per chi ci lavora</div>
+    <h2>Il pannello di chi sta dietro al banco</h2>
 
     <table>
-        <thead><tr><th>Funzione</th><th>Beneficio</th></tr></thead>
-        <tr><td>Caricamento massivo bollette</td><td>Migliaia di documenti in pochi minuti da archivio e CSV</td></tr>
-        <tr><td>Profili shadow da CSV</td><td>Il cliente al primo accesso trova già il proprio storico</td></tr>
-        <tr><td>Ricerca su nome, codice fiscale, indirizzo</td><td>Operatori sensibilmente più rapidi allo sportello</td></tr>
-        <tr><td>Collegamento massivo bollette e profili</td><td>Riconciliazione di interi lotti con un comando</td></tr>
-        <tr><td>Cancellazione di un intero caricamento</td><td>Operazioni reversibili e tracciate</td></tr>
-        <tr><td>Inviti via e-mail</td><td>Comunicazioni curate nel vostro marchio</td></tr>
+        <thead><tr><th>Cosa puo fare l'operatore</th><th>Cosa cambia</th></tr></thead>
+        <tr><td>Caricare le bollette di un intero periodo in una volta</td><td>Migliaia di documenti in pochi minuti, non uno alla volta</td></tr>
+        <tr><td>Precaricare l'anagrafica da un file</td><td>Il cliente al primo accesso trova gia il suo storico</td></tr>
+        <tr><td>Cercare per nome, codice fiscale o indirizzo</td><td>Si trova un cliente mentre e ancora al telefono</td></tr>
+        <tr><td>Collegare in blocco bollette e clienti</td><td>Interi lotti sistemati con un comando</td></tr>
+        <tr><td>Annullare un caricamento sbagliato</td><td>Si torna indietro senza chiamare nessuno</td></tr>
+        <tr><td>Invitare i clienti via e-mail</td><td>Comunicazioni curate, con il vostro marchio</td></tr>
     </table>
 
     <div class="shot">
-        <img src="{{shot_07_admin_utenti}}" alt="Elenco utenti amministrazione">
-        <div class="cap">Anagrafica unificata con ricerca, filtri per stato del contratto e insoluto per cliente.</div>
+        <img src="{{shot_07_admin_utenti}}" alt="Elenco clienti">
+        <div class="cap">L'anagrafica: ricerca immediata, filtri per stato del contratto e importo
+            non ancora incassato, cliente per cliente.</div>
     </div>
 
-    <div class="page-tag">Pannello gestore</div>
+    <div class="page-tag">Pannello operatori</div>
     <div class="page-num">{{PAGE}}</div>
 </section>
 
 <!-- ============ LATO GESTORE — OPERATIVITÀ ============ -->
 <section class="page duo">
-    <div class="eyebrow">Per il gestore</div>
-    <h2>Dalla scheda cliente al caricamento massivo</h2>
+    <div class="eyebrow">Per chi ci lavora</div>
+    <h2>Dalla scheda del cliente al caricamento massivo</h2>
 
     <div class="shot">
         <img src="{{shot_08_admin_dettaglio}}" alt="Scheda cliente">
-        <div class="cap">Scheda cliente: forniture collegate, storico bollette e andamento della
-            spesa per anno, tutto in una schermata sola.</div>
+        <div class="cap">La scheda di un cliente: forniture collegate, storico delle bollette e
+            andamento della spesa negli anni, tutto in una schermata.</div>
     </div>
 
     <div class="shot">
         <img src="{{shot_09_admin_upload}}" alt="Caricamento massivo">
-        <div class="cap">Caricamento massivo e storico dei lotti: ogni importazione resta tracciata
-            e può essere annullata integralmente, documenti compresi.</div>
+        <div class="cap">Il caricamento massivo e lo storico dei lotti. Ogni importazione resta
+            registrata e si puo annullare per intero, documenti compresi.</div>
     </div>
 
-    <div class="page-tag">Pannello gestore</div>
+    <div class="page-tag">Pannello operatori</div>
     <div class="page-num">{{PAGE}}</div>
 </section>
 
-<!-- ============ SICUREZZA ============ -->
+<!-- ============ SICUREZZA E PRIVACY ============ -->
 <section class="page">
-    <div class="eyebrow">Sicurezza e conformità</div>
-    <h2>Progettata per reggere un audit</h2>
+    <div class="eyebrow">Sicurezza e privacy</div>
+    <h2>I dati dei vostri clienti, trattati come si deve</h2>
 
     <p class="lead">
-        La piattaforma è stata sottoposta a una revisione di sicurezza formale, con le
-        correzioni tracciate e verificate.
+        Il portale e stato sottoposto a una verifica di sicurezza formale, con le
+        correzioni applicate e documentate. In concreto, questo significa:
     </p>
 
     <table>
-        <thead><tr><th>Misura</th><th>Implementazione</th></tr></thead>
-        <tr><td>Isolamento dei dati per utente</td><td>Row-Level Security Postgres su tutte le tabelle</td></tr>
-        <tr><td>Cifratura</td><td>A riposo sul database e sullo storage, TLS 1.2+ in transito</td></tr>
-        <tr><td>Documenti mai pubblici</td><td>Link firmati con scadenza a cinque minuti</td></tr>
-        <tr><td>Protezione anti-bot</td><td>Captcha su accesso e registrazione</td></tr>
-        <tr><td>Difese sul browser</td><td>Content Security Policy stretta, HSTS, header difensivi</td></tr>
-        <tr><td>Pagamenti non alterabili</td><td>Scrittura revocata agli utenti, stato gestito da trigger</td></tr>
-        <tr><td>Separazione dei privilegi</td><td>Ruoli utente, amministratore e super amministratore</td></tr>
-        <tr><td>Tracciamento operazioni</td><td>Registro dei caricamenti e log della piattaforma</td></tr>
+        <thead><tr><th>Garanzia</th><th>Cosa vuol dire</th></tr></thead>
+        <tr><td>Ognuno vede solo i propri dati</td><td>Un cliente non puo raggiungere le bollette di un altro, nemmeno provandoci</td></tr>
+        <tr><td>I documenti non sono pubblici</td><td>Ogni scaricamento viene autorizzato sul momento e il collegamento scade dopo pochi minuti</td></tr>
+        <tr><td>Tutto viaggia e resta cifrato</td><td>Sia in transito sia sui server, senza eccezioni</td></tr>
+        <tr><td>Accesso protetto</td><td>Difese automatiche contro tentativi di accesso ripetuti</td></tr>
+        <tr><td>Permessi separati</td><td>Un operatore non puo compiere le operazioni riservate a un responsabile</td></tr>
+        <tr><td>I pagamenti non si toccano</td><td>Lo stato di una bolletta pagata non e modificabile da chi usa il portale</td></tr>
+        <tr><td>Ogni operazione lascia traccia</td><td>Si sa sempre chi ha caricato o cancellato che cosa, e quando</td></tr>
     </table>
 
-    <h3>Conformità GDPR</h3>
+    <h3>Conformita GDPR</h3>
     <table>
-        <tr><td>Hosting dei dati</td><td>Unione Europea, database e storage</td></tr>
-        <tr><td>Sub-responsabili</td><td>Coperti da accordi ex art. 28 GDPR</td></tr>
-        <tr><td>Conservazione</td><td>Dieci anni per i dati fiscali, dodici mesi per i log tecnici</td></tr>
-        <tr><td>Profilazione</td><td>Non effettuata</td></tr>
-        <tr><td>Cookie</td><td>Solo tecnici di sessione e sicurezza</td></tr>
+        <tr><td>Dove stanno i dati</td><td>Unione Europea, sempre</td></tr>
+        <tr><td>Fornitori coinvolti</td><td>Tutti vincolati da contratto secondo il regolamento</td></tr>
+        <tr><td>Per quanto si conservano</td><td>Dieci anni i documenti fiscali, come prevede la legge</td></tr>
+        <tr><td>Profilazione</td><td>Nessuna: i dati non vengono usati per altro</td></tr>
+        <tr><td>Cookie</td><td>Solo quelli necessari a far funzionare l'accesso</td></tr>
     </table>
 
     <div class="page-tag">Sicurezza</div>
@@ -248,37 +255,37 @@
 
 <!-- ============ VANTAGGI ============ -->
 <section class="page">
-    <div class="eyebrow">Perché questa e non un'altra</div>
+    <div class="eyebrow">Perche questo</div>
     <h2>Il confronto, senza giri di parole</h2>
 
     <table>
         <thead><tr><th>Aspetto</th><th>{{productName}}</th></tr></thead>
-        <tr><td>Costi infrastrutturali</td><td>Consumo effettivo, non server dedicati a canone</td></tr>
-        <tr><td>Tempo di attivazione</td><td>Meno di trenta giorni per l'integrazione</td></tr>
-        <tr><td>Residenza dei dati</td><td>Unione Europea, dichiarata e verificabile</td></tr>
-        <tr><td>Conformità GDPR</td><td>Documentata e sottoposta a revisione</td></tr>
-        <tr><td>PagoPA</td><td>Nativo, non un modulo aggiuntivo a listino</td></tr>
-        <tr><td>Attivazione del cliente</td><td>Autonoma, senza intervento dell'operatore</td></tr>
-        <tr><td>Audit di sicurezza</td><td>Eseguito, con esiti tracciati</td></tr>
+        <tr><td>Costi di gestione</td><td>Si paga quello che si usa, non un canone fisso per capacita inutilizzata</td></tr>
+        <tr><td>Tempo di avvio</td><td>Meno di trenta giorni per essere operativi</td></tr>
+        <tr><td>Dove stanno i dati</td><td>Unione Europea, dichiarato e verificabile</td></tr>
+        <tr><td>Privacy</td><td>Documentata e sottoposta a verifica indipendente</td></tr>
+        <tr><td>Pagamenti PagoPA</td><td>Inclusi, non un modulo aggiuntivo a listino</td></tr>
+        <tr><td>Attivazione dei clienti</td><td>Autonoma, senza lavoro per i vostri operatori</td></tr>
+        <tr><td>Personalizzazione grafica</td><td>Il portale porta il vostro marchio e i vostri colori</td></tr>
     </table>
 
     <h3>Risultati attesi entro novanta giorni</h3>
     <div class="kpi-grid">
         <div class="kpi">
             <div class="figure">&minus;40%</div>
-            <div class="caption">chiamate al call-center per richiesta copia bolletta</div>
+            <div class="caption">telefonate allo sportello per chiedere una copia della bolletta</div>
         </div>
         <div class="kpi">
             <div class="figure">+25%</div>
-            <div class="caption">quota di pagamenti elettronici sul totale incassato</div>
+            <div class="caption">quota di incassi che arriva per via elettronica</div>
         </div>
         <div class="kpi">
             <div class="figure">&lt;3s</div>
-            <div class="caption">tempo medio di accesso a una bolletta</div>
+            <div class="caption">per aprire una bolletta, dal clic al documento</div>
         </div>
         <div class="kpi">
             <div class="figure">&gt;95%</div>
-            <div class="caption">clienti che attivano da soli il proprio profilo</div>
+            <div class="caption">clienti che attivano il proprio profilo senza aiuto</div>
         </div>
     </div>
 
@@ -296,7 +303,7 @@
         <thead><tr><th>Voce</th><th>Condizione</th></tr></thead>
         <tr><td>Attivazione e configurazione</td><td>{{price_setup}}</td></tr>
         <tr><td>Canone ricorrente</td><td>{{price_recurring}}</td></tr>
-        <tr><td>Migrazione dello storico</td><td>{{price_migration}}</td></tr>
+        <tr><td>Trasferimento dello storico</td><td>{{price_migration}}</td></tr>
         <tr><td>Assistenza e manutenzione</td><td>{{price_support}}</td></tr>
     </table>
 
@@ -307,22 +314,29 @@
 </section>
 {{/if}}
 
-<!-- ============ ROADMAP + CONTATTI ============ -->
+<!-- ============ PROSSIMI PASSI + CONTATTI ============ -->
 <section class="page closing">
-    <div class="eyebrow">Prossimi sviluppi</div>
-    <h2>Dove sta andando la piattaforma</h2>
+    <div class="eyebrow">Come si parte</div>
+    <h2>Dall'accordo al portale attivo</h2>
 
     <table>
-        <thead><tr><th>Periodo</th><th>In lavorazione</th></tr></thead>
-        <tr><td>In corso</td><td>Webhook PagoPA in produzione, rinforzo dei privilegi sui pagamenti</td></tr>
-        <tr><td>Prossimo trimestre</td><td>Secondo fattore per gli amministratori, cruscotto analitico,
-            notifiche di scadenza, cestino con recupero a trenta giorni</td></tr>
-        <tr><td>Fine anno</td><td>Esportazione report cliente, integrazione SDI per la fatturazione
-            elettronica, applicazione mobile installabile</td></tr>
+        <thead><tr><th>Fase</th><th>Cosa succede</th></tr></thead>
+        <tr><td>Primo incontro</td><td>Vediamo insieme come sono organizzate oggi le vostre bollette</td></tr>
+        <tr><td>Configurazione</td><td>Applichiamo il vostro marchio e carichiamo l'anagrafica esistente</td></tr>
+        <tr><td>Storico</td><td>Trasferiamo le bollette gia emesse, cosi il portale non nasce vuoto</td></tr>
+        <tr><td>Prova con pochi clienti</td><td>Un gruppo ristretto usa il portale prima di aprirlo a tutti</td></tr>
+        <tr><td>Apertura</td><td>Invito via e-mail a tutti i clienti, con i vostri testi</td></tr>
     </table>
 
+    <h3>In arrivo</h3>
+    <p>
+        Avvisi automatici alla scadenza della bolletta, statistiche sui consumi per la
+        direzione, e la possibilita di installare il portale come applicazione sul
+        telefono. Tutto incluso, senza costi aggiuntivi.
+    </p>
+
     <div class="contact-block">
-        <div class="big">Pronti a digitalizzare il rapporto con i vostri clienti.</div>
+        <div class="big">Pronti a togliere una fila dallo sportello.</div>
         <div class="who">{{vendor}}</div>
         <div class="what">{{vendorContact}} &middot; {{vendorEmail}}</div>
     </div>
@@ -330,93 +344,3 @@
     <div class="page-tag">Contatti</div>
     <div class="page-num">{{PAGE}}</div>
 </section>
-
-{{#if technicalAnnex}}
-<!-- ============ ALLEGATO TECNICO ============ -->
-<section class="page annex">
-    <div class="eyebrow">Allegato tecnico</div>
-    <h2>Architettura</h2>
-
-    <pre>
-        Browser (cliente / amministratore)
-                    |  HTTPS, Content Security Policy stretta
-                    v
-        Next.js 16 App Router - React 19
-        Server Actions - API Routes
-             |            |             |
-             v            v             v
-        Postgres     Object storage   Nodo PagoPA
-        + Auth (EU)   PDF (EU)        pagamenti
-             |
-             v
-        Backup giornalieri
-    </pre>
-
-    <h3>Componenti principali</h3>
-    <ul class="stack-list">
-        <li>Next.js 16 con React 19</li>
-        <li>Postgres gestito, regione UE</li>
-        <li>Autenticazione integrata</li>
-        <li>Object storage S3-compatibile, regione UE</li>
-        <li>Protezione anti-bot sul login</li>
-        <li>Invio e-mail transazionali</li>
-        <li>Nodo nazionale PagoPA</li>
-        <li>Row-Level Security su tutte le tabelle</li>
-    </ul>
-
-    <h3>Modello dati</h3>
-    <pre>
-        profiles ------+------ bills (numero, importo, scadenza, stato)
-                       |
-                       +------ user_supplies (piu forniture per cliente)
-                       |
-                       +------ payments (stato sigillato via trigger)
-
-        import_logs ---------- tracciamento dei lotti di caricamento
-    </pre>
-
-    <div class="page-tag">Allegato tecnico</div>
-    <div class="page-num">{{PAGE}}</div>
-</section>
-
-<section class="page annex">
-    <div class="eyebrow">Allegato tecnico</div>
-    <h2>Flussi caratteristici</h2>
-
-    <h3>Attivazione autonoma del cliente</h3>
-    <p>
-        L'operatore carica l'anagrafica da CSV e la piattaforma crea profili preliminari.
-        Quando il cliente si registra, il sistema riconosce la corrispondenza fra codice
-        cliente e codice fiscale, trasferisce sul profilo reale bollette, forniture e
-        pagamenti già presenti, ed elimina il profilo preliminare. Al primo accesso il
-        cliente trova il proprio storico completo, senza che nessuno sia intervenuto.
-    </p>
-
-    <h3>Caricamento massivo</h3>
-    <p>
-        L'operatore seleziona il file anagrafico e l'archivio compresso dei PDF. Il sistema
-        estrae l'archivio, normalizza i nomi dei file, deposita i documenti sullo storage e
-        inserisce le righe corrispondenti eliminando i duplicati. Ogni lotto resta
-        registrato e può essere annullato integralmente, documenti compresi.
-    </p>
-
-    <h3>Pagamento</h3>
-    <p>
-        Il cliente seleziona la bolletta da saldare. La piattaforma verifica che sia
-        effettivamente sua e che l'importo corrisponda, poi registra il pagamento in stato
-        di attesa. La conferma dal nodo dei pagamenti aggiorna lo stato della bolletta
-        tramite un meccanismo automatico interno al database, non modificabile dall'utente.
-    </p>
-
-    <h3>Consegna dei documenti</h3>
-    <p>
-        I PDF non sono mai raggiungibili da un indirizzo pubblico. Ogni richiesta viene
-        autorizzata verificando che chi la effettua sia il proprietario del documento o un
-        amministratore; solo allora viene generato un collegamento firmato, valido cinque
-        minuti.
-    </p>
-
-    <div class="page-tag">Allegato tecnico</div>
-    <div class="page-num">{{PAGE}}</div>
-</section>
-{{/if}}
