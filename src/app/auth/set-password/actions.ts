@@ -62,6 +62,29 @@ export async function setFirstPassword(formData: FormData) {
             : '/profile'
     }
 
+    // Segna il profilo come attivato. È l'unico punto del codice in cui una
+    // persona sceglie davvero una password, quindi l'unico momento in cui il
+    // dato è certo: né encrypted_password né last_sign_in_at servono allo scopo,
+    // perché GoTrue li popola entrambi già al momento dell'invito.
+    // Si aggiorna per auth_user_id e, in fallback, per id: i profili creati da
+    // invito o da script sono collegati per id.
+    const markActivated = async () => {
+        const now = new Date().toISOString()
+        const { count } = await adminClient
+            .from('profiles')
+            .update({ activated_at: now }, { count: 'exact' })
+            .eq('auth_user_id', user.id)
+            .is('activated_at', null)
+
+        if (!count) {
+            await adminClient
+                .from('profiles')
+                .update({ activated_at: now })
+                .eq('id', user.id)
+                .is('activated_at', null)
+        }
+    }
+
     // 2. Get codice_cliente from metadata.
     // IMPORTANT: inviteUserByEmail({ data: { codice_cliente } }) stores the payload
     // in app_metadata (raw_app_meta_data), NOT user_metadata (raw_user_meta_data).
@@ -71,6 +94,7 @@ export async function setFirstPassword(formData: FormData) {
     if (!codiceCliente) {
         // Admin invites carry no codice_cliente (this is the admin path), as do
         // direct signups already profile-linked by the handle_new_user trigger.
+        await markActivated()
         revalidatePath('/', 'layout')
         redirect(await destForRole())
     }
@@ -97,6 +121,9 @@ export async function setFirstPassword(formData: FormData) {
             console.info('[setFirstPassword] Activation result:', activationResult)
         }
     }
+
+    // Dopo la RPC: se il profilo era shadow, è ora collegato ad auth_user_id.
+    await markActivated()
 
     revalidatePath('/', 'layout')
     redirect(await destForRole())
