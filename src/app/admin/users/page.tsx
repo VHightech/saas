@@ -25,6 +25,8 @@ interface UserProfile {
     pec: string
     clientCode: string
     isShadow: boolean
+    /** Invitato ma senza password: non puo accedere finche non rifa il primo accesso. */
+    neverActivated: boolean
     unpaidAmount?: number
     billsCount?: number
     suppliesCount?: number
@@ -34,6 +36,16 @@ interface UserProfile {
     city?: string
     cif?: string
 }
+
+// "Invitato" e lo stato scoperto dalla RPC: profilo non shadow ma senza password
+// in auth.users. Sono gli utenti fermi, che nessuno richiama perche in elenco
+// sembravano registrati.
+const UTENZA_LABELS = {
+    all: 'Tutte le utenze',
+    active: 'Registrato',
+    shadow: 'Non registrato',
+    invited: 'Invitato, mai entrato',
+} as const
 
 function initialsOf(name: string) {
     const parts = (name || 'U').trim().split(/\s+/)
@@ -53,7 +65,7 @@ export default function AdminUsersPage() {
     // Filters/sort persisted in the URL so a refresh keeps the current view.
     const oneOf = <T extends string>(val: string | null, allowed: readonly T[], fallback: T): T =>
         (allowed as readonly string[]).includes(val ?? '') ? (val as T) : fallback
-    const initialStatus = oneOf(searchParams.get('status'), ['all', 'active', 'shadow'] as const, 'all')
+    const initialStatus = oneOf(searchParams.get('status'), ['all', 'active', 'shadow', 'invited'] as const, 'all')
     const initialContract = searchParams.get('contract') || 'all'
     const initialSortBy = oneOf(searchParams.get('sort'), ['created_at', 'name', 'user_supplies_count', 'bills_count'] as const, 'created_at')
     const initialOrder = oneOf(searchParams.get('order'), ['asc', 'desc'] as const, 'desc')
@@ -74,7 +86,7 @@ export default function AdminUsersPage() {
     const [activeUserId, setActiveUserId] = useState<string | null>(null)
     const [activeBills, setActiveBills] = useState<any[]>([])
     const [activeBillsLoading, setActiveBillsLoading] = useState(false)
-    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'shadow'>(initialStatus)
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'shadow' | 'invited'>(initialStatus)
     const [contractStatusFilter, setContractStatusFilter] = useState<string>(initialContract)
     const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'user_supplies_count' | 'bills_count'>(initialSortBy)
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialOrder)
@@ -193,7 +205,7 @@ export default function AdminUsersPage() {
                 _limit: itemsPerPage,
                 _offset: (currentPage - 1) * itemsPerPage,
                 _status_filter: contractStatusFilter,
-                _shadow_filter: statusFilter,           // 'all' | 'active' | 'shadow'
+                _shadow_filter: statusFilter,           // 'all' | 'active' | 'shadow' | 'invited'
                 _sort_by: sortBy,                        // created_at | name | bills_count | user_supplies_count
                 _sort_order: sortOrder                   // asc | desc
             })
@@ -828,12 +840,12 @@ export default function AdminUsersPage() {
                         <div className="flex items-center gap-2 shrink-0 flex-wrap px-6 py-2 bg-white dark:bg-[#0F1115]">
                             <div className="relative group">
                                 <FilterChip
-                                    label={`Utenza${statusFilter !== 'all' ? `: ${statusFilter === 'active' ? 'Registrato' : 'Non registrato'}` : ''}`}
+                                    label={`Utenza${statusFilter !== 'all' ? `: ${UTENZA_LABELS[statusFilter]}` : ''}`}
                                     active={statusFilter !== 'all'}
                                     onClear={() => { setStatusFilter('all'); setCurrentPage(1) }}
                                 />
-                                <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg py-1 hidden group-hover:block z-50 animate-in fade-in zoom-in-95 duration-100">
-                                    {(['all', 'active', 'shadow'] as const).map(s => (
+                                <div className="absolute top-full left-0 mt-1 w-52 bg-white dark:bg-[#1A1D23] border border-slate-200 dark:border-white/10 rounded-lg py-1 hidden group-hover:block z-50 animate-in fade-in zoom-in-95 duration-100">
+                                    {(['all', 'active', 'shadow', 'invited'] as const).map(s => (
                                         <button
                                             key={s}
                                             onClick={() => { setStatusFilter(s); setCurrentPage(1) }}
@@ -842,7 +854,7 @@ export default function AdminUsersPage() {
                                                 statusFilter === s ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"
                                             )}
                                         >
-                                            {s === 'all' ? 'Tutte le utenze' : s === 'active' ? 'Registrato' : 'Non registrato'}
+                                            {UTENZA_LABELS[s]}
                                         </button>
                                     ))}
                                 </div>
@@ -1041,6 +1053,15 @@ export default function AdminUsersPage() {
                                                         <div className="mt-0.5">
                                                             <CodeBadge value={u.clientCode} label="CODICE CLIENTE" copyable />
                                                         </div>
+                                                    )}
+                                                    {!u.isShadow && u.neverActivated && (
+                                                        <span
+                                                            className="mt-0.5 self-start inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                                            title="Invitato ma senza password: ha aperto l'invito e non l'ha completato, oppure non l'ha mai aperto. Non puo accedere finche non rifa il primo accesso, che gli invia un link nuovo."
+                                                        >
+                                                            <AlertCircle size={11} strokeWidth={2.5} />
+                                                            Mai entrato
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -1260,6 +1281,7 @@ function adapt(p: any): UserProfile {
         pec: p.pec || '',
         clientCode: p.codice_cliente || '',
         isShadow: p.is_shadow || !p.email || !p.name,
+        neverActivated: p.never_activated === true,
         billsCount: typeof p.bills_count === 'number' ? p.bills_count : (Array.isArray(p.bills) ? p.bills.length : 0),
         suppliesCount: typeof p.user_supplies_count === 'number' ? p.user_supplies_count : userSupplies.length,
         userSupplies: userSupplies,
