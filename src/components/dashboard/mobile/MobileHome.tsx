@@ -315,7 +315,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                                         }}
                                                     >
                                                         <img
-                                                            src="/logo-mark.png"
+                                                            src="/android-chrome-512x512.png"
                                                             alt="Acquambiente"
                                                             className="w-full h-full object-contain"
                                                             loading="eager"

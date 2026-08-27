@@ -93,7 +93,7 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                             <div className="flex items-center min-w-0">
                                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                                     <img
-                                        src="/logo-mark.png"
+                                        src="/android-chrome-512x512.png"
                                         alt="Logo"
                                         className="w-10 h-10 object-contain"
                                     />
