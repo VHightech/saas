@@ -2,12 +2,19 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { ShieldCheck, Mail, UserPlus, Loader2, X, Check, ArrowRight } from 'lucide-react'
-import { inviteAdmin, getAdmins, removeAdmin, setAdminPermissions, getMyAdminContext, resendAdminInvite } from './actions'
+import { inviteAdmin, getAdmins, removeAdmin, setAdminPermissions, getMyAdminContext, resendAdminInvite, setSuperAdmin } from './actions'
 import { toast } from 'sonner'
 import { AdminPageHero } from '@/components/admin/admin-page-hero'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { Trash2 } from 'lucide-react'
+
+/**
+ * Entrambe le grafie esistono nelle righe storiche. Confrontare con la sola
+ * 'superadmin' teneva nascosto il badge Super a chiunque, perché il valore
+ * salvato è 'super_admin'.
+ */
+const isSuper = (role?: string | null) => role === 'super_admin' || role === 'superadmin'
 
 export default function AdminManagementPage() {
     const [admins, setAdmins] = useState<any[]>([])
@@ -93,6 +100,27 @@ export default function AdminManagementPage() {
         if (!res.success) {
             toast.error(res.error || 'Errore salvataggio permessi')
             loadAdmins()
+        }
+    }
+
+    // Il cambio di ruolo non è ottimistico come i permessi granulari: qui il
+    // server può rifiutare (ultimo super_admin, sé stessi), quindi si aspetta
+    // l'esito e si ricarica, invece di mostrare uno stato che potrebbe tornare
+    // indietro.
+    const handleSuper = async (admin: any, promuovi: boolean) => {
+        const nome = admin.name || admin.email || 'questo amministratore'
+        const domanda = promuovi
+            ? `Promuovere ${nome} a super amministratore? Avrà tutti i permessi, compreso invitare, rimuovere e promuovere altri amministratori.`
+            : `Riportare ${nome} ad amministratore semplice? I permessi di invito e gestione utenti verranno azzerati e andranno riassegnati.`
+
+        if (!confirm(domanda)) return
+
+        const res = await setSuperAdmin(admin.id, promuovi)
+        if (res.success) {
+            toast.success(promuovi ? 'Promosso a super amministratore.' : 'Riportato ad amministratore.')
+            loadAdmins()
+        } else {
+            toast.error(res.error || 'Errore durante il cambio di ruolo')
         }
     }
 
@@ -286,7 +314,7 @@ export default function AdminManagementPage() {
                                                             <span className="text-[14px] font-bold text-slate-900 dark:text-white truncate">
                                                                 {admin.name || 'Utenza'}
                                                             </span>
-                                                            {admin.role === 'superadmin' && (
+                                                            {isSuper(admin.role) && (
                                                                 <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-wider">
                                                                     Super
                                                                 </span>
@@ -304,10 +332,27 @@ export default function AdminManagementPage() {
                                                 </div>
 
                                                 {/* Role Column */}
-                                                <div className="w-28 text-center shrink-0">
+                                                <div className="w-28 shrink-0 flex flex-col items-center gap-1">
                                                     <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 capitalize tracking-tight">
-                                                        {admin.role}
+                                                        {isSuper(admin.role) ? 'Super admin' : admin.role}
                                                     </p>
+                                                    {/* Promozione e declassamento: solo super_admin, mai su sé stessi. */}
+                                                    {ctx?.isSuperadmin && admin.id !== currentUser?.id && (
+                                                        <button
+                                                            onClick={() => handleSuper(admin, !isSuper(admin.role))}
+                                                            className={cn(
+                                                                "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border transition-colors",
+                                                                isSuper(admin.role)
+                                                                    ? "bg-slate-50 dark:bg-white/5 text-slate-500 border-slate-200 dark:border-white/10 hover:text-amber-600 hover:border-amber-300"
+                                                                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                                                            )}
+                                                            title={isSuper(admin.role)
+                                                                ? 'Riporta ad amministratore semplice, azzerando i permessi'
+                                                                : 'Promuovi a super amministratore, con tutti i permessi'}
+                                                        >
+                                                            {isSuper(admin.role) ? 'Declassa' : 'Rendi super'}
+                                                        </button>
+                                                    )}
                                                 </div>
 
                                                 {/* Permissions Column (super_admin only) */}

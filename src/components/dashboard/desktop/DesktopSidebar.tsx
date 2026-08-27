@@ -75,7 +75,7 @@ export function DesktopSidebar() {
             {/* Header: Logo and Brand Name */}
             <div className="pt-6 pb-8 px-5 flex items-center gap-3 shrink-0">
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                    <img src="/acq_favicon.ico" alt="" className="w-10 h-10 object-contain" />
+                    <img src="/logo-mark.png" alt="" className="w-10 h-10 object-contain" />
                 </div>
                 <div className={cn(
                     "min-w-0 overflow-hidden transition-all duration-300 ease-out",

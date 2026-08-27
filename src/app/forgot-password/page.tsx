@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
                 <div className="mb-12 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center shrink-0">
-                            <img src="/acq_favicon.ico" alt="Acquambiente" width={40} height={40} className="w-full h-full object-contain" />
+                            <img src="/logo-mark.png" alt="Acquambiente" width={40} height={40} className="w-full h-full object-contain" />
                         </div>
                         <div className="leading-tight">
                             <p className="text-[15px] sm:text-[17px] font-extrabold text-[#0A2540] dark:text-white whitespace-nowrap">Acquambiente</p>

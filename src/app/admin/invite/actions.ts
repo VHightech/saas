@@ -265,6 +265,99 @@ export async function setAdminPermissions(
     return { success: true }
 }
 
+// Entrambe le grafie sono in circolazione: SUPER_ROLES in auth-checks accetta
+// sia 'super_admin' sia 'superadmin', e le righe storiche possono avere l'una o
+// l'altra. In scrittura si usa sempre 'super_admin', che è la grafia canonica.
+const RUOLI_SUPER = ['super_admin', 'superadmin']
+
+/**
+ * Promuove un amministratore a super_admin, o lo riporta ad admin semplice.
+ * Riservata ai super_admin.
+ */
+export async function setSuperAdmin(userId: string, promuovi: boolean) {
+    const authCheck = await requireSuperadmin()
+    if (authCheck.error) return { success: false, error: authCheck.error }
+
+    const supabaseAdmin = createAdminClient()
+
+    const { data: prof } = await supabaseAdmin
+        .from('profiles')
+        .select('id, auth_user_id, role, name')
+        .eq('id', userId)
+        .maybeSingle()
+
+    if (!prof) return { success: false, error: 'Amministratore non trovato.' }
+
+    // Il proprio ruolo non si tocca da qui: un super_admin che si declassa per
+    // sbaglio non avrebbe più modo di rimediare dall'interfaccia.
+    const ids = [prof.id as string, prof.auth_user_id as string | null].filter(Boolean)
+    if (authCheck.user && ids.includes(authCheck.user.id)) {
+        return { success: false, error: 'Non puoi modificare il tuo ruolo.' }
+    }
+
+    const ruoloAttuale = prof.role as string | null
+    const eGiaSuper = !!ruoloAttuale && RUOLI_SUPER.includes(ruoloAttuale)
+
+    if (promuovi && eGiaSuper) {
+        return { success: false, error: 'È già super amministratore.' }
+    }
+    if (promuovi && ruoloAttuale !== 'admin') {
+        return { success: false, error: 'Solo un amministratore può essere promosso.' }
+    }
+    if (!promuovi && !eGiaSuper) {
+        return { success: false, error: 'Questo profilo non è un super amministratore.' }
+    }
+
+    // Togliere l'ultimo super_admin lascerebbe il portale senza nessuno in grado
+    // di invitare, rimuovere o promuovere amministratori: si uscirebbe solo con
+    // una UPDATE manuale sul database.
+    if (!promuovi) {
+        const { count } = await supabaseAdmin
+            .from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .in('role', RUOLI_SUPER)
+
+        if ((count ?? 0) <= 1) {
+            return {
+                success: false,
+                error: "È l'ultimo super amministratore: promuovine un altro prima di declassare questo.",
+            }
+        }
+    }
+
+    const nuovoRuolo = promuovi ? 'super_admin' : 'admin'
+
+    const { error } = await supabaseAdmin
+        .from('profiles')
+        .update({
+            role: nuovoRuolo,
+            // Al declassamento i permessi granulari tornano a zero: chi era super
+            // li aveva impliciti, non concessi. Ripartire da nessun permesso
+            // obbliga a riassegnarli di proposito invece di ereditarli in silenzio.
+            ...(promuovi ? {} : { can_invite_admins: false, can_manage_users: false }),
+        })
+        .eq('id', userId)
+
+    if (error) {
+        console.error('setSuperAdmin update error:', error.code)
+        return { success: false, error: 'Errore durante il cambio di ruolo.' }
+    }
+
+    // Allineamento dei metadati auth, come fa inviteAdmin. Non è la fonte di
+    // verità (lo è profiles.role), quindi un errore qui si registra e basta.
+    const authId = (prof.auth_user_id as string | null) || userId
+    const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(authId, {
+        app_metadata: { role: nuovoRuolo },
+    })
+    if (metaError) {
+        console.error('setSuperAdmin metadata sync error:', metaError.message)
+    }
+
+    revalidatePath('/admin/invite')
+    revalidatePath('/admin/admins')
+    return { success: true }
+}
+
 // Lightweight context for gating admin UI (buttons, page access).
 export async function getMyAdminContext() {
     const res = await getAdminContext()

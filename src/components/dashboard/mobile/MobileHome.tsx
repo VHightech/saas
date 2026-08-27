@@ -315,7 +315,7 @@ export function MobileHome({ profile, bills = [], supplies = [], stats, unpaidCo
                                                         }}
                                                     >
                                                         <img
-                                                            src="/acq_favicon.ico"
+                                                            src="/logo-mark.png"
                                                             alt="Acquambiente"
                                                             className="w-full h-full object-contain"
                                                             loading="eager"
