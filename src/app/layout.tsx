@@ -26,10 +26,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Portale Acquambiente",
     description: "Area Riservata Clienti",
-    // Ordine dal più specifico al più compatibile: i browser prendono il primo
-    // formato che sanno gestire. L'ICO resta in coda per i più vecchi.
-    // Quando arriva il vettoriale ufficiale basta salvarlo come
-    // public/favicon.svg e metterlo in testa: { url: "/favicon.svg", type: "image/svg+xml" }.
+    // Niente SVG: si usano i PNG del pacchetto con l'ICO a chiudere.
+    // I browser prendono il primo formato che sanno gestire, quindi i PNG
+    // (più nitidi alle misure esatte) vengono serviti ai browser correnti e
+    // l'ICO copre i più vecchi.
     icons: {
       icon: [
         { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
