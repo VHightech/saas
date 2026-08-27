@@ -31,9 +31,15 @@ const c = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function main() {
-    const slug = parseSlug(process.argv.slice(2))
-    const env = await loadCaptureEnv()
-    const base = env.CAPTURE_BASE_URL || 'http://localhost:3000'
+    const argv = process.argv.slice(2)
+    const slug = parseSlug(argv)
+
+    // Modalita manuale: nessuna credenziale da nessuna parte, entra una
+    // persona nella finestra di Chrome. E anche il ripiego automatico quando
+    // il file delle credenziali non esiste.
+    const manual = argv.includes('--manual') || !existsSync(path.join(ROOT, 'presentations', '.env.capture'))
+    const env = manual ? {} : await loadCaptureEnv()
+    const base = env.CAPTURE_BASE_URL || process.env.CAPTURE_BASE_URL || 'http://localhost:3000'
 
     await assertDevServer(base)
 
@@ -44,6 +50,7 @@ async function main() {
 
     console.log(c.bold(`Cattura screenshot per "${slug}"`))
     console.log(c.dim(`  portale: ${base}`))
+    console.log(c.dim(`  accesso: ${manual ? 'manuale, entri tu nella finestra' : 'automatico da .env.capture'}`))
     console.log(c.dim('  si apre una finestra Chrome: non chiuderla finche non ho finito.\n'))
 
     const chrome = await launchChrome({ headless: false })
@@ -71,7 +78,10 @@ async function main() {
 
         // ── CLIENTE ──────────────────────────────────────────────────────────
         console.log(c.bold('Portale cliente'))
-        await login(session, base, env.CAPTURE_CLIENT_CODE, env.CAPTURE_CLIENT_PASSWORD, 'cliente')
+        await session.setViewport(VIEWPORTS.desktop)
+        manual
+            ? await loginManual(session, base, 'cliente', 1)
+            : await login(session, base, env.CAPTURE_CLIENT_CODE, env.CAPTURE_CLIENT_PASSWORD, 'cliente')
 
         await session.setViewport(VIEWPORTS.desktop)
         for (const [file, route] of [
@@ -111,7 +121,10 @@ async function main() {
         console.log(c.bold('\nPannello operatori'))
         await session.send('Network.clearBrowserCookies')
         await session.setViewport(VIEWPORTS.desktop)
-        await login(session, base, env.CAPTURE_ADMIN_CODE, env.CAPTURE_ADMIN_PASSWORD, 'operatore')
+        await session.send('Emulation.setTouchEmulationEnabled', { enabled: false, maxTouchPoints: 0 })
+        manual
+            ? await loginManual(session, base, 'operatore', 2)
+            : await login(session, base, env.CAPTURE_ADMIN_CODE, env.CAPTURE_ADMIN_PASSWORD, 'operatore')
 
         await session.goto(base + '/admin/users')
         await settle(session)
@@ -138,10 +151,58 @@ async function main() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Il login richiede codice cliente a sei cifre, password e captcha Turnstile.
- * I campi vengono compilati automaticamente; il captcha no, perche non e
- * automatizzabile. Se non si risolve da solo entro il tempo previsto, lo
- * script aspetta che sia una persona a completare l'accesso nella finestra.
+ * Accesso manuale: e una persona a entrare nella finestra di Chrome.
+ * Evita di dover scrivere credenziali da qualche parte e aggira il captcha,
+ * che con una persona davanti si risolve sempre.
+ *
+ * Le istruzioni compaiono sovrapposte alla pagina, non nel terminale: chi
+ * esegue l'accesso sta guardando Chrome, non la console.
+ */
+async function loginManual(session, base, ruolo, passo) {
+    await session.goto(base + '/login')
+    await session.waitFor("document.getElementById('otp-0')", { timeout: 30_000 })
+
+    await banner(session, `Passo ${passo} di 2`, `Accedi come <b>${ruolo}</b>.`,
+        'Appena sei dentro, gli screenshot partono da soli. Non chiudere la finestra.')
+
+    console.log(c.yellow(`  in attesa dell'accesso come ${ruolo}…`))
+
+    const entered = await session.waitFor(
+        `!location.pathname.startsWith('/login')`,
+        { timeout: 900_000, interval: 500 }
+    )
+    if (!entered) throw new Error(`accesso come ${ruolo} non effettuato entro quindici minuti`)
+
+    console.log(c.dim(`  accesso come ${ruolo} completato`))
+    await sleep(1500)
+}
+
+/** Riquadro di istruzioni sovrapposto alla pagina. Sparisce alla navigazione. */
+async function banner(session, titolo, riga1, riga2) {
+    await session.evaluate(`(() => {
+        document.getElementById('__capture_banner')?.remove()
+        const el = document.createElement('div')
+        el.id = '__capture_banner'
+        el.innerHTML =
+            '<div style="font:700 11px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;opacity:.75;margin-bottom:8px">'
+            + ${JSON.stringify(titolo)} + '</div>'
+            + '<div style="font:600 17px/1.4 system-ui;margin-bottom:6px">' + ${JSON.stringify(riga1)} + '</div>'
+            + '<div style="font:400 13px/1.5 system-ui;opacity:.8">' + ${JSON.stringify(riga2)} + '</div>'
+        el.setAttribute('style', [
+            'position:fixed', 'z-index:2147483647', 'top:16px', 'left:50%',
+            'transform:translateX(-50%)', 'max-width:520px', 'padding:16px 22px',
+            'background:#0B6FA4', 'color:#fff', 'border-radius:12px',
+            'box-shadow:0 12px 40px rgba(0,0,0,.35)', 'pointer-events:none',
+        ].join(';'))
+        document.body.appendChild(el)
+        return true
+    })()`)
+}
+
+/**
+ * Accesso automatico con credenziali da file. I campi vengono compilati; il
+ * captcha no, perche non e automatizzabile. Se non si risolve da solo, si
+ * ricade sull'attesa dell'intervento manuale.
  */
 async function login(session, base, code, password, ruolo) {
     if (!code || !password) throw new Error(`credenziali mancanti per il ruolo "${ruolo}"`)

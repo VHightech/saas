@@ -1,62 +1,25 @@
--- Distingue "invitato ma mai entrato" da "registrato", tramite un fatto
--- registrato invece che dedotto.
+-- RIPRISTINO: riporta search_users alla versione del 30/06/2026.
 --
--- Il trigger handle_new_user scatta sull'INSERT in auth.users, che avviene
--- all'invito: da quell'istante il profilo ha is_shadow = false e in elenco
--- sembra registrato. La password pero la scrive solo setFirstPassword. Chi
--- apre il link e chiude la pagina resta senza password: si sblocca rifacendo
--- il primo accesso, ma nessun operatore puo accorgersi che e fermo.
+-- Da usare se e stata applicata 20260821000000_search_users_never_activated.sql,
+-- quella basata su auth.users.encrypted_password. Quel discriminante non
+-- funziona: GoTrue popola il campo gia all'invito, quindi never_activated
+-- risultava sempre false e il filtro restava vuoto.
 --
--- PERCHE NON auth.users.encrypted_password
--- Sembrava il discriminante ovvio, ed e sbagliato: GoTrue popola quel campo
--- gia alla creazione dell'account, quindi un invitato che non ha mai scelto
--- nulla ha comunque un hash bcrypt da 60 caratteri, indistinguibile da quello
--- di una password vera. Misurato sul codice cliente 509155:
+-- Non c'e nulla da ripristinare sui dati: quella migrazione sostituiva soltanto
+-- una funzione, senza toccare nessuna riga.
 --
---   invited_at       06:15:00.499
---   confirmed_at     06:16:55.179   <- clic sul link
---   updated_at       06:16:55.188   <- +3 ms, nessun intervento umano
---   length(encrypted_password) = 60
+-- ATTENZIONE 1 -- il DROP e obbligatorio. La funzione attualmente installata
+-- restituisce 14 colonne, questa ne restituisce 13: CREATE OR REPLACE rifiuta
+-- un cambio di tipo di ritorno con "cannot change return type of existing
+-- function". Senza il DROP questo script fallisce a meta.
 --
--- PERCHE NON last_sign_in_at
--- Aprire il link crea comunque una sessione: nello stesso caso sopra risulta
--- valorizzato a 06:16:55.185, sei millisecondi dopo la conferma.
+-- ATTENZIONE 2 -- i GRANT in fondo non sono decorativi. Il DROP azzera i
+-- permessi e Postgres ripristina il default PUBLIC: senza riassegnarli la
+-- funzione torna richiamabile in anonimo via /rest/v1/rpc/search_users, cioe
+-- si riapre il buco chiuso a giugno.
 --
--- La sola prova certa e l'esecuzione di setFirstPassword, che e l'unico punto
--- in cui qualcuno sceglie davvero una password. Da qui la colonna.
+-- Al termine, in una query separata: NOTIFY pgrst, 'reload schema';
 
-alter table public.profiles
-    add column if not exists activated_at timestamptz;
-
-comment on column public.profiles.activated_at is
-    'Istante in cui l''utente ha impostato la propria password tramite setFirstPassword. '
-    'NULL su un profilo con auth_user_id valorizzato significa: invitato, mai entrato. '
-    'Non ricavabile da auth.users: encrypted_password e last_sign_in_at sono entrambi '
-    'popolati dal solo invito.';
-
--- Backfill una tantum. Non esiste un dato storico che dica chi ha scelto una
--- password, quindi si usa l'unico indizio disponibile: uno scarto significativo
--- fra la conferma dell'invito e l'ultima modifica dell'account. Il clic sul
--- link muove updated_at di pochi millisecondi; compilare il modulo richiede
--- almeno decine di secondi. La soglia e volutamente prudente: chi resta fuori
--- appare come "mai entrato" e viene semplicemente ricontattato, mentre marcare
--- per errore come attivo qualcuno che e fermo lo renderebbe di nuovo invisibile.
-update public.profiles p
-set activated_at = u.updated_at
-from auth.users u
-where u.id = p.auth_user_id
-  and p.activated_at is null
-  and u.confirmed_at is not null
-  and u.updated_at > u.confirmed_at + interval '30 seconds';
-
--- Serve il filtro "invited", che e l'unico accesso previsto su questa colonna.
-create index if not exists profiles_invitati_non_attivati_idx
-    on public.profiles (created_at desc)
-    where activated_at is null and auth_user_id is not null;
-
--- La funzione va eliminata e ricreata: aggiungere una colonna al RETURNS TABLE
--- cambia il tipo di ritorno, e CREATE OR REPLACE non lo consente. I permessi
--- vengono riassegnati in fondo, perche il DROP li porta via.
 drop function if exists public.search_users(text, integer, integer, text, text, text, text);
 
 create function public.search_users(
@@ -71,8 +34,7 @@ create function public.search_users(
 returns table(
     id uuid, email text, name text, codice_fiscale text, partita_iva text, pec text,
     codice_cliente text, created_at timestamptz, is_shadow boolean,
-    bills_count integer, user_supplies_count integer, never_activated boolean,
-    user_supplies jsonb, total_count bigint
+    bills_count integer, user_supplies_count integer, user_supplies jsonb, total_count bigint
 )
 language plpgsql
 security definer
@@ -105,18 +67,12 @@ begin
         with base_users as (
             select
                 p.id, p.email, p.name, p.codice_fiscale, p.partita_iva, p.pec, p.codice_cliente,
-                p.created_at, p.is_shadow, p.bills_count, p.user_supplies_count,
-                -- Invitato (ha un account) ma senza password scelta.
-                (p.auth_user_id is not null and p.activated_at is null) as never_activated
+                p.created_at, p.is_shadow, p.bills_count, p.user_supplies_count
             from public.profiles p
             where p.role not in ('admin', 'super_admin', 'superadmin')
               and ($1 = 'all'
                    or ($1 = 'active' and coalesce(p.is_shadow, false) = false)
-                   or ($1 = 'shadow' and coalesce(p.is_shadow, false) = true)
-                   or ($1 = 'invited'
-                       and coalesce(p.is_shadow, false) = false
-                       and p.auth_user_id is not null
-                       and p.activated_at is null))
+                   or ($1 = 'shadow' and coalesce(p.is_shadow, false) = true))
                and (
                     coalesce(array_length($2, 1), 0) = 0
                  or (
@@ -147,7 +103,7 @@ begin
         )
         select
             pg.id, pg.email, pg.name, pg.codice_fiscale, pg.partita_iva, pg.pec, pg.codice_cliente,
-            pg.created_at, pg.is_shadow, pg.bills_count, pg.user_supplies_count, pg.never_activated,
+            pg.created_at, pg.is_shadow, pg.bills_count, pg.user_supplies_count,
             coalesce(
                 (select jsonb_agg(jsonb_build_object('cif', s.cif, 'address', s.address, 'city', s.city))
                  from public.user_supplies s
@@ -162,8 +118,8 @@ begin
 end;
 $function$;
 
--- Il DROP ha rimosso anche i permessi: si ripristina lo stato voluto, cioe
--- niente chiamate anonime via /rest/v1/rpc/search_users.
+
+-- Permessi rimossi dal DROP, riassegnati come da 20260629120000.
 revoke execute on function
   public.search_users(text, integer, integer, text, text, text, text)
   from anon, public;
