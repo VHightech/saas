@@ -191,6 +191,21 @@ test('applyFieldFix rifiuta un campo fuori whitelist', async () => {
     assert.equal(calls.length, 0)
 })
 
+test('StandardCsvAdapter rifiuta i nomi PDF non canonici invece di inserirli senza idboll', async () => {
+    const csv = [
+        'CIF000123;RSSMRA80A01H501U;456789.pdf;ACQUA;16/03/2026;30/04/2026;10,00;5;MP23;SALDO',
+        'CIF000124;RSSMRA80A01H501U;0456790.pdf;ACQUA;16/03/2026;30/04/2026;10,00;5;MP23;SALDO',
+        'CIF000125;RSSMRA80A01H501U;bolletta_456791.pdf;ACQUA;16/03/2026;30/04/2026;10,00;5;MP23;SALDO',
+    ].join('\n')
+
+    const { bills, errors } = await new StandardCsvAdapter().parse(csv)
+    // solo la riga canonica entra, le altre due sono segnalate
+    assert.equal(bills.length, 1)
+    assert.equal(bills[0].idboll, 456789)
+    assert.equal(errors.length, 2)
+    assert.ok(errors.every((e) => e.includes('non canonico')), errors.join(' | '))
+})
+
 test('StandardCsvAdapter: il refactor delle colonne 8/9 non cambia il parsing', async () => {
     const csv = [
         'CIF000123;RSSMRA80A01H501U;456789.pdf;ACQUA;16/03/2026;30/04/2026;1.234,56;789;MP23;SALDO',

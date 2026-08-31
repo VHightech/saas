@@ -51,7 +51,7 @@ interface UserSupply {
 
 interface Bill {
     id: number
-    nome_pdf: string | null
+    idboll: number | null
     pdf_url: string | null
     data_emissione: string | null
     scadenza: string | null
@@ -62,7 +62,6 @@ interface Bill {
     expected_method: string | null
     ulm: string | null
     cif: string | null
-    numero_bolletta: string | null
 }
 
 export default function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -295,9 +294,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         const q = invoiceSearch.toLowerCase()
         if (!q) return filtered
         return filtered.filter(inv =>
-            (inv.nome_pdf && inv.nome_pdf.toLowerCase().includes(q)) ||
-            (inv.importo && inv.importo.toString().includes(q)) ||
-            (inv.numero_bolletta && inv.numero_bolletta.toLowerCase().includes(q))
+            (inv.idboll !== null && String(inv.idboll).includes(q)) ||
+            (inv.importo && inv.importo.toString().includes(q))
         )
     }, [bills, invoiceSearch, fromDate, toDate, selectedUlm])
 
@@ -718,7 +716,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                                         className="group grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.4fr)_minmax(0,0.55fr)_minmax(0,0.55fr)_minmax(0,0.7fr)_72px] gap-3 items-center px-6 py-3 hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition-colors"
                                     >
                                         <div className="text-[14px] font-medium text-slate-800 dark:text-white truncate font-mono">
-                                            {inv.numero_bolletta || inv.nome_pdf?.replace('.pdf', '') || `#${inv.id}`}
+                                            {inv.idboll || `#${inv.id}`}
                                         </div>
                                         <div className="flex items-center min-w-0">
                                             {inv.cif ? (

@@ -1,5 +1,6 @@
 import { ImportAdapter, ParseResult, ParsedBill } from './types'
 import { parse } from 'csv-parse/sync'
+import { idbollFromPdfName } from '@/lib/bill-pdf'
 
 /**
  * Normalize the CSV document-type label (column 9, or column 8 in the legacy
@@ -143,12 +144,15 @@ export class StandardCsvAdapter implements ImportAdapter {
 
                 // ulm is a generated column in Postgres (right(cif, 6)); no need to set here.
 
-                // Extract ID from PDF Name
-                const idString = pdfName.replace(/\.[^/.]+$/, "")
-                const billId = parseInt(idString)
-
-                if (isNaN(billId)) {
-                    // throw new Error(`Invalid PDF name format: ${pdfName}`)
+                // idboll dal nome PDF. Il gestionale esporta sempre
+                // `<idboll>.pdf`: un nome fuori da quella forma non e'
+                // agganciabile al suo PDF, quindi la riga viene rifiutata e
+                // segnalata invece di entrare a DB come bolletta orfana.
+                const billId = idbollFromPdfName(pdfName)
+                if (billId === null) {
+                    errors.push(`Row ${rowIndex}: nome PDF non canonico ("${pdfName}"), atteso <idboll>.pdf - riga saltata`)
+                    skippedCount++
+                    continue
                 }
 
                 const parseDate = (d: string | null) => {
@@ -165,7 +169,7 @@ export class StandardCsvAdapter implements ImportAdapter {
                 }
 
                 bills.push({
-                    idboll: isNaN(billId) ? null : billId,
+                    idboll: billId,
                     user_id: null,
                     cfpi: rowCfpi,
                     codice_cliente: clientCode,

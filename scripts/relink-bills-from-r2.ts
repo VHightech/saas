@@ -6,7 +6,7 @@
  * bill INSERT fails (or hasn't run yet). Re-running the admin uploader would
  * re-upload every PDF under a brand-new importId. This script instead creates
  * the missing bill rows and sets bills.pdf_url to the existing R2 object key
- * ({r2_path}/{nome_pdf}), so the PDFs are reused as-is.
+ * ({r2_path}/<idboll>.pdf), so the PDFs are reused as-is.
  *
  * Matching: CSV "XmlYYYYMMDD.csv"  ↔  import_logs.archive_name
  * "Clienti_Singoli_XmlYYYYMMDD.7z" (status=completed) → r2_path = R2 prefix.
@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
 import path from 'path'
 import fs from 'fs'
+import { pdfNameForIdboll } from '../src/lib/bill-pdf'
 import { StandardCsvAdapter } from '../src/lib/admin/adapters/standard-csv'
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
@@ -64,9 +65,6 @@ function csvFilesFrom(src: string): string[] {
 }
 
 // Mirror the upload route's filename sanitisation so the R2 key matches exactly.
-function sanitizeFilename(rawName: string): string {
-    return rawName.replace(/[^A-Za-z0-9._\- ]/g, '_')
-}
 
 async function loadProfileMap(): Promise<Map<string, string>> {
     const map = new Map<string, string>()
@@ -138,25 +136,24 @@ async function main() {
         try { r2Keys = await (await loadR2()).listKeysWithPrefix(prefix) } catch (e) { console.warn(`  R2 list failed for ${prefix}: ${e instanceof Error ? e.message : e}`) }
 
         const seen = new Set<number>()
-        let inserted = 0, linked = 0, missingPdf = 0
+        let inserted = 0, linked = 0, missingPdf = 0, skippedNoIdboll = 0
         const rows: Record<string, unknown>[] = []
         for (const b of bills as any[]) {
+            // idboll è obbligatorio: senza di lui la bolletta non è agganciabile
+            // al suo PDF (il nome file è `<idboll>.pdf`) e la colonna è NOT NULL.
             const idboll = typeof b.idboll === 'number' ? b.idboll : null
-            if (idboll !== null) {
-                if (existing.has(idboll) || seen.has(idboll)) continue
-                seen.add(idboll)
-            }
+            if (idboll === null) { skippedNoIdboll++; continue }
+            if (existing.has(idboll) || seen.has(idboll)) continue
+            seen.add(idboll)
+
             let pdf_url: string | null = null
-            if (b.nome_pdf) {
-                const key = `${prefix}/${sanitizeFilename(b.nome_pdf)}`  // matches buildInvoiceKey(filename, prefix)
-                // Only link if the object is actually in R2 (verified by listing).
-                if (r2Keys && r2Keys.has(key)) { pdf_url = key; linked++ } else { missingPdf++ }
-            }
+            const key = `${prefix}/${pdfNameForIdboll(idboll)}`  // matches buildInvoiceKey(filename, prefix)
+            // Only link if the object is actually in R2 (verified by listing).
+            if (r2Keys && r2Keys.has(key)) { pdf_url = key; linked++ } else { missingPdf++ }
             rows.push({
                 idboll,
                 user_id: b.codice_cliente ? (clientMap.get(b.codice_cliente) ?? null) : null,
                 codice_cliente: b.codice_cliente,
-                nome_pdf: b.nome_pdf,
                 tipo_servizio: b.tipo_servizio || 'ACQUA',
                 data_emissione: b.data_emissione,
                 scadenza: b.scadenza,
@@ -181,7 +178,8 @@ async function main() {
 
         totalInserted += inserted; totalLinked += linked; totalMissingPdf += missingPdf
         totalSkippedExisting += (bills.length - inserted)
-        console.log(`${base}: +${inserted} bills (linked ${linked}, no-pdf ${missingPdf}, skip-existing ${bills.length - inserted})`)
+        const noIdboll = skippedNoIdboll > 0 ? `, no-idboll ${skippedNoIdboll}` : ''
+        console.log(`${base}: +${inserted} bills (linked ${linked}, no-pdf ${missingPdf}, skip-existing ${bills.length - inserted}${noIdboll})`)
     }
 
     console.log(`\n=== ${args.dryRun ? 'DRY RUN — ' : ''}Done ===`)

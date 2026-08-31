@@ -729,7 +729,7 @@ export default function AdminUsersPage() {
                                     <tbody>
                                         ${sortedBills.slice(-12).reverse().map(b => `
                                             <tr>
-                                                <td class="mono">${b.numero_bolletta || b.idboll || '—'}</td>
+                                                <td class="mono">${b.idboll || '—'}</td>
                                                 <td>${new Date(b.data_emissione).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                                                 <td>${b.consumo || 0} <span style="color: var(--slate-400); font-size: 9px;">mc</span></td>
                                                 <td><span class="status ${b.status === 'paid' ? 'paid' : 'unpaid'}">${b.status === 'paid' ? 'Pagata' : 'Insoluta'}</span></td>

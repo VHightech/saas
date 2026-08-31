@@ -74,7 +74,6 @@ export function formatFieldFixPreview(a: FieldFixAnalysis): string {
   Trovate a DB dal CSV:       ${a.matched}
   Non presenti a DB:          ${a.missingInDb.length}   (NON verranno create)
   Non coperte dal CSV:        ${a.dbTotal - a.matched}   (restano col valore attuale)
-  nome_pdf discordante:       ${a.pdfMismatchCount}   (scartate per sicurezza)
   Valore già corretto:        ${a.unchanged}
   DA AGGIORNARE:              ${changes.length}${a.spec.kind === 'number' ? `   (in calo ${dec} / in aumento ${changes.length - dec - emptied - filled})` : ''}
     da vuoto a valore:        ${filled}
@@ -83,10 +82,6 @@ export function formatFieldFixPreview(a: FieldFixAnalysis): string {
     if (a.conflictCount > 0) {
         lines.push(`\n[!] idboll con valori discordanti fra i file: ${a.conflictCount}`)
         lines.push(a.conflictSamples.map((s) => '    ' + s).join('\n'))
-    }
-    if (a.pdfMismatchSamples.length > 0) {
-        lines.push('\nEsempi nome_pdf discordante:')
-        lines.push(a.pdfMismatchSamples.map((s) => '    ' + s).join('\n'))
     }
     if (a.missingInDb.length > 0) {
         lines.push(`\nEsempi idboll assenti a DB: ${a.missingInDb.slice(0, 15).join(', ')}`)

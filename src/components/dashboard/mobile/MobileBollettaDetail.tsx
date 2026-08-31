@@ -80,7 +80,7 @@ export function MobileBollettaDetail({
 
     const isMultiBill = yearBills.length > 1
 
-    const billNumber = (b: Bill) => b.idboll || b.nome_pdf?.replace('.pdf', '') || b.id
+    const billNumber = (b: Bill) => b.idboll || b.id
     const formatPrice = (p: any) => Number(p || 0).toFixed(2).replace('.', ',')
 
     const formatDate = (dateStr?: string | null) => {

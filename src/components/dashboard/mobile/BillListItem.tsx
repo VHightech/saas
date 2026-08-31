@@ -16,7 +16,7 @@ interface BillListItemProps {
 
 export function BillListItem({ bill, onSelect, monthYear, formatEuro }: BillListItemProps) {
     const isPaid = bill.status === 'paid'
-    const billNumber = bill.idboll || bill.nome_pdf?.replace('.pdf', '') || bill.id
+    const billNumber = bill.idboll || bill.id
     const bt = billingTypeDisplay(bill.billing_type)
 
     return (

@@ -25,7 +25,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
-import { idbollFromPdfName } from '../src/lib/admin/import/helpers'
+import { idbollFromPdfName } from '../src/lib/bill-pdf'
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
@@ -126,16 +126,15 @@ async function main(): Promise<void> {
 
     // 1. Which PDFs are still missing for this batch? (bills with no pdf_url)
     console.log(`Batch: ${args.batch}`)
-    const needed = new Map<string, string>() // lowercased nome_pdf -> original nome_pdf
+    const needed = new Set<number>() // idboll delle bollette senza pdf_url
     let from = 0
     const page = 1000
     for (;;) {
         const { data, error } = await supabase
             .from('bills')
-            .select('nome_pdf')
+            .select('idboll')
             .eq('import_log_id', args.batch)
             .is('pdf_url', null)
-            .not('nome_pdf', 'is', null)
             .range(from, from + page - 1)
         if (error) {
             console.error('Supabase query failed:', error.message)
@@ -143,7 +142,7 @@ async function main(): Promise<void> {
         }
         if (!data || data.length === 0) break
         for (const row of data) {
-            if (row.nome_pdf) needed.set(String(row.nome_pdf).toLowerCase(), String(row.nome_pdf))
+            if (typeof row.idboll === 'number') needed.add(row.idboll)
         }
         if (data.length < page) break
         from += page
@@ -160,23 +159,24 @@ async function main(): Promise<void> {
         const allPdfs = collectPdfs(dir)
         console.log(`PDFs found in source: ${allPdfs.length}`)
 
-        // Map basename(lower) -> filepath, for the ones we actually need.
-        const toProcess: { key: string; filePath: string; filename: string }[] = []
-        const foundNames = new Set<string>()
+        // Il nome file è `<idboll>.pdf`: da lì si ricava la bolletta da agganciare.
+        const toProcess: { key: string; filePath: string; filename: string; idboll: number }[] = []
+        const found = new Set<number>()
         for (const filePath of allPdfs) {
             const base = path.basename(filePath)
-            const lower = base.toLowerCase()
-            if (needed.has(lower) && !foundNames.has(lower)) {
-                foundNames.add(lower)
-                toProcess.push({ key: `${args.batch}/${base}`, filePath, filename: base })
+            const idboll = idbollFromPdfName(base)
+            if (idboll === null) continue
+            if (needed.has(idboll) && !found.has(idboll)) {
+                found.add(idboll)
+                toProcess.push({ key: `${args.batch}/${base}`, filePath, filename: base, idboll })
             }
         }
 
-        const missingFromSource = [...needed.keys()].filter((n) => !foundNames.has(n))
+        const missingFromSource = [...needed].filter((n) => !found.has(n))
         console.log(`Matched in source: ${toProcess.length}`)
         if (missingFromSource.length > 0) {
             console.warn(`⚠ ${missingFromSource.length} needed PDFs were NOT found in the source folder/archive.`)
-            console.warn(`  e.g. ${missingFromSource.slice(0, 5).map((n) => needed.get(n)).join(', ')}`)
+            console.warn(`  e.g. ${missingFromSource.slice(0, 5).map((n) => `${n}.pdf`).join(', ')}`)
         }
 
         if (args.dryRun) {
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
         for (let i = 0; i < toProcess.length; i += args.concurrency) {
             const chunk = toProcess.slice(i, i + args.concurrency)
             await Promise.all(
-                chunk.map(async ({ key, filePath, filename }) => {
+                chunk.map(async ({ key, filePath, filename, idboll }) => {
                     try {
                         if (await objectExists(key)) {
                             skipped++
@@ -210,16 +210,16 @@ async function main(): Promise<void> {
                             uploaded++
                         }
                         // Persist canonical object key (matches the web upload convention).
-                        // Match on idboll: nome_pdf is `<idboll>.pdf` on every row and
-                        // idboll is UNIQUE, so this hits an existing index. The old
+                        // Match on idboll (UNIQUE → existing index). The old
                         // `ilike('nome_pdf', …)` had no usable index (~99% of tracked
                         // DB CPU during import) and treated `_`/`%` in a filename as
-                        // wildcards. Non-canonical names fall back to an exact match.
-                        const idboll = idbollFromPdfName(filename)
-                        const patch = supabase.from('bills').update({ pdf_url: key }).is('pdf_url', null)
-                        const { data: updated, error: upErr } = idboll !== null
-                            ? await patch.eq('idboll', idboll).select('id')
-                            : await patch.eq('nome_pdf', filename).select('id')
+                        // wildcards.
+                        const { data: updated, error: upErr } = await supabase
+                            .from('bills')
+                            .update({ pdf_url: key })
+                            .is('pdf_url', null)
+                            .eq('idboll', idboll)
+                            .select('id')
                         if (upErr) errors.push(`link ${filename}: ${upErr.message}`)
                         else if (updated && updated.length > 0) linked += updated.length
                     } catch (e) {

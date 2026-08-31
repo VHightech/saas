@@ -100,7 +100,10 @@ export async function insertBills(
 
     await chunked(billsToInsert, 500, async (chunk) => {
         // Strip fields that aren't columns on bills; attach the FK.
-        const rows = chunk.map(({ original_row_index, cfpi, ...rest }) => ({
+        // nome_pdf non è più una colonna (migration 20260831010000): il nome file
+        // è `<idboll>.pdf`, vedi src/lib/bill-pdf.ts. Resta nel tipo parsed perché
+        // serve in memoria per abbinare i PDF dell'archivio.
+        const rows = chunk.map(({ original_row_index, cfpi, nome_pdf, ...rest }) => ({
             ...rest,
             import_log_id: importId || null,
         }))

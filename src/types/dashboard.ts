@@ -8,7 +8,6 @@ export interface Bill {
     consumo: number
     cif: string
     codice_cliente: string
-    nome_pdf: string
     pdf_url?: string
     ulm?: string
     pdr?: string

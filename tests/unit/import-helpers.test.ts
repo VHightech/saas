@@ -6,8 +6,8 @@ import {
     sanitizePdfFilename,
     isSafePdfFilename,
     dedupeNewBills,
-    idbollFromPdfName,
 } from '../../src/lib/admin/import/helpers'
+import { idbollFromPdfName, pdfNameForIdboll } from '../../src/lib/bill-pdf'
 
 test('idbollFromPdfName accetta solo il nome canonico <cifre>.pdf', () => {
     assert.equal(idbollFromPdfName('20230000001.pdf'), 20230000001)
@@ -23,6 +23,13 @@ test('idbollFromPdfName accetta solo il nome canonico <cifre>.pdf', () => {
     assert.equal(idbollFromPdfName('0.pdf'), null)
     // oltre Number.MAX_SAFE_INTEGER non si può confrontare in modo affidabile
     assert.equal(idbollFromPdfName('99999999999999999999.pdf'), null)
+})
+
+test('pdfNameForIdboll e idbollFromPdfName sono inverse sulla forma canonica', () => {
+    for (const id of [1, 42, 20230000001, 20260099999]) {
+        assert.equal(pdfNameForIdboll(id), `${id}.pdf`)
+        assert.equal(idbollFromPdfName(pdfNameForIdboll(id)), id)
+    }
 })
 
 test('isAffirmative accepts y/yes/s/si case-insensitively', () => {

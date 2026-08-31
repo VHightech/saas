@@ -9,7 +9,8 @@ import {
     listKeysWithPrefix,
     isR2Configured,
 } from '@/lib/r2'
-import { sanitizePdfFilename, isSafePdfFilename, idbollFromPdfName } from './helpers'
+import { idbollFromPdfName } from '@/lib/bill-pdf'
+import { sanitizePdfFilename, isSafePdfFilename } from './helpers'
 import type { ProgressFn } from './bills-core'
 
 interface SevenZipError extends Error { stderr?: string }
@@ -62,20 +63,19 @@ function list7zPdfNames(archivePath: string, bin: string): Promise<string[]> {
     })
 }
 
-/** Map nome_pdf(lowercased) → pdf_url for every linked bill (paged). */
-async function loadLinkedPdfMap(sb: SupabaseClient): Promise<Map<string, string>> {
-    const map = new Map<string, string>()
+/** Map idboll → pdf_url for every bill (paged). Il nome file è `<idboll>.pdf`. */
+async function loadLinkedPdfMap(sb: SupabaseClient): Promise<Map<number, string>> {
+    const map = new Map<number, string>()
     const pageSize = 2500
     let page = 0
     for (;;) {
         const { data, error } = await sb
             .from('bills')
-            .select('nome_pdf, pdf_url')
-            .not('nome_pdf', 'is', null)
+            .select('idboll, pdf_url')
             .range(page * pageSize, (page + 1) * pageSize - 1)
         if (error) break
         for (const d of data ?? []) {
-            if (d.nome_pdf) map.set(String(d.nome_pdf).toLowerCase(), (d.pdf_url as string) || '')
+            if (typeof d.idboll === 'number') map.set(d.idboll, (d.pdf_url as string) || '')
         }
         if (!data || data.length < pageSize) break
         page++
@@ -99,9 +99,10 @@ export async function analyzeArchive(
     const matchSet = new Set<string>()
     const alreadyLinked = new Set<string>()
     for (const name of zipNames) {
-        if (dbMap.has(name)) {
+        const idboll = idbollFromPdfName(name)
+        if (idboll !== null && dbMap.has(idboll)) {
             matchSet.add(name)
-            const url = dbMap.get(name)
+            const url = dbMap.get(idboll)
             if (url && url.trim().length > 0) alreadyLinked.add(name)
         }
         if (csvSet.has(name)) matchSet.add(name)
@@ -181,10 +182,17 @@ export async function processArchive(
                         errors.push(`Nome file non sicuro, saltato: ${rawName}`)
                         return
                     }
-                    const lower = filename.toLowerCase()
+                    // Il nome file è `<idboll>.pdf`: da lì si ricava la bolletta.
+                    // Un nome non canonico non viene indovinato — verrebbe
+                    // agganciato il file sbagliato a una bolletta vera.
+                    const idboll = idbollFromPdfName(filename)
+                    if (idboll === null) {
+                        errors.push(`Nome non canonico (atteso <idboll>.pdf), non agganciato: ${rawName}`)
+                        return
+                    }
 
                     // Already linked in DB → skip.
-                    const existingUrl = linkedMap.get(lower)
+                    const existingUrl = linkedMap.get(idboll)
                     if (existingUrl && existingUrl.trim().length > 0) {
                         skipped++
                         return
@@ -197,20 +205,15 @@ export async function processArchive(
                             await uploadPdfToR2(r2Key, fs.readFileSync(filePath))
                             uploaded++
                         }
-                        // Match on idboll: nome_pdf è `<idboll>.pdf` su tutte le
-                        // righe, e idboll è UNIQUE quindi già indicizzato. Prima si
-                        // usava `ilike('nome_pdf', …)`, senza indice utilizzabile e
-                        // pari a ~99% della CPU del DB (una chiamata per PDF, ~55k
-                        // per run); poi la colonna generata nome_pdf_lower, ora
-                        // rimossa (migration 20260831000000).
-                        // Nome non canonico (zeri iniziali, suffissi): niente idboll,
-                        // si ricade sul confronto esatto del nome — senza indice, ma
-                        // oggi non esistono righe di quel tipo.
-                        const idboll = idbollFromPdfName(filename)
-                        const patch = sb.from('bills').update({ pdf_url: r2Key })
-                        const { data, error } = idboll !== null
-                            ? await patch.eq('idboll', idboll).select('id')
-                            : await patch.eq('nome_pdf', filename).select('id')
+                        // Match su idboll (UNIQUE, quindi già indicizzato). Prima
+                        // era `ilike('nome_pdf', …)`: nessun indice utilizzabile e
+                        // ~99% della CPU del DB (una chiamata per PDF, ~55k per run),
+                        // poi la colonna generata nome_pdf_lower, entrambe rimosse.
+                        const { data, error } = await sb
+                            .from('bills')
+                            .update({ pdf_url: r2Key })
+                            .eq('idboll', idboll)
+                            .select('id')
                         if (error) errors.push(`Link ${filename}: ${error.message}`)
                         else if (data && data.length > 0) linked++
                     } catch (err) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { pdfNameForIdboll } from '@/lib/bill-pdf'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getSignedPdfUrl, isR2Configured } from '@/lib/r2'
@@ -7,7 +8,6 @@ interface BillRow {
     id: number
     user_id: string | null
     pdf_url: string | null
-    nome_pdf: string | null
     idboll: number | null
 }
 
@@ -37,7 +37,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     let bill: BillRow | null = null
     const byId = await supabaseAdmin
         .from('bills')
-        .select('id, user_id, pdf_url, nome_pdf, idboll')
+        .select('id, user_id, pdf_url, idboll')
         .eq('id', billId)
         .maybeSingle<BillRow>()
     if (byId.data) {
@@ -45,7 +45,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     } else {
         const byIdBoll = await supabaseAdmin
             .from('bills')
-            .select('id, user_id, pdf_url, nome_pdf, idboll')
+            .select('id, user_id, pdf_url, idboll')
             .eq('idboll', billId)
             .limit(1)
             .maybeSingle<BillRow>()
@@ -89,7 +89,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         // "not in bucket" 404s. Signing is local; a genuinely missing object
         // simply returns R2's own 404 to the client on access.
         const downloadName = wantsDownload
-            ? (bill.nome_pdf || `bolletta_${bill.idboll ?? bill.id}.pdf`)
+            // Il nome file è `<idboll>.pdf` (vedi src/lib/bill-pdf.ts).
+            ? (bill.idboll ? pdfNameForIdboll(bill.idboll) : `bolletta_${bill.id}.pdf`)
             : undefined
         const signed = await getSignedPdfUrl(r2Key, 300, downloadName)
         return NextResponse.redirect(signed, 302)
