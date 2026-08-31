@@ -9,7 +9,7 @@ import {
     listKeysWithPrefix,
     isR2Configured,
 } from '@/lib/r2'
-import { sanitizePdfFilename, isSafePdfFilename } from './helpers'
+import { sanitizePdfFilename, isSafePdfFilename, idbollFromPdfName } from './helpers'
 import type { ProgressFn } from './bills-core'
 
 interface SevenZipError extends Error { stderr?: string }
@@ -197,15 +197,20 @@ export async function processArchive(
                             await uploadPdfToR2(r2Key, fs.readFileSync(filePath))
                             uploaded++
                         }
-                        // Case-insensitive match via the generated+indexed
-                        // nome_pdf_lower column — `ilike('nome_pdf', ...)` had
-                        // no usable index and was ~99% of tracked DB CPU at
-                        // 55k calls/run (one per PDF).
-                        const { data, error } = await sb
-                            .from('bills')
-                            .update({ pdf_url: r2Key })
-                            .eq('nome_pdf_lower', lower)
-                            .select('id')
+                        // Match on idboll: nome_pdf è `<idboll>.pdf` su tutte le
+                        // righe, e idboll è UNIQUE quindi già indicizzato. Prima si
+                        // usava `ilike('nome_pdf', …)`, senza indice utilizzabile e
+                        // pari a ~99% della CPU del DB (una chiamata per PDF, ~55k
+                        // per run); poi la colonna generata nome_pdf_lower, ora
+                        // rimossa (migration 20260831000000).
+                        // Nome non canonico (zeri iniziali, suffissi): niente idboll,
+                        // si ricade sul confronto esatto del nome — senza indice, ma
+                        // oggi non esistono righe di quel tipo.
+                        const idboll = idbollFromPdfName(filename)
+                        const patch = sb.from('bills').update({ pdf_url: r2Key })
+                        const { data, error } = idboll !== null
+                            ? await patch.eq('idboll', idboll).select('id')
+                            : await patch.eq('nome_pdf', filename).select('id')
                         if (error) errors.push(`Link ${filename}: ${error.message}`)
                         else if (data && data.length > 0) linked++
                     } catch (err) {

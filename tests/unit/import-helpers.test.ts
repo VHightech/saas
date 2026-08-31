@@ -6,7 +6,24 @@ import {
     sanitizePdfFilename,
     isSafePdfFilename,
     dedupeNewBills,
+    idbollFromPdfName,
 } from '../../src/lib/admin/import/helpers'
+
+test('idbollFromPdfName accetta solo il nome canonico <cifre>.pdf', () => {
+    assert.equal(idbollFromPdfName('20230000001.pdf'), 20230000001)
+    assert.equal(idbollFromPdfName('  456789.PDF  '), 456789)
+    // zeri iniziali: `0123.pdf` non è il file della bolletta 123
+    assert.equal(idbollFromPdfName('0123.pdf'), null)
+    // suffissi o prefissi: mai indovinare a quale bolletta appartiene
+    assert.equal(idbollFromPdfName('123abc.pdf'), null)
+    assert.equal(idbollFromPdfName('bolletta_123.pdf'), null)
+    assert.equal(idbollFromPdfName('123.pdf.bak'), null)
+    assert.equal(idbollFromPdfName('123'), null)
+    assert.equal(idbollFromPdfName(''), null)
+    assert.equal(idbollFromPdfName('0.pdf'), null)
+    // oltre Number.MAX_SAFE_INTEGER non si può confrontare in modo affidabile
+    assert.equal(idbollFromPdfName('99999999999999999999.pdf'), null)
+})
 
 test('isAffirmative accepts y/yes/s/si case-insensitively', () => {
     for (const yes of ['y', 'Y', 'yes', 'YES', 's', 'S', 'si', 'SI', ' si ']) {

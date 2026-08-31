@@ -12,6 +12,22 @@ export function readCsvText(filePath: string): string {
 }
 
 /**
+ * idboll from a PDF filename, for the archive→bill lookup. STRICT on purpose:
+ * only the canonical `<digits>.pdf` yields a number (verified 2026-08-31: all
+ * 298.231 rows have nome_pdf = idboll || '.pdf'). A lenient parseInt would let
+ * `0123.pdf` or `123abc.pdf` link to bill 123 — i.e. attach the wrong file to a
+ * real bill. Callers fall back to an exact nome_pdf match when this returns null.
+ */
+export function idbollFromPdfName(filename: string): number | null {
+    const m = /^(\d+)\.pdf$/i.exec(filename.trim())
+    if (!m) return null
+    const n = Number.parseInt(m[1], 10)
+    // String(n) === m[1] scarta anche gli zeri iniziali: `0123.pdf` non è il file
+    // della bolletta 123, quindi non deve agganciarla.
+    return Number.isSafeInteger(n) && n > 0 && String(n) === m[1] ? n : null
+}
+
+/**
  * Every .csv under `src`, recursively, sorted by path. A file path is returned
  * as-is, so the same argument accepts "una cartella con l'anno" or un singolo file.
  */

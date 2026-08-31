@@ -19,7 +19,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { parse } from 'csv-parse/sync'
 import { CSV_INDEX, normalizeBillingType, resolveTypeAndMethod } from '@/lib/admin/adapters/standard-csv'
-import { chunked, readCsvText } from './helpers'
+import { chunked, idbollFromPdfName, readCsvText } from './helpers'
 
 export const FIX_CHUNK = 500
 
@@ -51,8 +51,8 @@ export const FIXABLE_FIELDS: readonly FieldSpec[] = [
 /** Colonne volutamente non correggibili, con il motivo mostrato all'utente. */
 export const BLOCKED_FIELDS: Readonly<Record<string, string>> = {
     id: 'chiave primaria',
-    idboll: 'chiave di match: se cambia, si perde la bolletta',
-    nome_pdf: 'nome del file su R2: fa da guardia al match',
+    idboll: 'chiave di match e di aggancio del PDF: se cambia, si perde la bolletta',
+    nome_pdf: 'nome del file in download (`<idboll>.pdf`): fa da guardia al match',
     pdf_url: 'percorso oggetto su R2: cambiarlo scollega il PDF',
     import_log_id: 'FK sul batch di import (ON DELETE CASCADE)',
     user_id: 'collegamento al cliente: si rifà con il mass-link, non da CSV',
@@ -185,8 +185,10 @@ function collectWants(files: string[], spec: FieldSpec, opts: FieldFixOptions) {
             rowsRead++
             const pdfName = (row[CSV_INDEX.PDF] ?? '').trim()
             if (!pdfName || !pdfName.toLowerCase().endsWith('.pdf')) { skippedNoPdf++; continue }
-            const idboll = Number.parseInt(pdfName.replace(/\.[^/.]+$/, ''), 10)
-            if (!Number.isFinite(idboll) || idboll <= 0) { skippedNoPdf++; continue }
+            // Stesso parse del lookup PDF (helpers): solo `<cifre>.pdf` canonico.
+            // Un nome non canonico viene contato e saltato, non indovinato.
+            const idboll = idbollFromPdfName(pdfName)
+            if (idboll === null) { skippedNoPdf++; continue }
 
             const value = csvValueFor(spec, row)
             if (value === null && !opts.allowEmpty) { skippedEmptyCsv++; continue }

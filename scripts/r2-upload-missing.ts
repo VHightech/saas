@@ -25,6 +25,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { idbollFromPdfName } from '../src/lib/admin/import/helpers'
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
@@ -209,16 +210,16 @@ async function main(): Promise<void> {
                             uploaded++
                         }
                         // Persist canonical object key (matches the web upload convention).
-                        // Match via the generated+indexed bills.nome_pdf_lower
-                        // (migration 20260721000000): `ilike('nome_pdf', …)` had no
-                        // usable index — it was ~99% of tracked DB CPU during import —
-                        // and treated `_`/`%` in a filename as wildcards.
-                        const { data: updated, error: upErr } = await supabase
-                            .from('bills')
-                            .update({ pdf_url: key })
-                            .eq('nome_pdf_lower', filename.toLowerCase())
-                            .is('pdf_url', null)
-                            .select('id')
+                        // Match on idboll: nome_pdf is `<idboll>.pdf` on every row and
+                        // idboll is UNIQUE, so this hits an existing index. The old
+                        // `ilike('nome_pdf', …)` had no usable index (~99% of tracked
+                        // DB CPU during import) and treated `_`/`%` in a filename as
+                        // wildcards. Non-canonical names fall back to an exact match.
+                        const idboll = idbollFromPdfName(filename)
+                        const patch = supabase.from('bills').update({ pdf_url: key }).is('pdf_url', null)
+                        const { data: updated, error: upErr } = idboll !== null
+                            ? await patch.eq('idboll', idboll).select('id')
+                            : await patch.eq('nome_pdf', filename).select('id')
                         if (upErr) errors.push(`link ${filename}: ${upErr.message}`)
                         else if (updated && updated.length > 0) linked += updated.length
                     } catch (e) {
