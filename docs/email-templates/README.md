@@ -78,3 +78,31 @@ Le regole per classe in `<style>` e le media query **non** sopravvivono a Outloo
 applica una propria inversione. Per questo in `email-address-changed.html` le
 proprietà critiche (sfondi, spaziature, colori) sono ripetute **anche inline**:
 il layout regge anche dove il blocco `<style>` viene scartato.
+
+## Il canale nostro (notifiche fuori dai flussi auth)
+
+Le mail che non nascono da un'operazione di autenticazione le manda
+`src/lib/mailer.ts` via SMTP, riusando **le stesse credenziali configurate su
+Supabase** (Authentication → Emails → SMTP Settings): nessun provider aggiuntivo,
+deliverability già dimostrata da invito e set-password.
+
+Variabili d'ambiente richieste, in `.env.local` **e** su Vercel:
+
+| variabile | esempio | note |
+|-----------|---------|------|
+| `SMTP_HOST` | `smtp.example.com` | obbligatoria |
+| `SMTP_PORT` | `587` | opzionale, default `587` |
+| `SMTP_USER` | `utente` | obbligatoria |
+| `SMTP_PASS` | — | obbligatoria, mai committata |
+| `MAIL_FROM` | `Acquambiente Marche <noreply@acquambientemarche.it>` | obbligatoria, dominio del mittente SMTP |
+| `SMTP_SECURE` | `true` / `false` | opzionale: sovrascrive la derivazione dalla porta |
+
+`secure` si deriva dalla porta (465 = TLS implicito, tutto il resto = STARTTLS).
+Finché una delle obbligatorie manca, l'invio viene saltato e resta un warning nei
+log del server — nessun errore all'operatore, che su quella condizione non può
+agire.
+
+Il modulo non lancia mai: un SMTP irraggiungibile torna
+`{ sent: false, reason: 'send_failed' }` (verificato: ~300 ms con host inesistente),
+così un problema di consegna non annulla il salvataggio dell'operatore. I timeout
+sono espliciti (8s connessione, 10s socket) perché quel salvataggio attende l'invio.
