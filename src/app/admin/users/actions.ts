@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireSuperadmin, requireUserManagement } from '@/lib/auth-checks'
 import { notifyEmailAssociated } from '@/lib/emails/notify-email-associated'
-import { isMailerConfigured } from '@/lib/mailer'
 
 export async function deleteUser(userId: string) {
     const authCheck = await requireSuperadmin()
@@ -151,23 +150,30 @@ export async function updateUser(userId: string, data: {
     //    security notification va al vecchio indirizzo (avvisa chi possedeva
     //    l'account), la nostra al nuovo. Sono complementari.
     //
-    //    Se il trasporto non e' configurato non si avvisa l'operatore: e' una
-    //    condizione del server su cui non puo' agire, resta nei log.
+    //    Ogni esito e' visibile all'operatore. Il silenzio sul caso "non
+    //    configurato" era giustificato quando un trasporto non c'era per scelta;
+    //    ora che l'SMTP e' configurato, quel caso significa che il deployment in
+    //    esecuzione non ha le variabili — su Vercel le modifiche all'ambiente non
+    //    raggiungono un deployment gia' avviato, serve un nuovo deploy. E'
+    //    un'anomalia, non uno stato normale: nasconderla lascia l'operatore a
+    //    chiedersi perche' il cliente non riceve niente.
     //    Best-effort e DOPO la scrittura: il dato e' gia' salvato, un problema di
     //    consegna non deve annullare il lavoro dell'operatore.
     let emailNotified = false
     let emailNotice: string | undefined
     if (emailAssociated) {
-        if (isMailerConfigured()) {
-            const res = await notifyEmailAssociated({
-                to: nextEmail,
-                name: data.name ?? currentName,
-                mode: hadEmail ? 'updated' : 'added',
-            })
-            if (res.sent) emailNotified = true
-            else emailNotice = 'Dati salvati, ma la notifica al cliente non è partita: errore di consegna.'
+        const res = await notifyEmailAssociated({
+            to: nextEmail,
+            name: data.name ?? currentName,
+            mode: hadEmail ? 'updated' : 'added',
+        })
+        if (res.sent) {
+            emailNotified = true
+        } else if (res.reason === 'not_configured') {
+            console.warn('[updateUser] notifica saltata: variabili SMTP non lette dal server')
+            emailNotice = 'Dati salvati. Notifica NON inviata: il server non legge la configurazione SMTP. Verifica le variabili su Vercel e rifai il deploy.'
         } else {
-            console.warn('[updateUser] notifica al cliente saltata: trasporto email non configurato')
+            emailNotice = `Dati salvati. Notifica NON inviata, errore di consegna: ${res.detail ?? 'causa non riportata dal server SMTP'}`
         }
     }
 
