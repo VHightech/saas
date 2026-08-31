@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireSuperadmin, requireUserManagement } from '@/lib/auth-checks'
 import { notifyEmailAssociated } from '@/lib/emails/notify-email-associated'
+import { isMailerConfigured } from '@/lib/mailer'
 
 export async function deleteUser(userId: string) {
     const authCheck = await requireSuperadmin()
@@ -88,10 +89,8 @@ export async function updateUser(userId: string, data: {
     const currentEmail = (prof?.email as string | null) || null
     const currentName = (prof?.name as string | null) || null
 
-    // Indirizzo associato ora (aggiunto dove mancava, oppure corretto): serve per
-    // decidere se notificare il cliente. Volutamente indipendente da authUserId:
-    // il caso principale sono i profili shadow, che non hanno ancora un utente
-    // auth ed e' proprio per loro che il CED inserisce l'email.
+    // Indirizzo associato ora: aggiunto dove mancava (hadEmail = false) oppure
+    // corretto. Serve per decidere se e come notificare il cliente al punto 3.
     const nextEmail = (data.email || '').trim()
     const hadEmail = (currentEmail || '').trim().length > 0
     const emailAssociated =
@@ -136,22 +135,36 @@ export async function updateUser(userId: string, data: {
         return { error: 'Errore durante l\'aggiornamento del profilo.' }
     }
 
-    // 3. Notifica al cliente che il suo indirizzo e' stato associato all'utenza.
+    // 3. Notifica al cliente. Due canali possibili, e mai entrambi:
+    //
+    //    a) l'utenza HA un utente auth -> la modifica e' passata anche da
+    //       auth.users, quindi la copre la security notification "Email address
+    //       changed" di Supabase (abilitata a livello di progetto il 2026-08-31).
+    //       Non inviamo la nostra, altrimenti il cliente ne riceve due.
+    //       NB: da verificare con una prova che Supabase la invii anche per una
+    //       modifica fatta via admin API e non dalla sessione del cliente. Se
+    //       non lo fa, va togliere il `&& !authUserId` qui sotto.
+    //
+    //    b) profilo shadow (nessun utente auth) -> Supabase non ha nessuno da
+    //       avvisare: servirebbe un trasporto nostro. Se non e' configurato non
+    //       c'e' niente da fare, e non ha senso avvisare l'operatore di una
+    //       condizione del server che non puo' risolvere: resta nei log.
+    //
     //    Best-effort e DOPO la scrittura: il dato e' gia' salvato, un problema di
-    //    consegna non deve annullare il lavoro dell'operatore. L'esito torna
-    //    comunque al chiamante, cosi' l'interfaccia puo' dire com'e' andata
-    //    invece di far credere che la mail sia partita.
+    //    consegna non deve annullare il lavoro dell'operatore.
+    let emailNotified = false
     let emailNotice: string | undefined
-    if (emailAssociated) {
-        const res = await notifyEmailAssociated({
-            to: nextEmail,
-            name: data.name ?? currentName,
-            mode: hadEmail ? 'updated' : 'added',
-        })
-        if (!res.sent) {
-            emailNotice = res.reason === 'not_configured'
-                ? 'Dati salvati. Notifica al cliente NON inviata: invio email non configurato sul server.'
-                : 'Dati salvati. Notifica al cliente NON inviata: errore di consegna.'
+    if (emailAssociated && !authUserId) {
+        if (isMailerConfigured()) {
+            const res = await notifyEmailAssociated({
+                to: nextEmail,
+                name: data.name ?? currentName,
+                mode: hadEmail ? 'updated' : 'added',
+            })
+            if (res.sent) emailNotified = true
+            else emailNotice = 'Dati salvati, ma la notifica al cliente non è partita: errore di consegna.'
+        } else {
+            console.warn('[updateUser] notifica al cliente saltata: trasporto email non configurato')
         }
     }
 
@@ -159,7 +172,7 @@ export async function updateUser(userId: string, data: {
     // own data, while the edit form merges the saved fields into local state.
     // Calling revalidatePath here only forced a router refresh that re-ran the
     // admin layout's auth round-trip on every save — the source of the lag.
-    return { success: true, emailNotified: emailAssociated && !emailNotice, warning: emailNotice }
+    return { success: true, emailNotified, warning: emailNotice }
 }
 
 export async function resetUserPassword(userId: string) {
