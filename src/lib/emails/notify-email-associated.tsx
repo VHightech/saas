@@ -6,10 +6,13 @@
  * presentazionale.
  */
 import { render } from '@react-email/render'
-import EmailAssociatedEmail from '@/components/emails/email-associated'
+import EmailAssociatedEmail, { type EmailAssociatedMode } from '@/components/emails/email-associated'
 import { sendMail, type MailResult } from '@/lib/mailer'
 
-const SUBJECT = 'Il tuo indirizzo email è stato associato all’utenza'
+const SUBJECT: Record<EmailAssociatedMode, string> = {
+    added: 'Il tuo indirizzo email è stato associato all’utenza',
+    updated: 'L’indirizzo email della tua utenza è stato aggiornato',
+}
 
 function portalUrl(): string {
     return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://portaleacq.vercel.app'
@@ -22,13 +25,17 @@ function portalUrl(): string {
 export async function notifyEmailAssociated(input: {
     to: string
     name?: string | null
+    /** 'added' se l'utenza non aveva email, 'updated' se e' stata cambiata. */
+    mode: EmailAssociatedMode
 }): Promise<MailResult> {
-    const element = <EmailAssociatedEmail name={input.name} portalUrl={portalUrl()} />
+    const element = (
+        <EmailAssociatedEmail name={input.name} portalUrl={portalUrl()} mode={input.mode} />
+    )
 
     const [html, text] = await Promise.all([
         render(element),
         render(element, { plainText: true }),
     ])
 
-    return sendMail({ to: input.to, subject: SUBJECT, html, text })
+    return sendMail({ to: input.to, subject: SUBJECT[input.mode], html, text })
 }

@@ -93,6 +93,7 @@ export async function updateUser(userId: string, data: {
     // il caso principale sono i profili shadow, che non hanno ancora un utente
     // auth ed e' proprio per loro che il CED inserisce l'email.
     const nextEmail = (data.email || '').trim()
+    const hadEmail = (currentEmail || '').trim().length > 0
     const emailAssociated =
         nextEmail.length > 0 &&
         nextEmail.toLowerCase() !== (currentEmail || '').trim().toLowerCase()
@@ -142,7 +143,11 @@ export async function updateUser(userId: string, data: {
     //    invece di far credere che la mail sia partita.
     let emailNotice: string | undefined
     if (emailAssociated) {
-        const res = await notifyEmailAssociated({ to: nextEmail, name: data.name ?? currentName })
+        const res = await notifyEmailAssociated({
+            to: nextEmail,
+            name: data.name ?? currentName,
+            mode: hadEmail ? 'updated' : 'added',
+        })
         if (!res.sent) {
             emailNotice = res.reason === 'not_configured'
                 ? 'Dati salvati. Notifica al cliente NON inviata: invio email non configurato sul server.'

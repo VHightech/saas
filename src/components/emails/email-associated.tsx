@@ -13,11 +13,18 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 
+/**
+ * 'added'   → l'utenza non aveva alcun indirizzo: e' un'associazione.
+ * 'updated' → l'indirizzo c'era ed e' stato cambiato.
+ */
+export type EmailAssociatedMode = 'added' | 'updated';
+
 interface EmailAssociatedProps {
     /** Nome del cliente, se a sistema. Vuoto → formula impersonale. */
     name?: string | null;
     /** URL del portale per il primo accesso. */
     portalUrl: string;
+    mode: EmailAssociatedMode;
 }
 
 /**
@@ -28,8 +35,9 @@ interface EmailAssociatedProps {
  * l'operatore sbagliasse a digitare l'indirizzo, la mail finirebbe a un estraneo.
  * Il codice cliente il cliente lo ha già sulla bolletta.
  */
-export default function EmailAssociatedEmail({ name, portalUrl }: EmailAssociatedProps) {
+export default function EmailAssociatedEmail({ name, portalUrl, mode }: EmailAssociatedProps) {
     const greeting = name && name.trim().length > 0 ? `Gentile ${name.trim()},` : 'Gentile cliente,';
+    const isUpdate = mode === 'updated';
 
     return (
         <Html lang="it" dir="ltr">
@@ -40,21 +48,42 @@ export default function EmailAssociatedEmail({ name, portalUrl }: EmailAssociate
                     <Container className="border border-solid border-[#eaeaea] rounded my-[40px] mx-auto p-[20px] w-[465px]">
                         <Section className="mt-[32px]">
                             <Heading className="text-black text-[24px] font-normal text-center p-0 my-[30px] mx-0">
-                                Indirizzo email associato
+                                {isUpdate ? 'Indirizzo email aggiornato' : 'Indirizzo email associato'}
                             </Heading>
                             <Text className="text-black text-[14px] leading-[24px]">
                                 {greeting}
                             </Text>
                             <Text className="text-black text-[14px] leading-[24px]">
-                                ti confermiamo che <strong>questo indirizzo email è stato associato
-                                alla tua utenza</strong> sul portale Acquambiente Marche.
+                                {isUpdate ? (
+                                    <>
+                                        ti confermiamo che l&apos;indirizzo email della tua utenza sul
+                                        portale Acquambiente Marche <strong>è stato aggiornato con
+                                        questo indirizzo</strong>.
+                                    </>
+                                ) : (
+                                    <>
+                                        ti confermiamo che <strong>questo indirizzo email è stato
+                                        associato alla tua utenza</strong> sul portale Acquambiente Marche.
+                                    </>
+                                )}
                             </Text>
                         </Section>
 
                         <Section className="bg-gray-50 rounded-lg p-6 my-6 border border-gray-100">
                             <Text className="text-black text-[14px] leading-[24px] m-0">
-                                Da ora puoi completare il <strong>primo accesso</strong> al portale
-                                con il tuo Codice Cliente: riceverai il link per impostare la password.
+                                {isUpdate ? (
+                                    <>
+                                        Da ora le comunicazioni del portale arriveranno a questo
+                                        indirizzo, che userai anche per <strong>accedere</strong> e per
+                                        recuperare la password.
+                                    </>
+                                ) : (
+                                    <>
+                                        Da ora puoi completare il <strong>primo accesso</strong> al
+                                        portale con il tuo Codice Cliente: riceverai il link per
+                                        impostare la password.
+                                    </>
+                                )}
                             </Text>
                         </Section>
 
@@ -70,9 +99,9 @@ export default function EmailAssociatedEmail({ name, portalUrl }: EmailAssociate
                         <Hr className="border border-solid border-[#eaeaea] my-[26px] mx-0 w-full" />
 
                         <Text className="text-[#666666] text-[12px] leading-[24px]">
-                            Se non hai richiesto questa associazione, o non riconosci questa utenza,
-                            contatta l&apos;ufficio CED rispondendo a questa email: provvederemo a
-                            rimuovere l&apos;indirizzo.
+                            Se non hai richiesto questa {isUpdate ? 'modifica' : 'associazione'}, o
+                            non riconosci questa utenza, contatta l&apos;ufficio CED rispondendo a
+                            questa email: provvederemo a correggere l&apos;indirizzo.
                         </Text>
                     </Container>
                 </Body>
