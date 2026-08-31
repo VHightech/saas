@@ -20,7 +20,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/unit/import-helpers.test.ts",
     "presentation": "node scripts/build-presentation.mjs",
-    "shots": "node scripts/capture-shots.mjs"
+    "shots": "node scripts/capture-shots.mjs",
+    "fix:consumo": "tsx scripts/fix-consumo-from-csv.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",
