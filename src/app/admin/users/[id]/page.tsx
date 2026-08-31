@@ -169,6 +169,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                         partita_iva: userData.partitaIva,
                         pec: userData.pec,
                     } : p)
+                    // L'email di notifica al cliente e' best-effort: se non e'
+                    // partita l'operatore deve saperlo, altrimenti crede che il
+                    // cliente sia stato avvisato.
+                    if (res.warning) {
+                        toast.warning(res.warning, { duration: 8000 })
+                        return 'Modifiche salvate'
+                    }
+                    if (res.emailNotified) {
+                        return 'Modifiche salvate. Notifica inviata al cliente.'
+                    }
                     return 'Modifiche salvate'
                 },
                 error: (err) => `Errore: ${err.message}`

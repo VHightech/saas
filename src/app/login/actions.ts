@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { verifyTurnstileToken } from '@/lib/captcha'
 import { logAuthEvent, bumpAndCheckRateLimit } from '@/lib/auth-events'
+import { NO_EMAIL_ON_FILE_MESSAGE } from '@/lib/support-contacts'
 
 export async function login(formData: FormData) {
     const supabase = await createClient()
@@ -97,9 +98,6 @@ export async function login(formData: FormData) {
 const GENERIC_OK_MESSAGE =
     "Se il Codice Cliente è registrato e non ancora attivato, riceverai un'email con il link per completare l'attivazione. Controlla anche la cartella spam."
 
-// Numero assistenza mostrato quando l'utenza esiste ma non ha un'email a sistema.
-// TODO: sostituire con il numero reale dell'assistenza Acquambiente.
-const ASSISTANCE_PHONE = '800069718'
 
 export async function initiateFirstAccess(codiceCliente: string, captchaToken?: string) {
     const { headers } = await import('next/headers')
@@ -215,7 +213,7 @@ export async function initiateFirstAccess(codiceCliente: string, captchaToken?: 
         })
         return {
             needsAssistance: true,
-            error: `Non è stato possibile completare la richiesta. Per assistenza contatta il numero ${ASSISTANCE_PHONE}.`,
+            error: NO_EMAIL_ON_FILE_MESSAGE,
         }
     }
 

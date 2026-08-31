@@ -1,6 +1,7 @@
 'use client'
 
 import { login, initiateFirstAccess } from '@/app/login/actions'
+import { CED_EMAIL } from '@/lib/support-contacts'
 import { ArrowRight, Droplets, Home, FileText, BarChart3 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { ModeToggle } from '@/components/mode-toggle'
@@ -16,6 +17,9 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false)
     const [captchaToken, setCaptchaToken] = useState<string | null>(null)
     const [expiredNotice, setExpiredNotice] = useState(false)
+    // Utenza senza email a sistema: non e' un errore dell'utente ma un'istruzione,
+    // quindi ha un box informativo suo invece di quello rosso degli errori.
+    const [assistanceMessage, setAssistanceMessage] = useState<string | null>(null)
     const captchaRef = useRef<TurnstileInstance | null>(null)
 
     // Surfaced when IdleLogout (or any expired-session redirect) sends ?expired=1.
@@ -35,6 +39,7 @@ export default function LoginPage() {
         setLoading(true)
         setError(null)
         setSuccessMessage(null)
+        setAssistanceMessage(null)
         setShowError(false)
         setIsCodeInvalid(false)
 
@@ -72,7 +77,9 @@ export default function LoginPage() {
             }
 
             const result = await initiateFirstAccess(code, captchaToken)
-            if (result.error) {
+            if (result.error && 'needsAssistance' in result && result.needsAssistance) {
+                setAssistanceMessage(result.error)
+            } else if (result.error) {
                 setError(result.error)
             } else if (result.success) {
                 setSuccessMessage(result.message)
@@ -125,6 +132,25 @@ export default function LoginPage() {
                     {(error || showError) && (
                         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm font-medium animate-in slide-in-from-top-1">
                             {error === 'Invalid login credentials' ? 'Credenziali non valide.' : error}
+                        </div>
+                    )}
+
+                    {assistanceMessage && (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-500/30 rounded-lg text-amber-800 dark:text-amber-300 text-sm font-medium animate-in slide-in-from-top-1 leading-relaxed">
+                            {assistanceMessage.split(CED_EMAIL).flatMap((part, i) =>
+                                i === 0
+                                    ? [<span key={`t${i}`}>{part}</span>]
+                                    : [
+                                        <a
+                                            key={`a${i}`}
+                                            href={`mailto:${CED_EMAIL}`}
+                                            className="underline decoration-amber-400 underline-offset-2 font-semibold break-all hover:text-amber-900 dark:hover:text-amber-200"
+                                        >
+                                            {CED_EMAIL}
+                                        </a>,
+                                        <span key={`t${i}`}>{part}</span>,
+                                    ]
+                            )}
                         </div>
                     )}
 

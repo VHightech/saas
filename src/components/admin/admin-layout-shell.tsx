@@ -17,6 +17,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Command,
+    Pin,
+    PinOff,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { logout } from '@/app/login/actions'
@@ -36,13 +38,46 @@ const NAV_ITEMS = [
 ] as const
 
 
+/** Preferenza "sidebar bloccata aperta", per browser. */
+const SIDEBAR_PIN_KEY = 'acqdash:admin:sidebar-pinned'
+
 export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins }: AdminLayoutShellProps) {
     const pathname = usePathname()
     const { setTheme, resolvedTheme } = useTheme()
-    const [mounted, setMounted] = useState(false)
-    const [collapsed, setCollapsed] = useState(true)
+    const [hovered, setHovered] = useState(false)
+    // `mounted` e `pinned` vivono in un unico stato per fare una sola setState
+    // nell'effect di mount. `pinned` e' la preferenza dell'admin "barra bloccata
+    // aperta": sta in localStorage perche' e' una comodita' personale del browser,
+    // non un dato di dominio (nessuna colonna su profiles). Si legge dopo il
+    // mount, non nel render: leggerlo durante l'idratazione la romperebbe.
+    const [ui, setUi] = useState({ mounted: false, pinned: false })
+    const { mounted, pinned } = ui
 
-    useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        let stored = false
+        try {
+            stored = window.localStorage.getItem(SIDEBAR_PIN_KEY) === '1'
+        } catch {
+            // Storage negato (finestra privata, cookie bloccati): resta hover-only.
+        }
+        setUi({ mounted: true, pinned: stored })
+    }, [])
+
+    const togglePin = () => {
+        setUi((prev) => {
+            const next = !prev.pinned
+            try {
+                window.localStorage.setItem(SIDEBAR_PIN_KEY, next ? '1' : '0')
+            } catch {
+                // La preferenza vale solo per questa sessione: nessun errore all'utente.
+            }
+            return { ...prev, pinned: next }
+        })
+    }
+
+    // Bloccata = sempre aperta. Altrimenti si apre al passaggio del mouse.
+    // Finche' non e' montata resta chiusa, come l'HTML servito dal server.
+    const collapsed = !mounted ? true : !pinned && !hovered
 
     const initials = useMemo(() => {
         const parts = (userName || 'A').trim().split(/\s+/)
@@ -56,8 +91,8 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
             <div className="min-h-screen w-full bg-white dark:bg-[#0F1115] text-slate-700 dark:text-slate-200 font-sans flex">
                 {/* SIDEBAR */}
                 <aside
-                    onMouseEnter={() => setCollapsed(false)}
-                    onMouseLeave={() => setCollapsed(true)}
+                    onMouseEnter={() => setHovered(true)}
+                    onMouseLeave={() => setHovered(false)}
                     className={cn(
                         'sticky top-0 h-screen shrink-0 flex flex-col text-white z-40 border-r border-white/5 transition-[width] duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] overflow-hidden relative',
                         collapsed ? 'w-16' : 'w-64'
@@ -106,6 +141,32 @@ export function AdminLayoutShell({ children, userName, userRole, canInviteAdmins
                                     <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">Marche</p>
                                 </div>
                             </div>
+
+                            {/* Blocca/sblocca la sidebar aperta. Nascosto quando e'
+                                chiusa: a 64px non c'e' spazio, e per premerlo si
+                                passa comunque col mouse, che la apre. */}
+                            <button
+                                type="button"
+                                onClick={togglePin}
+                                aria-pressed={pinned}
+                                title={pinned ? 'Sblocca la barra laterale' : 'Blocca la barra laterale aperta'}
+                                className={cn(
+                                    'ml-auto shrink-0 p-1.5 rounded-lg transition-all duration-500 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]',
+                                    collapsed
+                                        ? 'max-w-0 opacity-0 pointer-events-none p-0'
+                                        : 'max-w-[32px] opacity-100',
+                                    pinned
+                                        ? 'text-white bg-white/20 hover:bg-white/25'
+                                        : 'text-white/60 hover:text-white hover:bg-white/10',
+                                )}
+                            >
+                                {pinned
+                                    ? <PinOff size={15} strokeWidth={2} />
+                                    : <Pin size={15} strokeWidth={2} />}
+                                <span className="sr-only">
+                                    {pinned ? 'Sblocca la barra laterale' : 'Blocca la barra laterale aperta'}
+                                </span>
+                            </button>
                         </div>
 
                         {/* Primary Nav */}
