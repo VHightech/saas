@@ -36,8 +36,14 @@ export async function generateMetadata(): Promise<Metadata> {
         { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
         { url: "/favicon.ico", sizes: "any" },
       ],
+      // iOS ignora il canale alpha qui e compone la trasparenza sul NERO:
+      // apple-touch-icon.png deve restare opaco (fondo bianco già incorporato).
+      // Niente angoli arrotondati nel file: la maschera la applica iOS.
       apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
     },
+    // Etichetta sotto l'icona quando il portale viene aggiunto alla home su iOS.
+    // Senza questo iOS userebbe il title ("Portale Acquambiente"), troncato.
+    appleWebApp: { title: "Acquambiente" },
     manifest: "/site.webmanifest"
   }
 }
