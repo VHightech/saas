@@ -38,19 +38,24 @@ function setPinned(next: boolean) {
 
 /**
  * Stato "barra bloccata aperta" condiviso tra la sidebar e il contenuto.
- * `mounted` resta false al primo render: la preferenza si legge nell'effect di
- * mount, non durante l'idratazione, altrimenti l'HTML del server (barra chiusa)
- * non combacerebbe.
+ *
+ * Alla prima idratazione `mounted` resta false: la preferenza si legge
+ * nell'effect di mount, non in render, altrimenti l'HTML del server (barra
+ * chiusa) non combacerebbe. Dai mount successivi in poi lo store la sa gia',
+ * quindi si parte dal valore giusto: cambiando pagina la barra viene smontata e
+ * rimontata, e ripartire da "chiusa" la faceva chiudere e riaprire a ogni click.
  */
 export function useSidebarPin() {
-    const [state, setState] = useState({ mounted: false, pinned: false })
+    const [state, setState] = useState(() => (
+        hydrated ? { mounted: true, pinned } : { mounted: false, pinned: false }
+    ))
 
     useEffect(() => {
         if (!hydrated) {
             hydrated = true
             pinned = readStored()
+            setState({ mounted: true, pinned })
         }
-        setState({ mounted: true, pinned })
 
         const notify: Listener = (next) => setState({ mounted: true, pinned: next })
         listeners.add(notify)
