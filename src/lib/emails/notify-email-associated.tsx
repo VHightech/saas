@@ -8,6 +8,7 @@
 import { render } from '@react-email/render'
 import EmailAssociatedEmail, { type EmailAssociatedMode } from '@/components/emails/email-associated'
 import { sendMail, type MailResult } from '@/lib/mailer'
+import { CED_EMAIL } from '@/lib/support-contacts'
 
 const SUBJECT: Record<EmailAssociatedMode, string> = {
     added: 'Il tuo indirizzo email è stato associato all’utenza',
@@ -37,5 +38,7 @@ export async function notifyEmailAssociated(input: {
         render(element, { plainText: true }),
     ])
 
-    return sendMail({ to: input.to, subject: SUBJECT[input.mode], html, text })
+    // replyTo esplicito: MAIL_FROM è un noreply@, quindi una risposta del cliente
+    // andrebbe persa. Così arriva a chi può effettivamente correggere l'indirizzo.
+    return sendMail({ to: input.to, subject: SUBJECT[input.mode], html, text, replyTo: CED_EMAIL })
 }

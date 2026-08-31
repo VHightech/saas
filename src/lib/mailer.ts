@@ -33,6 +33,11 @@ interface SendMailInput {
     html: string
     /** Fallback testuale per i client che non renderizzano HTML. */
     text: string
+    /**
+     * Indirizzo a cui indirizzare le risposte. Serve perché MAIL_FROM è un
+     * `noreply@`: senza questo, un cliente che risponde scrive nel vuoto.
+     */
+    replyTo?: string
 }
 
 export interface SmtpConfig {
@@ -104,7 +109,7 @@ async function getTransporter(cfg: SmtpConfig): Promise<Transporter> {
     return transporter
 }
 
-export async function sendMail({ to, subject, html, text }: SendMailInput): Promise<MailResult> {
+export async function sendMail({ to, subject, html, text, replyTo }: SendMailInput): Promise<MailResult> {
     const cfg = resolveSmtpConfig()
     if (!cfg) {
         console.warn('[mailer] invio saltato: configurazione SMTP incompleta (SMTP_HOST/SMTP_USER/SMTP_PASS/MAIL_FROM)')
@@ -113,7 +118,7 @@ export async function sendMail({ to, subject, html, text }: SendMailInput): Prom
 
     try {
         const transporter = await getTransporter(cfg)
-        await transporter.sendMail({ from: cfg.from, to, subject, html, text })
+        await transporter.sendMail({ from: cfg.from, to, subject, html, text, replyTo })
         return { sent: true }
     } catch (e) {
         // Solo il messaggio del server: nessun indirizzo e nessuna credenziale.

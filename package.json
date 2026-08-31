@@ -22,7 +22,8 @@
     "presentation": "node scripts/build-presentation.mjs",
     "shots": "node scripts/capture-shots.mjs",
     "fix:consumo": "tsx scripts/fix-field-from-csv.ts --field consumo",
-    "fix:field": "tsx scripts/fix-field-from-csv.ts"
+    "fix:field": "tsx scripts/fix-field-from-csv.ts",
+    "mail:check": "tsx scripts/check-smtp.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",

@@ -8,10 +8,12 @@ import {
     Html,
     Preview,
     Section,
+    Link,
     Text,
     Tailwind,
 } from '@react-email/components';
 import * as React from 'react';
+import { CED_EMAIL } from '@/lib/support-contacts';
 
 /**
  * 'added'   → l'utenza non aveva alcun indirizzo: e' un'associazione.
@@ -100,8 +102,11 @@ export default function EmailAssociatedEmail({ name, portalUrl, mode }: EmailAss
 
                         <Text className="text-[#666666] text-[12px] leading-[24px]">
                             Se non hai richiesto questa {isUpdate ? 'modifica' : 'associazione'}, o
-                            non riconosci questa utenza, contatta l&apos;ufficio CED rispondendo a
-                            questa email: provvederemo a correggere l&apos;indirizzo.
+                            non riconosci questa utenza, scrivi all&apos;ufficio CED:{' '}
+                            <Link href={`mailto:${CED_EMAIL}`} className="text-[#0080c3] underline">
+                                {CED_EMAIL}
+                            </Link>
+                            . Provvederemo a correggere l&apos;indirizzo.
                         </Text>
                     </Container>
                 </Body>
