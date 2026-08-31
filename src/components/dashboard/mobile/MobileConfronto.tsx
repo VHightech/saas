@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChevronLeft, Lightbulb, TrendingDown, TrendingUp } from 'lucide-react'
+import { ChevronLeft, Lightbulb, Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/components/dashboard/dashboard-context'
-import { consumptionAdvice, consumptionAdviceText } from '@/lib/consumption-advice'
+import { consumptionComparison, consumptionAdviceText } from '@/lib/consumption-advice'
 import { ConsumoComparisonChart } from '@/components/dashboard/ConsumoComparisonChart'
 import type { Bill } from '@/types/dashboard'
 import type { UserSupply } from './MobileShell'
@@ -15,7 +15,6 @@ interface MobileConfrontoProps {
     onBack: () => void
 }
 
-const num = (v: unknown): number => parseFloat(String(v ?? 0).replace(',', '.')) || 0
 const fmtMc = (n: number) => n.toLocaleString('it-IT', { maximumFractionDigits: n < 10 ? 1 : 0 })
 
 export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileConfrontoProps) {
@@ -27,33 +26,15 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
     )
     const supply = useMemo(() => supplies.find((s: any) => s?.ulm === selectedSupply), [supplies, selectedSupply])
 
-    const advice = useMemo(() => consumptionAdvice(supplyBills), [supplyBills])
+    // Stesso calcolo della schermata desktop (una sola funzione condivisa).
+    const { advice, curByMonth, prevByMonth, prevCovered, currentYear, prevYear, hasCompare, curTotal, prevTotal } =
+        useMemo(() => consumptionComparison(supplyBills), [supplyBills])
 
-    const { curByMonth, prevByMonth, currentYear, prevYear, hasCompare, curTotal, prevTotal } = useMemo(() => {
-        const sumByMonth = (year: number) => {
-            const arr = new Array(12).fill(0)
-            supplyBills.forEach((b: any) => {
-                const d = new Date(b.data_emissione)
-                if (!Number.isNaN(d.getTime()) && d.getFullYear() === year) arr[d.getMonth()] += num(b.consumo)
-            })
-            return arr
-        }
-        const cy = advice.currentYear
-        const py = advice.prevYear
-        const cur = sumByMonth(cy)
-        const prev = py ? sumByMonth(py) : new Array(12).fill(0)
-        return {
-            curByMonth: cur,
-            prevByMonth: prev,
-            currentYear: cy,
-            prevYear: py,
-            hasCompare: advice.hasData,
-            curTotal: cur.reduce((a, b) => a + b, 0),
-            prevTotal: prev.reduce((a, b) => a + b, 0),
-        }
-    }, [supplyBills, advice])
-
-    const isLess = advice.diffPct < 0
+    // Si mostra la percentuale arrotondata: 0% non e' ne' calo ne' aumento.
+    const diffRounded = Math.round(advice.diffPct)
+    const trend: 'down' | 'up' | 'flat' = diffRounded < 0 ? 'down' : diffRounded > 0 ? 'up' : 'flat'
+    // A meta' anno il confronto copre i soli mesi fatturati: va detto.
+    const periodo = advice.partial ? `${advice.periodLabel} ` : ''
     const empty = selectedSupply === 'all' || supplyBills.length === 0
 
     return (
@@ -84,25 +65,31 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
                     {hasCompare ? (
                         <div className={cn(
                             'relative overflow-hidden rounded-3xl text-white p-6',
-                            isLess ? 'bg-gradient-to-br from-[#1E7A5A] to-[#2EA67D]' : 'bg-gradient-to-br from-[#A6411F] to-[#D86B45]'
+                            trend === 'down' ? 'bg-gradient-to-br from-[#1E7A5A] to-[#2EA67D]'
+                                : trend === 'up' ? 'bg-gradient-to-br from-[#A6411F] to-[#D86B45]'
+                                    : 'bg-gradient-to-br from-[#0A2540] to-[#1E5BFF]'
                         )}>
                             <div className="flex items-center gap-2 mb-2">
-                                {isLess ? <TrendingDown size={14} /> : <TrendingUp size={14} />}
+                                {trend === 'down' ? <TrendingDown size={14} />
+                                    : trend === 'up' ? <TrendingUp size={14} />
+                                        : <Minus size={14} />}
                                 <span className="text-[10px] font-bold tracking-[0.2em] uppercase">
-                                    {isLess ? 'Stai consumando meno' : 'Stai consumando di più'}
+                                    {trend === 'down' ? 'Stai consumando meno'
+                                        : trend === 'up' ? 'Stai consumando di più'
+                                            : 'Consumi stabili'}
                                 </span>
                             </div>
                             <p className="text-5xl font-bold tracking-tight mb-1">
-                                {advice.diffPct > 0 ? '+' : ''}{advice.diffPct.toFixed(0)}%
+                                {diffRounded > 0 ? '+' : ''}{diffRounded}%
                                 <span className="text-base font-bold opacity-80"> vs {prevYear}</span>
                             </p>
                             <p className="text-xs font-medium opacity-80 mt-2">
-                                {fmtMc(curTotal)} mc ({currentYear}) contro {fmtMc(prevTotal)} mc ({prevYear})
+                                {fmtMc(curTotal)} mc ({periodo}{currentYear}) contro {fmtMc(prevTotal)} mc ({periodo}{prevYear})
                             </p>
                         </div>
                     ) : (
                         <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-6">
-                            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-slate-400 mb-1">Consumo {currentYear}</p>
+                            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-slate-400 mb-1">Consumo {periodo}{currentYear}</p>
                             <p className="text-4xl font-bold tracking-tight text-[#0A2540] dark:text-white flex items-baseline gap-2">
                                 {fmtMc(curTotal)} <span className="text-base font-medium text-slate-400">mc</span>
                             </p>
@@ -118,6 +105,8 @@ export function MobileConfronto({ bills = [], supplies = [], onBack }: MobileCon
                         <ConsumoComparisonChart
                             curByMonth={curByMonth}
                             prevByMonth={prevByMonth}
+                            prevCovered={prevCovered}
+                            lastCoveredMonth={advice.lastMonth}
                             currentYear={currentYear}
                             prevYear={prevYear}
                             hasCompare={hasCompare}

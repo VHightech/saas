@@ -6,6 +6,7 @@ import {
     CartesianGrid,
     ComposedChart,
     Line,
+    ReferenceArea,
     XAxis,
     YAxis,
 } from 'recharts'
@@ -14,6 +15,7 @@ import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/
 import { niceCeil } from '@/lib/bill-chart'
 
 const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic']
+const MONTH_NAMES = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
 const fmtAxis = (n: number) =>
     n >= 10000
@@ -33,6 +35,18 @@ interface ConsumoComparisonChartProps {
     currentYear: number
     prevYear: number
     hasCompare: boolean
+    /**
+     * Mesi in cui l'anno precedente ha almeno una bolletta. Serve a distinguere
+     * un consumo di 0 mc (che va disegnato) da un mese senza letture (che va
+     * saltato): l'11% delle bollette ha consumo 0, e trattarle come dato
+     * mancante faceva scavalcare quei mesi alla linea tratteggiata.
+     */
+    prevCovered?: boolean[]
+    /**
+     * Ultimo mese (0-11) fatturato nell'anno in corso. I mesi successivi sono
+     * ombreggiati: non sono un calo, sono dati che non esistono ancora.
+     */
+    lastCoveredMonth?: number
     heightClass?: string
 }
 
@@ -47,17 +61,25 @@ export function ConsumoComparisonChart({
     currentYear,
     prevYear,
     hasCompare,
+    prevCovered,
+    lastCoveredMonth = 11,
     heightClass = 'h-52',
 }: ConsumoComparisonChartProps) {
     // Scale to fit ALL values (with headroom) so neither the bars nor the
     // comparison line ever get clipped — a cut line reads as broken.
     const scale = niceCeil(Math.max(...curByMonth, ...prevByMonth, 1))
 
+    const hasPrevValue = (i: number) => (prevCovered ? prevCovered[i] : prevByMonth[i] > 0)
+
     const data = MONTHS.map((m, i) => ({
         month: m,
         cur: curByMonth[i] || 0,
-        prev: hasCompare && prevByMonth[i] > 0 ? prevByMonth[i] : null,
+        prev: hasCompare && hasPrevValue(i) ? prevByMonth[i] : null,
     }))
+
+    // Mesi dell'anno in corso non ancora fatturati: ombreggiati, cosi' le barre
+    // mancanti non si leggono come consumo azzerato.
+    const firstUncovered = lastCoveredMonth >= 0 && lastCoveredMonth < 11 ? lastCoveredMonth + 1 : -1
 
     return (
         <div>
@@ -74,6 +96,16 @@ export function ConsumoComparisonChart({
                         </linearGradient>
                     </defs>
                     <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="currentColor" className="text-slate-200/60 dark:text-white/10" />
+                    {firstUncovered >= 0 && (
+                        <ReferenceArea
+                            x1={MONTHS[firstUncovered]}
+                            x2={MONTHS[11]}
+                            fill="currentColor"
+                            fillOpacity={0.04}
+                            stroke="none"
+                            className="text-slate-900 dark:text-white"
+                        />
+                    )}
                     <XAxis
                         dataKey="month"
                         tickLine={false}
@@ -110,7 +142,9 @@ export function ConsumoComparisonChart({
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <span className="w-2.5 border-t-2 border-dashed border-[#E89B3C]" />
                                             <span className="text-slate-500 dark:text-slate-400">{prevYear}</span>
-                                            <span className="ml-auto font-mono font-medium tabular-nums text-[#B45309] dark:text-[#E89B3C]">{fmtMc(p ?? 0)} mc</span>
+                                            <span className="ml-auto font-mono font-medium tabular-nums text-[#B45309] dark:text-[#E89B3C]">
+                                                {p == null ? 'n.d.' : `${fmtMc(p)} mc`}
+                                            </span>
                                         </div>
                                     )}
                                 </div>
@@ -168,6 +202,11 @@ export function ConsumoComparisonChart({
                     </span>
                 )}
             </div>
+            {firstUncovered >= 0 && (
+                <p className="text-[10px] text-slate-400 text-center mt-1">
+                    {currentYear} in corso: dati fino a {MONTH_NAMES[lastCoveredMonth]}.
+                </p>
+            )}
         </div>
     )
 }
