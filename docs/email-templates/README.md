@@ -19,6 +19,23 @@ Le *security notification* partono **solo se abilitate a livello di progetto**
 (la voce si trova nella stessa pagina). "Email address changed" è stata abilitata
 il 2026-08-31.
 
+### ⚠ "Email address changed" non scatta per le modifiche via admin API
+
+Verificato il 2026-08-31: con la notifica abilitata, cambiando l'email di
+un'utenza dal pannello admin **non arriva niente**, né su un profilo shadow né su
+un'utenza attivata. Il canale email funziona (invito e set-password arrivano
+regolarmente), quindi non è un problema di consegna: l'evento non viene emesso.
+
+Il motivo: `admin.updateUserById(..., { email_confirm: true })` è una scrittura
+amministrativa e marca il nuovo indirizzo come già confermato, quindi non esiste
+il flusso di cambio email da cui la notifica nascerebbe. Le security notification
+nascono dai flussi iniziati dall'utente.
+
+Conseguenza: per avvisare il cliente serve un trasporto nostro
+(`src/lib/mailer.ts`), che copre entrambi i casi. Il template resta comunque
+configurato: se un giorno un cliente cambiasse l'email dalla propria area, la
+notifica partirebbe da sé.
+
 ## Variabili disponibili
 
 `{{ .ConfirmationURL }}` · `{{ .Token }}` · `{{ .TokenHash }}` · `{{ .SiteURL }}`

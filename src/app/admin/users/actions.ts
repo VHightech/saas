@@ -135,26 +135,29 @@ export async function updateUser(userId: string, data: {
         return { error: 'Errore durante l\'aggiornamento del profilo.' }
     }
 
-    // 3. Notifica al cliente. Due canali possibili, e mai entrambi:
+    // 3. Notifica al cliente che il suo indirizzo e' stato associato/aggiornato.
     //
-    //    a) l'utenza HA un utente auth -> la modifica e' passata anche da
-    //       auth.users, quindi la copre la security notification "Email address
-    //       changed" di Supabase (abilitata a livello di progetto il 2026-08-31).
-    //       Non inviamo la nostra, altrimenti il cliente ne riceve due.
-    //       NB: da verificare con una prova che Supabase la invii anche per una
-    //       modifica fatta via admin API e non dalla sessione del cliente. Se
-    //       non lo fa, va togliere il `&& !authUserId` qui sotto.
+    //    VERIFICATO il 2026-08-31: la security notification "Email address
+    //    changed" di Supabase, benche' abilitata, NON scatta per una modifica
+    //    fatta via admin API. `admin.updateUserById(..., { email_confirm: true })`
+    //    e' una scrittura amministrativa e marca l'indirizzo come gia' confermato,
+    //    quindi non esiste il flusso di cambio email da cui nascerebbe. Il canale
+    //    email funziona (invito e set-password arrivano), quindi non e' un
+    //    problema di consegna: quell'evento non viene emesso.
+    //    -> nessuna utenza, ne' shadow ne' attivata, viene avvisata da Supabase.
+    //       Se serve la notifica, e' la nostra o niente.
     //
-    //    b) profilo shadow (nessun utente auth) -> Supabase non ha nessuno da
-    //       avvisare: servirebbe un trasporto nostro. Se non e' configurato non
-    //       c'e' niente da fare, e non ha senso avvisare l'operatore di una
-    //       condizione del server che non puo' risolvere: resta nei log.
+    //    Nota: anche se Supabase la inviasse, non sarebbe un doppione — la sua
+    //    security notification va al vecchio indirizzo (avvisa chi possedeva
+    //    l'account), la nostra al nuovo. Sono complementari.
     //
+    //    Se il trasporto non e' configurato non si avvisa l'operatore: e' una
+    //    condizione del server su cui non puo' agire, resta nei log.
     //    Best-effort e DOPO la scrittura: il dato e' gia' salvato, un problema di
     //    consegna non deve annullare il lavoro dell'operatore.
     let emailNotified = false
     let emailNotice: string | undefined
-    if (emailAssociated && !authUserId) {
+    if (emailAssociated) {
         if (isMailerConfigured()) {
             const res = await notifyEmailAssociated({
                 to: nextEmail,
