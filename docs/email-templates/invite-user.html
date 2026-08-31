@@ -1,0 +1,65 @@
+<!--
+  Supabase → Authentication → Emails → "Invite user"
+  Copia fedele di quanto attualmente configurato sul dashboard (2026-08-31).
+
+  ⚠ ATTENZIONE — questo template ha DUE destinatari molto diversi:
+    1. gli amministratori invitati da /admin/invite
+       (inviteUserByEmail con data: { full_name, is_admin: true })
+    2. i CLIENTI che fanno il primo accesso dal login
+       (inviteUserByEmail con data: { codice_cliente }, login/actions.ts)
+  Supabase ha un solo template "Invite user", quindi il testo qui sotto —
+  "Sei stato invitato a unirti al team" — arriva anche ai clienti, per i quali
+  non ha senso. Vedi le note in docs/email-templates/README.md.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portale Acquambiente</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+    .header { background-color: #000000; padding: 32px; text-align: center; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+    .content { padding: 40px 32px; color: #333333; line-height: 1.6; }
+    .h2 { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #111111; }
+    .button { display: inline-block; background-color: #000000; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 24px 0; text-align: center; }
+    .button:hover { background-color: #222222; }
+    .footer { background-color: #f9fafb; padding: 24px 32px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+    @media (prefers-color-scheme: dark) {
+      body { background-color: #111111 !important; }
+      .container { background-color: #1a1a1a !important; color: #e5e5e5 !important; }
+      .content { color: #e5e5e5 !important; }
+      .h2 { color: #ffffff !important; }
+      .footer { background-color: #222222 !important; border-top-color: #333333 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Portale Acquambiente</h1>
+    </div>
+
+    <div class="content">
+      <div class="h2">Hai ricevuto un invito!</div>
+      <p>Sei stato invitato a unirti al team su Portale Acquambiente.</p>
+      <p>Accetta l'invito e imposta il tuo account cliccando qui sotto:</p>
+
+      <center>
+        <a href="{{ .ConfirmationURL }}" class="button" target="_blank">Accetta Invito</a>
+      </center>
+
+      <p style="font-size: 14px; margin-top: 24px; color: #666;">
+        Link per l'accesso:<br>
+        <a href="{{ .ConfirmationURL }}" style="color: #000000; word-break: break-all;">{{ .ConfirmationURL }}</a>
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>&copy; 2026 Portale Acquambiente. Tutti i diritti riservati.</p>
+    </div>
+  </div>
+</body>
+</html>

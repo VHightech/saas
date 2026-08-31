@@ -1,0 +1,90 @@
+<!--
+  Supabase → Authentication → Emails → "Email address changed"
+  (famiglia Security Notification, va abilitata a livello di progetto)
+
+  Oggetto: Modifica dell'indirizzo email della tua utenza
+
+  Note di progetto:
+  - Nessun bottone e nessun link al portale: una notifica di sicurezza con un
+    "clicca qui" insegna al cliente a fidarsi dei link dentro le mail che parlano
+    del suo account. Qui serve solo dire cosa è successo e a chi scrivere.
+  - Testo volutamente neutro su QUALE indirizzo stia leggendo il destinatario:
+    non è documentato se la notifica arrivi al vecchio, al nuovo o a entrambi.
+    Il blocco con gli indirizzi è in fondo, commentato: attivalo solo dopo aver
+    verificato con una prova quale variabile contiene cosa.
+  - Le proprietà critiche (sfondi, spaziature, colori) sono anche inline perché
+    Outlook ignora le regole per classe e le media query.
+-->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portale Acquambiente</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+    .header { background-color: #000000; padding: 32px; text-align: center; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+    .content { padding: 40px 32px; color: #333333; line-height: 1.6; }
+    .h2 { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #111111; }
+    .notice { background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 28px 0; font-size: 14px; line-height: 1.6; }
+    .alert { border-left: 3px solid #000000; padding: 4px 0 4px 16px; margin: 28px 0 0; font-size: 14px; line-height: 1.6; }
+    .alert a { color: #000000; font-weight: 600; word-break: break-all; }
+    .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 0 0 4px; }
+    .value { font-size: 15px; font-weight: 600; color: #111111; margin: 0 0 16px; word-break: break-all; }
+    .footer { background-color: #f9fafb; padding: 24px 32px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+    @media (prefers-color-scheme: dark) {
+      body { background-color: #111111 !important; }
+      .container { background-color: #1a1a1a !important; color: #e5e5e5 !important; }
+      .content { color: #e5e5e5 !important; }
+      .h2 { color: #ffffff !important; }
+      .notice { background-color: #222222 !important; border-color: #333333 !important; }
+      .alert { border-left-color: #ffffff !important; }
+      .alert a { color: #ffffff !important; }
+      .value { color: #ffffff !important; }
+      .footer { background-color: #222222 !important; border-top-color: #333333 !important; }
+    }
+  </style>
+</head>
+<body style="background-color: #f4f4f5; margin: 0; padding: 0;">
+  <div class="container" style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden;">
+    <div class="header" style="background-color: #000000; padding: 32px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">Portale Acquambiente</h1>
+    </div>
+
+    <div class="content" style="padding: 40px 32px; color: #333333; line-height: 1.6;">
+      <div class="h2" style="font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #111111;">Indirizzo email modificato</div>
+
+      <p>Gentile cliente,</p>
+      <p>ti informiamo che l&rsquo;indirizzo email associato alla tua utenza sul Portale Acquambiente &egrave; stato modificato.</p>
+
+      <div class="notice" style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 28px 0;">
+        Se la modifica &egrave; corretta non devi fare nulla: l&rsquo;indirizzo aggiornato sar&agrave;
+        quello usato per accedere al portale e per recuperare la password.
+      </div>
+
+      <!--
+        ATTIVA SOLO DOPO LA VERIFICA — controlla con una modifica di prova quale
+        variabile contiene il nuovo indirizzo, poi se necessario scambiale.
+
+      <div class="notice" style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 28px 0;">
+        <p class="label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 0 0 4px;">Indirizzo precedente</p>
+        <p class="value" style="font-size: 15px; font-weight: 600; color: #111111; margin: 0 0 16px;">{{ .OldEmail }}</p>
+        <p class="label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 0 0 4px;">Nuovo indirizzo</p>
+        <p class="value" style="font-size: 15px; font-weight: 600; color: #111111; margin: 0;">{{ .Email }}</p>
+      </div>
+      -->
+
+      <div class="alert" style="border-left: 3px solid #000000; padding: 4px 0 4px 16px; margin: 28px 0 0;">
+        <strong>Se non hai richiesto questa modifica</strong>, scrivi subito all&rsquo;ufficio CED:<br>
+        <a href="mailto:ced.segnalazioni@acquambientemarche.it" style="color: #000000; font-weight: 600;">ced.segnalazioni@acquambientemarche.it</a>
+      </div>
+    </div>
+
+    <div class="footer" style="background-color: #f9fafb; padding: 24px 32px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb;">
+      <p style="margin: 0;">&copy; 2026 Portale Acquambiente. Tutti i diritti riservati.</p>
+    </div>
+  </div>
+</body>
+</html>
