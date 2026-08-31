@@ -209,10 +209,14 @@ async function main(): Promise<void> {
                             uploaded++
                         }
                         // Persist canonical object key (matches the web upload convention).
+                        // Match via the generated+indexed bills.nome_pdf_lower
+                        // (migration 20260721000000): `ilike('nome_pdf', …)` had no
+                        // usable index — it was ~99% of tracked DB CPU during import —
+                        // and treated `_`/`%` in a filename as wildcards.
                         const { data: updated, error: upErr } = await supabase
                             .from('bills')
                             .update({ pdf_url: key })
-                            .ilike('nome_pdf', filename)
+                            .eq('nome_pdf_lower', filename.toLowerCase())
                             .is('pdf_url', null)
                             .select('id')
                         if (upErr) errors.push(`link ${filename}: ${upErr.message}`)
