@@ -18,10 +18,11 @@
     "relink": "tsx scripts/relink-bills-from-r2.ts",
     "import": "tsx scripts/import-data.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/unit/import-helpers.test.ts",
+    "test": "node --import tsx --test tests/unit/import-helpers.test.ts tests/unit/field-fix.test.ts",
     "presentation": "node scripts/build-presentation.mjs",
     "shots": "node scripts/capture-shots.mjs",
-    "fix:consumo": "tsx scripts/fix-consumo-from-csv.ts"
+    "fix:consumo": "tsx scripts/fix-field-from-csv.ts --field consumo",
+    "fix:field": "tsx scripts/fix-field-from-csv.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",

@@ -12,6 +12,26 @@ export function readCsvText(filePath: string): string {
 }
 
 /**
+ * Every .csv under `src`, recursively, sorted by path. A file path is returned
+ * as-is, so the same argument accepts "una cartella con l'anno" or un singolo file.
+ */
+export function collectCsvFiles(src: string): string[] {
+    if (!fs.existsSync(src)) throw new Error(`Percorso non trovato: ${src}`)
+    if (!fs.statSync(src).isDirectory()) return [src]
+
+    const out: string[] = []
+    const walk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = `${dir}/${entry.name}`
+            if (entry.isDirectory()) walk(full)
+            else if (entry.name.toLowerCase().endsWith('.csv')) out.push(full)
+        }
+    }
+    walk(src)
+    return out.sort()
+}
+
+/**
  * Runs `fn` over `items` with at most `limit` running concurrently. Unlike
  * fixed-size chunking, a finished item is immediately replaced by the next
  * one instead of waiting for its whole pair/chunk to finish.

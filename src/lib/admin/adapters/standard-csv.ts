@@ -20,6 +20,49 @@ export function normalizeBillingType(raw: string | null): string | null {
     return v
 }
 
+/**
+ * Fixed column layout of the gestionale export (single source of truth — the
+ * field-fix tooling maps a bills column back to its CSV index through this):
+ * CIF(0); CFPIVA(1); NOMEPDF(2); SERVIZIO(3); EMISSIONE(4); SCADENZA(5);
+ * IMPORTO(6); CONSUMO(7); then 8/9 hold method + document type, see below.
+ */
+export const CSV_INDEX = {
+    CIF: 0,
+    CFPI: 1,
+    PDF: 2,
+    TIPO: 3,
+    EMISS: 4,
+    SCAD: 5,
+    IMP: 6,
+    CONS: 7,
+    METHOD_OR_TYPE: 8,
+    TYPE: 9,
+} as const
+
+/**
+ * Resolve `expected_method` (MPxx) and `billing_type` from columns 8/9. Layouts seen:
+ *   • index 8 = MPxx method, index 9 = type label
+ *   • index 8 = empty (e.g. €0,00 bills with no method), index 9 = type label
+ *   • legacy: index 8 = type label, no index 9
+ * The type label is taken from index 9 when present; otherwise index 8 holds it
+ * (legacy layout). Crucially this does not depend on col 8 being a method, so
+ * €0,00 bills (empty col 8) keep their col 9 type instead of dropping it.
+ */
+export function resolveTypeAndMethod(row: string[]): {
+    expected_method: string | null
+    rawTypeLabel: string | null
+    billing_type: string | null
+} {
+    const at = (i: number) => (row.length > i && row[i] ? String(row[i]).trim() || null : null)
+    const raw8 = at(CSV_INDEX.METHOD_OR_TYPE)
+    const raw9 = at(CSV_INDEX.TYPE)
+
+    const expected_method = raw8 && raw8.toUpperCase().startsWith('MP') ? raw8.toUpperCase() : null
+    const rawTypeLabel = raw9 ?? (expected_method ? null : raw8)
+
+    return { expected_method, rawTypeLabel, billing_type: normalizeBillingType(rawTypeLabel) }
+}
+
 export class StandardCsvAdapter implements ImportAdapter {
     async parse(
         text: string,
@@ -45,18 +88,8 @@ export class StandardCsvAdapter implements ImportAdapter {
         console.log(`[CSV Adapter] Raw Rows: ${rawRecords.length}`)
         if (rawRecords.length === 0) return { bills: [], errors: [] }
 
-        // 2. Strict Mapping based on User Configuration
-        // CIF (0); CFPIVA(1); NOMEPDF(2); SERVIZIO(3); EMISSIONE(4); SCADENZA(5); IMPORTO(6); CONSUMO(7)
-        const IDX = {
-            CIF: 0,
-            CFPI: 1,
-            PDF: 2,
-            TIPO: 3,
-            EMISS: 4,
-            SCAD: 5,
-            IMP: 6,
-            CONS: 7
-        }
+        // 2. Strict Mapping — see CSV_INDEX above (single source of truth).
+        const IDX = CSV_INDEX
 
         console.log(`[CSV Mapping] Using Strict Mapping: CIF=${IDX.CIF}, PDF=${IDX.PDF}`)
 
@@ -99,24 +132,8 @@ export class StandardCsvAdapter implements ImportAdapter {
                 const rowImp = normalize(row[IDX.IMP])
                 const rowCons = normalize(row[IDX.CONS])
 
-                // Payment Method (MPxx) and document Type label. Layouts seen:
-                //   • index 8 = MPxx method, index 9 = type label
-                //   • index 8 = empty (e.g. €0,00 bills with no method), index 9 = type label
-                //   • legacy: index 8 = type label, no index 9
-                const raw8 = row.length > 8 ? normalize(row[8]) : null
-                const raw9 = row.length > 9 ? normalize(row[9]) : null
-
-                const paymentMethod = raw8 && raw8.toUpperCase().startsWith('MP')
-                    ? raw8.toUpperCase()
-                    : null
-
-                // The type label is in index 9 when present; otherwise index 8 holds
-                // it (legacy layout where col 8 isn't a method). Crucially this no
-                // longer depends on col 8 being a method, so €0,00 bills (empty col 8)
-                // keep their col 9 type instead of dropping it.
-                const rawTypeLabel = raw9 ?? (paymentMethod ? null : raw8)
-
-                const paymentType = normalizeBillingType(rawTypeLabel)
+                // Payment Method (MPxx) + document Type label from columns 8/9.
+                const { expected_method: paymentMethod, billing_type: paymentType } = resolveTypeAndMethod(row)
 
                 // Code Client logic
                 let clientCode = ''

@@ -6,6 +6,9 @@
  *   2) Bollette + PDF (CSV + 7z/cartella)    → bills insert + PDF upload to R2 + link
  *   3) Bollette + PDF — batch (intero anno)  → stessa cosa per più coppie CSV+archivio
  *      trovate in una cartella, 2 alla volta
+ *   4) Correggi un singolo campo (CSV)       → UPDATE della sola colonna scelta su
+ *      bollette già importate, match su idboll: niente reimport, PDF su R2 intatti,
+ *      rollback su file. Vedi src/lib/admin/import/field-fix-core.ts.
  *
  * Each run: pick mode → pick file(s) → PREVIEW (nothing written) → confirm → COMMIT.
  * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, R2_* (.env / .env.local)
@@ -23,8 +26,10 @@ async function main() {
     const bills = await import('../src/lib/admin/import/bills-core')
     const pdf = await import('../src/lib/admin/import/pdf-archive')
     const users = await import('../src/lib/admin/import/users-core')
-    const { readCsvText } = await import('../src/lib/admin/import/helpers')
+    const { readCsvText, collectCsvFiles } = await import('../src/lib/admin/import/helpers')
     const batch = await import('../src/lib/admin/import/batch-core')
+    const fieldFix = await import('../src/lib/admin/import/field-fix-core')
+    const fixReport = await import('../src/lib/admin/import/field-fix-report')
     const { createPrompter, requireExistingFile } = await import('../src/lib/admin/import/prompts')
 
     const sb = createServiceClient()
@@ -35,6 +40,7 @@ async function main() {
             'Anagrafiche utenti (CSV)',
             'Bollette + PDF (CSV + 7z/cartella)',
             'Bollette + PDF — batch (cartella con tutto l\'anno)',
+            'Correggi UN campo delle bollette già importate (CSV, senza reimport)',
         ])
 
         if (mode === 0) {
@@ -101,7 +107,7 @@ async function main() {
             await logs.completeImportLog(sb, importId, pr.uploaded + pr.skipped, arch.pdfTotal, { errors: allErrors })
             console.log(`\nFatto. Bollette inserite: ${ins.inserted}, PDF caricati: ${pr.uploaded}, collegati: ${pr.linked}, saltati: ${pr.skipped}, errori: ${allErrors.length}`)
             if (allErrors.length) console.log(allErrors.slice(0, 20).join('\n'))
-        } else {
+        } else if (mode === 2) {
             // ---- BILLS + PDF (batch: whole-year folder, 2 pairs at a time) ----
             const folderPath = requireExistingFile(
                 await p.ask('Cartella con le coppie CSV + archivio/cartella (es. una per mese): '),
@@ -153,6 +159,77 @@ async function main() {
             }
             console.log(`\nTOTALE: inserite=${grandInserted} caricati=${grandUploaded} collegati=${grandLinked} saltati=${grandSkipped} errori=${allBatchErrors.length}`)
             if (allBatchErrors.length) console.log('\n' + allBatchErrors.slice(0, 40).join('\n'))
+        } else {
+            // ---- CORREZIONE DI UN SINGOLO CAMPO (nessun reimport, PDF intatti) ----
+            const fieldIdx = await p.choose(
+                'Quale campo vuoi correggere? (si scrive SOLO questa colonna)',
+                fieldFix.fieldChoiceLabels(),
+            )
+            const spec = fieldFix.FIXABLE_FIELDS[fieldIdx]
+
+            console.log('\nCampi NON correggibili da qui, per progetto:')
+            for (const [k, why] of Object.entries(fieldFix.BLOCKED_FIELDS)) {
+                console.log(`  ${k.padEnd(16)} ${why}`)
+            }
+
+            const srcPath = requireExistingFile(
+                await p.ask('\nPercorso CSV corretto (file o cartella, anche con sottocartelle): '),
+                'CSV',
+            )
+            const files = collectCsvFiles(srcPath)
+            if (files.length === 0) { console.log('Nessun CSV trovato nel percorso indicato.'); return }
+            console.log(`\nFile CSV trovati: ${files.length}`)
+            for (const f of files.slice(0, 20)) console.log(`  - ${path.basename(f)}`)
+            if (files.length > 20) console.log(`  … e altri ${files.length - 20}`)
+
+            // Controllo layout: se la colonna non è quella attesa ce ne accorgiamo ora.
+            const sample = fieldFix.parseRawCsv(readCsvText(files[0])).slice(0, 2)
+            console.log(`\nControllo colonne su ${path.basename(files[0])} (${spec.hint}):`)
+            for (const row of sample) {
+                console.log(`  riga: ${JSON.stringify(row.slice(0, 10))}`)
+                console.log(`  -> ${spec.key} = ${JSON.stringify(fieldFix.csvValueFor(spec, row))}`)
+            }
+            if (!(await p.confirm(`Il valore letto per "${spec.key}" è corretto?`))) {
+                console.log('Annullato: controlla il layout delle colonne del CSV.')
+                return
+            }
+
+            const allowEmpty = await p.confirm(
+                'Scrivere NULL dove il CSV è vuoto? (No = quelle righe vengono saltate, consigliato)',
+            )
+
+            console.log('\nAnalisi (nessuna scrittura)…')
+            const analysis = await fieldFix.analyzeFieldFix(sb, files, spec, {
+                allowEmpty,
+                onFile: (file, rows) => console.log(`  ${file} -> ${rows} righe utili`),
+                onProgress: (done, total, changes) => {
+                    process.stdout.write(`\r  confronto ${done}/${total} - da aggiornare: ${changes}   `)
+                },
+            })
+            process.stdout.write('\n')
+            console.log(fixReport.formatFieldFixPreview(analysis))
+
+            if (analysis.changes.length === 0) { console.log('Nulla da fare.'); return }
+            if (analysis.conflictCount > 0) {
+                console.log(`Nota: i ${analysis.conflictCount} idboll discordanti fra file sono esclusi.`)
+            }
+
+            const outDir = path.resolve(__dirname, '../tmp')
+            const paths = fixReport.writeFixReports(outDir, spec, analysis.changes)
+            console.log(`Report scritti:\n  modifiche: ${paths.diff}\n  rollback:  ${paths.rollback}`)
+
+            if (!(await p.confirm(`Aggiornare ${analysis.changes.length} bollette sulla sola colonna "${spec.key}"?`))) {
+                console.log('Annullato. Nessuna scrittura eseguita (i report restano su tmp/).')
+                return
+            }
+
+            const res = await fieldFix.applyFieldFix(sb, spec, analysis.changes, (g, tot, up) => {
+                process.stdout.write(`\r  ${g}/${tot} valori distinti - righe aggiornate: ${up}   `)
+            })
+            process.stdout.write('\n')
+            console.log(`\nFatto. Righe aggiornate: ${res.updated}, errori: ${res.errors.length}`)
+            if (res.errors.length) console.log(res.errors.slice(0, 20).join('\n'))
+            console.log(`\nPer annullare: npm run fix:field -- --restore "${paths.rollback}" --apply`)
         }
     } finally {
         p.close()
