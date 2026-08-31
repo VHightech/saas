@@ -373,22 +373,35 @@ export function SuppliesCarousel({ supplies, selectedUlm, setSelectedUlm, supply
                                                     {s.city}
                                                 </p>
                                             )}
+                                        </div>
+                                        {/* Riga in fondo: ULM a sinistra, email della fornitura a
+                                            destra. L'email sta qui e non sotto l'indirizzo perche' la
+                                            card ha altezza fissa: una riga in piu' spingeva il badge
+                                            ULM fuori dal bordo (overflow-hidden lo tagliava). */}
+                                        <div className="mt-auto z-10 flex items-center justify-between gap-2">
+                                            <div className="relative h-7 shrink-0">
+                                                {/* ULM inattivo — resta nel flusso, e' lui a dare la larghezza alla pila */}
+                                                <div style={{ opacity: 1 - progress, pointerEvents: progress > 0.5 ? 'none' : 'auto' }}>
+                                                    <CodeBadge value={s.codice_ulm || (s.cif ? String(s.cif).slice(-6) : s.ulm)} label="ULM" copyable light={false} />
+                                                </div>
+                                                {/* ULM attivo — sovrapposto, per la dissolvenza */}
+                                                <div className="absolute inset-0" style={{ opacity: progress, pointerEvents: progress <= 0.5 ? 'none' : 'auto' }}>
+                                                    <CodeBadge value={s.codice_ulm || (s.cif ? String(s.cif).slice(-6) : s.ulm)} label="ULM" copyable light={true} />
+                                                </div>
+                                            </div>
+
                                             {s.email && (
-                                                <p className="flex items-center gap-1 text-[10px] font-medium opacity-70 truncate mt-0.5" title={`Email fornitura: ${s.email}`}>
+                                                <p
+                                                    className="flex items-center gap-1 min-w-0 text-[10px] font-medium opacity-70"
+                                                    title={`Email fornitura: ${s.email}`}
+                                                    style={{
+                                                        color: `color-mix(in srgb, currentColor, #ffffff ${progress * 100}%)`
+                                                    }}
+                                                >
                                                     <Mail size={10} className="shrink-0" />
                                                     <span className="truncate">{s.email}</span>
                                                 </p>
                                             )}
-                                        </div>
-                                        <div className="relative mt-auto z-10 h-7">
-                                            {/* Inactive ULM */}
-                                            <div className="absolute inset-0" style={{ opacity: 1 - progress, pointerEvents: progress > 0.5 ? 'none' : 'auto' }}>
-                                                <CodeBadge value={s.codice_ulm || (s.cif ? String(s.cif).slice(-6) : s.ulm)} label="ULM" copyable light={false} />
-                                            </div>
-                                            {/* Active ULM */}
-                                            <div className="absolute inset-0" style={{ opacity: progress, pointerEvents: progress <= 0.5 ? 'none' : 'auto' }}>
-                                                <CodeBadge value={s.codice_ulm || (s.cif ? String(s.cif).slice(-6) : s.ulm)} label="ULM" copyable light={true} />
-                                            </div>
                                         </div>
 
                                         <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl" style={{ opacity: progress }}>
