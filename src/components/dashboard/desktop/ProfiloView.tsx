@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail, FileText, Smartphone, Home as HomeIcon, Building2, ChevronRight, KeyRound, Download, ShieldCheck, ChevronDown } from 'lucide-react'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
+import { useSidebarPin, sidebarMainOffset } from '@/components/dashboard/desktop/use-sidebar-pin'
 import { MobileProfilo } from '@/components/dashboard/mobile/MobileProfilo'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -24,6 +25,8 @@ interface ProfiloViewProps {
 }
 
 export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps) {
+    // Barra laterale bloccata aperta: il contenuto si sposta con lei.
+    const { pinned } = useSidebarPin()
     const router = useRouter()
     const supabase = createClient()
 
@@ -57,7 +60,7 @@ export function ProfiloView({ profile, supplies = [], stats }: ProfiloViewProps)
             <div className="hidden lg:block h-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0F1115]">
                 <DesktopSidebar />
 
-                <main className="ml-20 h-full overflow-y-auto custom-scrollbar">
+                <main className={cn(sidebarMainOffset(pinned), "h-full overflow-y-auto custom-scrollbar")}>
                     <div className="max-w-[1440px] mx-auto p-8 space-y-6">
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Account</p>

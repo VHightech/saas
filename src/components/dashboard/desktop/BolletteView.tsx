@@ -7,6 +7,7 @@ import { billingTypeDisplay, DASHBOARD_TONE_CLASS } from '@/lib/billing-type'
 import { formatEuro as formatEuroBase, monthYear } from '@/lib/format'
 import { buildYearlyChartData, availableBillYears } from '@/lib/bill-chart'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
+import { useSidebarPin, sidebarMainOffset } from '@/components/dashboard/desktop/use-sidebar-pin'
 import { RangeCalendar } from '@/components/dashboard/desktop/bollette/RangeCalendar'
 import { YearlyConsumoChart } from '@/components/dashboard/desktop/bollette/YearlyConsumoChart'
 import { SuppliesCarousel } from '@/components/dashboard/desktop/bollette/SuppliesCarousel'
@@ -27,6 +28,8 @@ interface BolletteViewProps {
 type StatusFilter = 'all' | 'paid' | 'unpaid'
 
 export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], profile }: BolletteViewProps) {
+    // Barra laterale bloccata aperta: il contenuto si sposta con lei.
+    const { pinned } = useSidebarPin()
     const bills = useMemo(() => rawBills.map((b: any) => ({
         ...b,
         ulm: b.ulm || (b.cif ? b.cif.toString().slice(-6) : '')
@@ -255,7 +258,7 @@ export function BolletteView({ bills: rawBills, supplies: rawSupplies = [], prof
             <div className="hidden lg:block min-h-screen bg-[#F8FAFC] dark:bg-[#0F1115]">
                 <DesktopSidebar />
 
-                <main className="ml-20 h-screen overflow-hidden flex flex-col">
+                <main className={cn(sidebarMainOffset(pinned), "h-screen overflow-hidden flex flex-col")}>
                     <div className="max-w-[1440px] w-full mx-auto flex-1 flex flex-col p-6 space-y-7 overflow-hidden">
                         <div className="shrink-0 space-y-5">
                         {/* TOP ROW: OVERVIEW + FORNITURE + GRAPHS (Condensed) */}

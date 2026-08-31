@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { TrendingUp, TrendingDown, Lightbulb } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
+import { useSidebarPin, sidebarMainOffset } from '@/components/dashboard/desktop/use-sidebar-pin'
 import { MobileConfronto } from '@/components/dashboard/mobile/MobileConfronto'
 import { ConsumoComparisonChart } from '@/components/dashboard/ConsumoComparisonChart'
 import { consumptionAdvice, consumptionAdviceText } from '@/lib/consumption-advice'
@@ -18,6 +19,8 @@ interface ConfrontoViewProps {
 }
 
 export function ConfrontoView({ bills, supplies = [] }: ConfrontoViewProps) {
+    // Barra laterale bloccata aperta: il contenuto si sposta con lei.
+    const { pinned } = useSidebarPin()
     // user_supplies has no `ulm` column — it's derived from the last 6 of `cif`
     // (matching bills.ulm, a generated column). Derive it here so the supply
     // filter actually matches bills (otherwise the page shows no data).
@@ -75,7 +78,7 @@ export function ConfrontoView({ bills, supplies = [] }: ConfrontoViewProps) {
             {/* DESKTOP */}
             <div className="hidden lg:block h-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0F1115]">
                 <DesktopSidebar />
-                <main className="ml-20 h-full overflow-y-auto custom-scrollbar">
+                <main className={cn(sidebarMainOffset(pinned), "h-full overflow-y-auto custom-scrollbar")}>
                     <div className="max-w-[1100px] mx-auto p-8 space-y-6">
                         <div>
                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Analisi</p>

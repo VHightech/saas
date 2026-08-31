@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { LayoutDashboard, BarChart3, User as UserIcon, LifeBuoy, LogOut, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, BarChart3, User as UserIcon, LifeBuoy, LogOut, Sun, Moon, Pin, PinOff } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { useSidebarPin } from '@/components/dashboard/desktop/use-sidebar-pin'
 
 interface NavEntry {
     key: string
@@ -51,11 +52,13 @@ export function DesktopSidebar() {
     const router = useRouter()
     const pathname = usePathname() || ''
     const supabase = createClient()
-    const [expanded, setExpanded] = useState(false)
+    const [hovered, setHovered] = useState(false)
+    const { mounted, pinned, togglePin } = useSidebarPin()
+    // Bloccata = sempre aperta. Altrimenti si apre al passaggio del mouse.
+    // Finche' non e' montata resta chiusa, come l'HTML servito dal server.
+    const expanded = mounted && (pinned || hovered)
     const { resolvedTheme, setTheme } = useTheme()
-    const [themeMounted, setThemeMounted] = useState(false)
-    useEffect(() => { setThemeMounted(true) }, [])
-    const isDark = themeMounted && resolvedTheme === 'dark'
+    const isDark = mounted && resolvedTheme === 'dark'
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
@@ -65,8 +68,8 @@ export function DesktopSidebar() {
 
     return (
         <aside
-            onMouseEnter={() => setExpanded(true)}
-            onMouseLeave={() => setExpanded(false)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             className={cn(
                 "hidden lg:flex fixed left-0 top-0 h-screen z-30 flex-col bg-white dark:bg-[#1A1D23] transition-[width] duration-300 ease-out border-r border-slate-100 dark:border-white/5 shadow-xl shadow-slate-200/30 dark:shadow-none",
                 expanded ? "w-60" : "w-20"
@@ -79,11 +82,33 @@ export function DesktopSidebar() {
                 </div>
                 <div className={cn(
                     "min-w-0 overflow-hidden transition-all duration-300 ease-out",
-                    expanded ? "w-40 opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-4 pointer-events-none"
+                    expanded ? "w-32 opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-4 pointer-events-none"
                 )}>
                     <p className="text-[13px] font-extrabold text-[#0A2540] dark:text-white leading-tight whitespace-nowrap">Acquambiente</p>
                     <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">Marche</p>
                 </div>
+
+                {/* Blocca/sblocca la barra aperta. Nascosto quando e' chiusa: a
+                    80px non c'e' spazio, e per premerlo si passa comunque col
+                    mouse, che la apre. */}
+                <button
+                    type="button"
+                    onClick={togglePin}
+                    aria-pressed={pinned}
+                    title={pinned ? 'Sblocca la barra laterale' : 'Blocca la barra laterale aperta'}
+                    className={cn(
+                        'ml-auto shrink-0 rounded-lg transition-all duration-300 ease-out',
+                        expanded ? 'p-1.5 opacity-100' : 'p-0 max-w-0 opacity-0 pointer-events-none',
+                        pinned
+                            ? 'bg-[#0A2540] text-white'
+                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-[#0A2540] dark:hover:text-white'
+                    )}
+                >
+                    {pinned ? <PinOff size={15} /> : <Pin size={15} />}
+                    <span className="sr-only">
+                        {pinned ? 'Sblocca la barra laterale' : 'Blocca la barra laterale aperta'}
+                    </span>
+                </button>
             </div>
 
             {/* Navigation Items */}

@@ -1,7 +1,9 @@
 'use client'
 
 import { Phone, Mail, Globe, MapPin, Clock, AlertTriangle, FileText, Droplets, Home as HomeIcon, Receipt } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { DesktopSidebar } from '@/components/dashboard/desktop/DesktopSidebar'
+import { useSidebarPin, sidebarMainOffset } from '@/components/dashboard/desktop/use-sidebar-pin'
 import { MobileSupporto } from '@/components/dashboard/mobile/MobileSupporto'
 
 const EMERGENCY_NUMBER = '800.213.911'
@@ -20,6 +22,8 @@ interface SupportoViewProps {
 }
 
 export function SupportoView({ firstName }: SupportoViewProps) {
+    // Barra laterale bloccata aperta: il contenuto si sposta con lei.
+    const { pinned } = useSidebarPin()
     return (
         <>
             {/* MOBILE */}
@@ -31,7 +35,7 @@ export function SupportoView({ firstName }: SupportoViewProps) {
             <div className="hidden lg:block h-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0F1115]">
                 <DesktopSidebar />
 
-                <main className="ml-20 h-full overflow-y-auto custom-scrollbar">
+                <main className={cn(sidebarMainOffset(pinned), "h-full overflow-y-auto custom-scrollbar")}>
                     <div className="max-w-[1440px] mx-auto p-8 space-y-6">
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Assistenza</p>
