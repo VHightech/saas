@@ -18,9 +18,7 @@
     "relink": "tsx scripts/relink-bills-from-r2.ts",
     "import": "tsx scripts/import-data.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/unit/import-helpers.test.ts tests/unit/field-fix.test.ts tests/unit/mailer-config.test.ts tests/unit/consumption-advice.test.ts",
-    "presentation": "node scripts/build-presentation.mjs",
-    "shots": "node scripts/capture-shots.mjs",
+    "manual:build": "node scripts/assemble_manual.mjs",
     "fix:consumo": "tsx scripts/fix-field-from-csv.ts --field consumo",
     "fix:field": "tsx scripts/fix-field-from-csv.ts",
     "mail:check": "tsx scripts/check-smtp.ts"

@@ -54,6 +54,46 @@ ${css}
 ${bodyHtml}
 </div>
 
+<script>
+    // Smooth scroll for chapter navigation chips
+    const chips = document.querySelectorAll('.nav-chip');
+    chips.forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            const targetId = chip.getAttribute('href');
+            if (targetId && targetId.startsWith('#')) {
+                e.preventDefault();
+                const el = document.querySelector(targetId);
+                if (el) {
+                    const offset = 130;
+                    const bodyRect = document.body.getBoundingClientRect().top;
+                    const elementRect = el.getBoundingClientRect().top;
+                    const elementPosition = elementRect - bodyRect;
+                    const offsetPosition = elementPosition - offset;
+                    window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                    chips.forEach(c => c.classList.remove('active'));
+                    chip.classList.add('active');
+                }
+            }
+        });
+    });
+
+    // Auto-highlight active chip on scroll
+    window.addEventListener('scroll', () => {
+        const sections = document.querySelectorAll('.chapter-card');
+        const scrollY = window.pageYOffset + 160;
+        sections.forEach(sec => {
+            const top = sec.offsetTop;
+            const height = sec.offsetHeight;
+            const id = sec.getAttribute('id');
+            if (id && scrollY >= top && scrollY < top + height) {
+                chips.forEach(c => {
+                    c.classList.toggle('active', c.getAttribute('href') === '#' + id);
+                });
+            }
+        });
+    });
+</script>
+
 </body>
 </html>
 `
