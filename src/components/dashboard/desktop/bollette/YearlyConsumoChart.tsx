@@ -52,7 +52,7 @@ export function YearlyConsumoChart({ data, years, selectedYear, onSelectYear, fo
             <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="min-w-0">
                     <p className="text-[9px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">
-                        Spesa &amp; consumo mensile
+                        Spesa &amp; consumo annuale
                     </p>
                     <div className="flex items-baseline gap-2 flex-wrap">
                         <h3 className="text-2xl font-bold text-[#0A2540] dark:text-white tracking-tight leading-none">
