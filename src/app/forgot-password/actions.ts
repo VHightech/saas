@@ -42,14 +42,13 @@ async function resolveEmailFromIdentifier(identifier: string): Promise<string | 
 
     const supabaseAdmin = createAdminClient()
 
-    for (const column of ['cif', 'codice_cliente', 'username'] as const) {
-        const { data } = await supabaseAdmin
-            .from('profiles')
-            .select('email')
-            .eq(column, clean)
-            .maybeSingle()
-        if (data?.email) return data.email.trim()
-    }
+    const { data } = await supabaseAdmin
+        .from('profiles')
+        .select('email')
+        .eq('codice_cliente', clean)
+        .maybeSingle()
+
+    if (data?.email) return data.email.trim()
 
     return null
 }
